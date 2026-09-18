@@ -1,0 +1,10 @@
+# Local-only notes (spike findings, personal decisions)
+docs/decisions.md
+
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local state (personal data — never commit)
+*.state.json
