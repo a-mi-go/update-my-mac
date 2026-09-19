@@ -12,6 +12,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = REPO_ROOT / "update"
 LAUNCHD_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+# Kept in step with the prefixes the launcher adds to PATH.
+PREFIXES = ("/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin")
 
 
 def run_launcher(*args, home, env=None, path=LAUNCHD_PATH):
@@ -42,8 +44,8 @@ def test_stub_mode_exits_non_zero(launchd_home, uv_env):
 
 
 @pytest.mark.skipif(
-    any(Path(p, "uv").exists() for p in ("/opt/homebrew/bin", "/usr/local/bin")),
-    reason="uv lives in a Homebrew prefix, which the launcher always finds",
+    any(Path(p, "uv").exists() for p in PREFIXES),
+    reason="uv lives in a prefix the launcher always finds",
 )
 def test_missing_uv_fails_instead_of_prompting(tmp_path):
     # stdin is closed, so if the launcher ever prompts here it hangs and the
