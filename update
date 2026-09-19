@@ -40,4 +40,5 @@ fi
 
 # --frozen keeps uv from re-resolving; it does not make this offline, since a
 # first run still downloads Python and the locked dependencies into the cache.
-exec uv run --frozen --project "$SCRIPT_DIR" update "$@"
+# --no-dev keeps the test dependencies out of an ordinary user's environment.
+exec uv run --frozen --no-dev --project "$SCRIPT_DIR" update "$@"
