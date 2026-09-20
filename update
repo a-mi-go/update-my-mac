@@ -12,6 +12,10 @@ for prefix in /opt/homebrew /usr/local /opt/local; do
   [ -d "$prefix/bin" ] && PATH="$prefix/bin:$prefix/sbin:$PATH"
 done
 PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+# pnpm refuses to do anything unless its own global bin directory is on PATH,
+# and it is a login shell that normally puts it there.
+export PNPM_HOME="${PNPM_HOME:-$HOME/Library/pnpm}"
+PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
 export PATH
 
 if ! command -v uv &>/dev/null; then

@@ -4,6 +4,7 @@ depends on a login shell exists.
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -53,3 +54,34 @@ def test_missing_uv_fails_instead_of_prompting(tmp_path):
     result = run_launcher("--version", home=tmp_path, path=str(tmp_path))
     assert result.returncode == 1
     assert "uv" in result.stderr
+
+
+def test_every_manager_is_reachable_from_a_launchd_environment(tmp_path, uv_cache_env):
+    """The launcher has to find the managers where each one actually lives.
+
+    pnpm is the reason this exists: it refuses to run unless its own global bin
+    directory is on PATH, which a login shell would normally have done.
+    """
+    home = tmp_path / "home"
+    local_bin = home / ".local" / "bin"
+    pnpm_bin = home / "Library" / "pnpm" / "bin"
+    local_bin.mkdir(parents=True)
+    pnpm_bin.mkdir(parents=True)
+
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is not installed")
+    (local_bin / "uv").symlink_to(uv)
+
+    mocks = Path(__file__).parent / "mocks"
+    # Placed ahead of the real tools by the launcher's own PATH order.
+    for tool in ("brew", "mas", "npm"):
+        shutil.copy(mocks / tool, local_bin / tool)
+    shutil.copy(mocks / "pnpm", pnpm_bin / "pnpm")
+
+    env = dict(uv_cache_env, MOCK_FIXTURES=str(Path(__file__).parent / "fixtures" / "clean"))
+    result = run_launcher("--check", home=home, env=env)
+
+    assert result.returncode == 0, result.stderr
+    for label in ("Mac App Store", "Homebrew", "npm (global)", "pnpm (global)"):
+        assert label in result.stdout
