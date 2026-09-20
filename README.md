@@ -58,6 +58,9 @@ git clone https://github.com/a-mi-go/update-my-mac.git
 ln -s "$PWD/update-my-mac/update" ~/.local/bin/update
 ```
 
+Any directory on your `PATH` works. The launcher follows the symlink back to the
+clone, so `update` runs from anywhere and a `git pull` updates the command.
+
 `update` is a small bash launcher, not the Python program itself. It builds a
 `PATH` containing the tools being queried, makes sure [uv](https://astral.sh/uv)
 is installed — asking first, then using Homebrew if you have it and the official
