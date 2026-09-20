@@ -74,18 +74,20 @@ class PackageManager:
     label: str
     command: str
     outdated_args: tuple
+    upgrade_args: tuple = ()
     parse_output: object = nonblank_lines
     success_exit_codes: tuple = (0,)
     extra_env: dict = field(default_factory=dict)
 
 
 MANAGERS = (
-    PackageManager("mas", "Mac App Store", "mas", ("outdated",)),
+    PackageManager("mas", "Mac App Store", "mas", ("outdated",), ("upgrade",)),
     PackageManager(
         "brew",
         "Homebrew",
         "brew",
         ("outdated",),
+        ("upgrade",),
         # A scheduled run should report against what Homebrew already knows
         # rather than pulling a new index first.
         extra_env={"HOMEBREW_NO_AUTO_UPDATE": "1"},
@@ -95,6 +97,7 @@ MANAGERS = (
         "npm (global)",
         "npm",
         ("outdated", "-g", "--json"),
+        ("update", "-g"),
         parse_npm_outdated,
         (0, 1),
     ),
@@ -103,6 +106,7 @@ MANAGERS = (
         "pnpm (global)",
         "pnpm",
         ("outdated", "-g", "--json"),
+        ("update", "-g"),
         parse_pnpm_outdated,
         (0, 1),
     ),
@@ -141,3 +145,21 @@ def check_for_outdated(manager, shell):
 def check_installed(shell, managers=MANAGERS):
     reports = (check_for_outdated(manager, shell) for manager in managers)
     return [report for report in reports if report is not None]
+
+
+def upgrade(manager, shell):
+    """Run a manager's upgrade command with the terminal attached."""
+    if not manager.upgrade_args:
+        # Otherwise a registry entry that forgot them runs the bare command.
+        return -1
+
+    executable = shell.find_executable(manager.command)
+    if executable is None:
+        return -1
+
+    env = dict(os.environ, **manager.extra_env) if manager.extra_env else None
+    return shell.stream_command([executable, *manager.upgrade_args], env)
+
+
+def by_key(key, managers=MANAGERS):
+    return next(manager for manager in managers if manager.key == key)

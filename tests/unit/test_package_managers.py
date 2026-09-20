@@ -154,3 +154,11 @@ def test_only_homebrew_gets_an_environment_override():
             assert env["HOMEBREW_NO_AUTO_UPDATE"] == "1"
         else:
             assert env is None
+
+
+def test_a_manager_without_upgrade_arguments_is_not_run():
+    shell = FakeShell(installed=("brew",), result=CommandResult(True, "", ""))
+    shell.stream_command = lambda args, env=None: 0
+    entry = package_managers.PackageManager("x", "X", "brew", ("outdated",))
+
+    assert package_managers.upgrade(entry, shell) == -1

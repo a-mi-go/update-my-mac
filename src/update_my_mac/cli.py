@@ -46,8 +46,8 @@ def main(argv=None):
     elif args.retry_app:
         mode = "--retry-app"
     else:
-        mode = "interactive"
+        return app.run_interactive_mode()
 
-    # Exit non-zero so a scaffold run can't be mistaken for "nothing to update".
+    # Exit non-zero so a stub run can't be mistaken for "nothing to update".
     print(f"update-my-mac: {mode} mode is not implemented yet.")
     return 1

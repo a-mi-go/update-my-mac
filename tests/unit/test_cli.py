@@ -29,6 +29,6 @@ def test_modes_are_mutually_exclusive(capsys):
 
 
 def test_unimplemented_modes_exit_non_zero(capsys):
-    for argv in ([], ["--background"], ["--retry-app"]):
+    for argv in (["--background"], ["--retry-app"]):
         assert main(argv) == 1
         assert "not implemented yet" in capsys.readouterr().out

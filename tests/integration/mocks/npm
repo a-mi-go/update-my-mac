@@ -1,7 +1,15 @@
 #!/bin/bash
-# Stands in for a package manager. Prints the fixture for this scenario and
-# exits with the code the real tool would use.
+# Stands in for a package manager: prints the fixture for this scenario, and
+# records what it was asked to do so tests can assert on upgrades.
 name=$(basename "$0")
+[ -n "${MOCK_LOG:-}" ] && echo "$name $*" >> "$MOCK_LOG"
+
+if [ "$1" != "outdated" ]; then
+  fail="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/upgrade.exit"
+  [ -f "$fail" ] && exit "$(cat "$fail")"
+  exit 0
+fi
+
 base="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/$name"
 [ -f "$base.txt" ] && cat "$base.txt"
 [ -f "$base.exit" ] && exit "$(cat "$base.exit")"
