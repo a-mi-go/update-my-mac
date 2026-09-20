@@ -1,6 +1,7 @@
 """Turning check results into something readable."""
 
 from rich.console import Console
+from rich.markup import escape
 
 
 def count_outdated_packages(reports):
@@ -18,8 +19,9 @@ def print_outdated_summary(reports, console=None):
 
     for report in reports:
         if report.error_message:
+            # The message comes from another tool, so brackets in it are text.
             console.print(
-                f"[yellow]{report.label}: check failed[/] — {report.error_message}"
+                f"[yellow]{report.label}: check failed[/] — {escape(report.error_message)}"
             )
         elif report.outdated_packages:
             count = len(report.outdated_packages)

@@ -63,7 +63,8 @@ def test_managers_that_are_not_installed_are_skipped(tmp_path):
 def test_a_failing_manager_is_reported_as_failed_not_outdated():
     # npm exits 1 for a registry failure exactly as it does for updates found.
     result = run_check_against_mocks("npm_failure")
-    assert result.returncode == 0, result.stderr
+    # Non-zero so a scheduled run can tell "nothing outdated" from "did not run".
+    assert result.returncode == 1
     assert "npm (global): check failed" in result.stdout
     assert "ENOTFOUND" in result.stdout
     # A failed check must not be summarised as everything being fine.
