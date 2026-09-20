@@ -18,5 +18,5 @@ def run_check_mode():
 def run_interactive_mode():
     reports = package_managers.check_installed(shell)
     report.print_outdated_summary(reports)
-    apply_updates.run_upgrade_menu(reports, shell)
-    return _exit_code(reports)
+    failed = apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(reports)

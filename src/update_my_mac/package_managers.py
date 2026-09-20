@@ -149,6 +149,10 @@ def check_installed(shell, managers=MANAGERS):
 
 def upgrade(manager, shell):
     """Run a manager's upgrade command with the terminal attached."""
+    if not manager.upgrade_args:
+        # Otherwise a registry entry that forgot them runs the bare command.
+        return -1
+
     executable = shell.find_executable(manager.command)
     if executable is None:
         return -1

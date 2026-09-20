@@ -5,6 +5,8 @@ name=$(basename "$0")
 [ -n "${MOCK_LOG:-}" ] && echo "$name $*" >> "$MOCK_LOG"
 
 if [ "$1" != "outdated" ]; then
+  fail="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/upgrade.exit"
+  [ -f "$fail" ] && exit "$(cat "$fail")"
   exit 0
 fi
 

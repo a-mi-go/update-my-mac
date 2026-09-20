@@ -72,3 +72,20 @@ def test_nothing_outdated_means_no_menu(tmp_path):
     assert "What should be upgraded?" not in result.stdout
     assert "Everything is up to date" in result.stdout
     assert [line for line in logged(log) if "outdated" not in line] == []
+
+
+def test_no_answer_on_stdin_cancels(tmp_path):
+    log = tmp_path / "calls.log"
+    result = run_interactively("", log=log)
+
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+    assert [line for line in logged(log) if "outdated" not in line] == []
+
+
+def test_a_failed_upgrade_exits_non_zero(tmp_path):
+    log = tmp_path / "calls.log"
+    result = run_interactively("1\n", scenario="upgrade_failure", log=log)
+
+    assert result.returncode == 1
+    assert "exited with 7" in result.stdout
