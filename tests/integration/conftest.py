@@ -25,7 +25,7 @@ def launchd_home(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def uv_env():
+def uv_cache_env():
     # Without these, uv treats the temporary HOME as a fresh machine and
     # re-downloads the interpreter and every dependency.
     real_home = Path(os.environ["HOME"])

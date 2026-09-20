@@ -31,14 +31,14 @@ def test_launcher_is_executable():
     assert os.access(LAUNCHER, os.X_OK)
 
 
-def test_version_under_launchd_path(launchd_home, uv_env):
-    result = run_launcher("--version", home=launchd_home, env=uv_env)
+def test_version_under_launchd_path(launchd_home, uv_cache_env):
+    result = run_launcher("--version", home=launchd_home, env=uv_cache_env)
     assert result.returncode == 0, result.stderr
     assert "update-my-mac" in result.stdout
 
 
-def test_stub_mode_exits_non_zero(launchd_home, uv_env):
-    result = run_launcher("--check", home=launchd_home, env=uv_env)
+def test_stub_mode_exits_non_zero(launchd_home, uv_cache_env):
+    result = run_launcher("--check", home=launchd_home, env=uv_cache_env)
     assert result.returncode == 1, result.stderr
     assert "not implemented yet" in result.stdout
 
