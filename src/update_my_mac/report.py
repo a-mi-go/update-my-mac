@@ -30,8 +30,11 @@ def print_outdated_summary(reports, console=None):
             console.print(f"[green]{report.label}[/]: up to date")
 
     total = count_outdated_packages(reports)
+    failures = sum(1 for report in reports if report.error_message)
     console.print()
     if total:
         console.print(f"[bold]{total}[/] outdated in total.")
+    elif failures:
+        console.print("Nothing outdated in the checks that ran.")
     else:
         console.print("Everything is up to date.")
