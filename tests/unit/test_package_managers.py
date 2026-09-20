@@ -131,3 +131,26 @@ def test_silent_zero_exit_really_is_up_to_date():
     assert report.outdated_packages == []
     assert report.error_message == ""
 
+def test_each_manager_is_asked_the_right_question():
+    asked = {}
+    for entry in package_managers.MANAGERS:
+        shell = FakeShell(installed=(entry.command,), result=CommandResult(True, "{}", ""))
+        package_managers.check_for_outdated(entry, shell)
+        args, env = shell.calls[0]
+        asked[entry.key] = (args, env)
+
+    assert asked["brew"][0] == ["/fake/brew", "outdated"]
+    assert asked["mas"][0] == ["/fake/mas", "outdated"]
+    assert asked["npm"][0] == ["/fake/npm", "outdated", "-g", "--json"]
+    assert asked["pnpm"][0] == ["/fake/pnpm", "outdated", "-g", "--json"]
+
+
+def test_only_homebrew_gets_an_environment_override():
+    for entry in package_managers.MANAGERS:
+        shell = FakeShell(installed=(entry.command,), result=CommandResult(True, "{}", ""))
+        package_managers.check_for_outdated(entry, shell)
+        _, env = shell.calls[0]
+        if entry.key == "brew":
+            assert env["HOMEBREW_NO_AUTO_UPDATE"] == "1"
+        else:
+            assert env is None
