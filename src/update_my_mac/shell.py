@@ -10,6 +10,7 @@ class CommandResult:
     success: bool
     stdout: str
     stderr: str
+    exit_code: int = 0
 
 
 def find_executable(command):
@@ -35,10 +36,11 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
             env=env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return CommandResult(False, "", str(exc))
+        return CommandResult(False, "", str(exc), -1)
 
     return CommandResult(
         proc.returncode in success_exit_codes,
         proc.stdout.strip(),
         proc.stderr.strip(),
+        proc.returncode,
     )

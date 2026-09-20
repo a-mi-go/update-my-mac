@@ -109,3 +109,25 @@ def test_brew_runs_without_an_auto_update():
 def test_check_installed_skips_everything_that_is_missing():
     shell = FakeShell(installed=(), result=CommandResult(True, "", ""))
     assert package_managers.check_installed(shell) == []
+
+
+def test_silent_nonzero_exit_is_a_failure_not_up_to_date():
+    # npm exits 1 both for "updates found" and for failures it doesn't phrase
+    # as JSON; without output there is nothing to call up to date.
+    shell = FakeShell(
+        installed=("npm",),
+        result=CommandResult(True, "", "npm error code E401", exit_code=1),
+    )
+
+    report = package_managers.check_for_outdated(manager("npm"), shell)
+    assert report.outdated_packages == []
+    assert "E401" in report.error_message
+
+
+def test_silent_zero_exit_really_is_up_to_date():
+    shell = FakeShell(installed=("mas",), result=CommandResult(True, "", ""))
+
+    report = package_managers.check_for_outdated(manager("mas"), shell)
+    assert report.outdated_packages == []
+    assert report.error_message == ""
+

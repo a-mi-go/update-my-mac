@@ -124,6 +124,13 @@ def check_for_outdated(manager, shell):
             manager.key, manager.label, [], result.stderr or result.stdout
         )
 
+    # A tolerated non-zero exit means "updates found", and that answer has to
+    # look like one. Silence plus an exit code is a failure the tool didn't
+    # bother to phrase as JSON.
+    if result.exit_code != 0 and not result.stdout:
+        message = result.stderr or f"exited {result.exit_code} without output"
+        return ManagerReport(manager.key, manager.label, [], message)
+
     try:
         packages = manager.parse_output(result.stdout)
     except CheckFailed as failure:
