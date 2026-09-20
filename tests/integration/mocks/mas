@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stands in for a package manager. Prints the fixture for this scenario and
+# exits with the code the real tool would use.
+name=$(basename "$0")
+base="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/$name"
+[ -f "$base.txt" ] && cat "$base.txt"
+[ -f "$base.exit" ] && exit "$(cat "$base.exit")"
+exit 0

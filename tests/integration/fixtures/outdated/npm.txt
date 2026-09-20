@@ -1,0 +1,2 @@
+Package  Current  Wanted  Latest  Location
+typescript  5.4.2  5.4.5  5.4.5  global
