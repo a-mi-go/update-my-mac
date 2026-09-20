@@ -2,8 +2,13 @@
 to read the answer. Adding a manager means adding an entry here.
 """
 
+import json
 import os
 from dataclasses import dataclass, field
+
+
+class CheckFailed(Exception):
+    """The manager ran but its answer says something went wrong."""
 
 
 @dataclass
@@ -18,26 +23,49 @@ def nonblank_lines(output):
     return [line for line in output.splitlines() if line.strip()]
 
 
-def parse_npm_outdated(output):
-    # npm prints a table with a "Package Current Wanted Latest" header.
-    lines = nonblank_lines(output)
-    if lines and lines[0].split()[:2] == ["Package", "Current"]:
-        lines = lines[1:]
-    return lines
+def parse_npm_outdated(stdout):
+    """Read `npm outdated -g --json`.
+
+    npm exits 1 both when it finds updates and when it fails, so the exit code
+    alone cannot tell those apart. The JSON can: a failure carries an "error"
+    key instead of packages.
+    """
+    return _parse_json_packages(stdout)
 
 
-def parse_pnpm_outdated(output):
-    if "Everything up-to-date" in output:
+def parse_pnpm_outdated(stdout):
+    return _parse_json_packages(stdout)
+
+
+def _describe_error(error):
+    if not isinstance(error, dict):
+        return str(error)
+    # The code alone is cryptic and the summary alone loses the category.
+    described = " — ".join(part for part in (error.get("code"), error.get("summary")) if part)
+    return described or str(error)
+
+
+def _parse_json_packages(stdout):
+    if not stdout:
         return []
-    # pnpm draws a box: drop the rules, then the header row they framed.
-    rows = [
-        line.strip("│ ")
-        for line in nonblank_lines(output)
-        if line.strip("│├─┤┬┴┼└┘┌┐ ")
-    ]
-    if rows and rows[0].startswith("Package"):
-        rows = rows[1:]
-    return rows
+
+    try:
+        data = json.loads(stdout)
+    except ValueError:
+        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
+
+    if not isinstance(data, dict):
+        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
+
+    if "error" in data:
+        raise CheckFailed(_describe_error(data["error"]))
+
+    packages = []
+    for name, info in sorted(data.items()):
+        current = info.get("current", "?") if isinstance(info, dict) else "?"
+        latest = info.get("latest", "?") if isinstance(info, dict) else "?"
+        packages.append(f"{name}  {current} → {latest}")
+    return packages
 
 
 @dataclass(frozen=True)
@@ -63,10 +91,20 @@ MANAGERS = (
         extra_env={"HOMEBREW_NO_AUTO_UPDATE": "1"},
     ),
     PackageManager(
-        "npm", "npm (global)", "npm", ("outdated", "-g"), parse_npm_outdated, (0, 1)
+        "npm",
+        "npm (global)",
+        "npm",
+        ("outdated", "-g", "--json"),
+        parse_npm_outdated,
+        (0, 1),
     ),
     PackageManager(
-        "pnpm", "pnpm (global)", "pnpm", ("outdated", "-g"), parse_pnpm_outdated, (0, 1)
+        "pnpm",
+        "pnpm (global)",
+        "pnpm",
+        ("outdated", "-g", "--json"),
+        parse_pnpm_outdated,
+        (0, 1),
     ),
 )
 
@@ -82,10 +120,15 @@ def check_for_outdated(manager, shell):
         [executable, *manager.outdated_args], manager.success_exit_codes, env
     )
     if not result.success:
-        return ManagerReport(manager.key, manager.label, [], result.output)
-    return ManagerReport(
-        manager.key, manager.label, manager.parse_output(result.output)
-    )
+        return ManagerReport(
+            manager.key, manager.label, [], result.stderr or result.stdout
+        )
+
+    try:
+        packages = manager.parse_output(result.stdout)
+    except CheckFailed as failure:
+        return ManagerReport(manager.key, manager.label, [], str(failure))
+    return ManagerReport(manager.key, manager.label, packages)
 
 
 def check_installed(shell, managers=MANAGERS):
