@@ -23,3 +23,6 @@ jobs:
         run: uv run --frozen pytest -q
       - name: Check the package builds
         run: uv build --no-sources
+      - name: Lint the launcher
+        if: runner.os == 'Linux'
+        run: shellcheck update

@@ -8,10 +8,10 @@ Those last ones are the interesting case. No package manager tracks them, so
 they go stale silently. `update-my-mac` finds them and offers to start tracking
 them, so they stop being invisible.
 
-> **Status: scaffolding.** Only the bootstrap, `--help` and `--version` do
-> anything today. Every mode below is a stub that prints a notice and exits 1 —
-> nothing is checked, and nothing is updated. The modes are being built one at a
-> time.
+> **Status: in progress.** `--check` works for mas, Homebrew, npm and pnpm.
+> The remaining sources in the table below, the untracked-app discovery and
+> applying updates are still being built; `--background` and `--retry-app` are
+> stubs that exit 1.
 
 ## Usage
 
@@ -27,17 +27,17 @@ update --retry-app    # revisit apps you previously chose not to track
 Whatever you have. Each source is skipped when its command is not installed, so
 none of these is a requirement:
 
-| Source | Checked with |
-| --- | --- |
-| macOS | `softwareupdate` |
-| Mac App Store | `mas` |
-| Homebrew | `brew` (formulae and casks) |
-| MacPorts | `port` |
-| JavaScript | global `npm`, `pnpm`, `yarn`, `bun` packages |
-| Python | `uv tool`, `pipx` |
-| Ruby | `gem` |
-| Rust | `cargo` |
-| Directly downloaded apps | app bundle versions |
+| Source | Checked with | |
+| --- | --- | --- |
+| Mac App Store | `mas` | ✅ |
+| Homebrew | `brew` (formulae and casks) | ✅ formulae |
+| JavaScript | global `npm`, `pnpm`, `yarn`, `bun` packages | ✅ npm, pnpm |
+| macOS | `softwareupdate` | planned |
+| MacPorts | `port` | planned |
+| Python | `uv tool`, `pipx` | planned |
+| Ruby | `gem` | planned |
+| Rust | `cargo` | planned |
+| Directly downloaded apps | app bundle versions | planned |
 
 ## Tracking a downloaded app
 
@@ -76,9 +76,8 @@ uv run pytest
 Tests come in two layers, both run by CI on macOS and Linux:
 
 - `tests/unit/` — pure logic, no mocking and no subprocesses.
-- `tests/integration/` — drives the real CLI through the `update` launcher.
-  Currently one launcher test; the fake package-manager binaries arrive with the
-  checks that need them.
+- `tests/integration/` — runs the real CLI against fake package managers that
+  sit alone on `PATH`, plus the launcher under launchd's environment.
 
 ## License
 
