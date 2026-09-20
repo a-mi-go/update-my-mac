@@ -3,7 +3,20 @@
 # count on, then gets out of the way.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Even dirname and readlink below need somewhere to be found; a caller can
+# hand us a PATH without them.
+PATH="${PATH:-}:/usr/bin:/bin:/usr/sbin:/sbin"
+
+# Follow symlinks: this is normally reached through one in ~/.local/bin, and
+# the project lives where the real file is. Without this, uv runs outside the
+# project and re-runs whatever `update` it finds on PATH — this symlink.
+source="${BASH_SOURCE[0]}"
+while [ -L "$source" ]; do
+  link_dir="$(cd -P "$(dirname "$source")" && pwd)"
+  source="$(readlink "$source")"
+  [[ "$source" != /* ]] && source="$link_dir/$source"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$source")" && pwd)"
 
 # launchd hands a job PATH=/usr/bin:/bin:/usr/sbin:/sbin, where none of the
 # package managers can be found, so build the PATH here rather than trusting

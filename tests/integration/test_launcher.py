@@ -85,3 +85,28 @@ def test_every_manager_is_reachable_from_a_launchd_environment(tmp_path, uv_cach
     assert result.returncode == 0, result.stderr
     for label in ("Mac App Store", "Homebrew", "npm (global)", "pnpm (global)"):
         assert label in result.stdout
+
+
+def test_works_through_a_symlink(tmp_path, launchd_home, uv_cache_env):
+    """The documented install is a symlink into ~/.local/bin.
+
+    The launcher has to find the project from the real file's location; if it
+    looks next to the symlink instead, uv runs outside the project and re-runs
+    the first `update` on PATH, which is the symlink.
+    """
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "update").symlink_to(LAUNCHER)
+
+    result = subprocess.run(
+        [str(bin_dir / "update"), "--version"],
+        env={"PATH": f"{bin_dir}:{LAUNCHD_PATH}", "HOME": str(launchd_home), **uv_cache_env},
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "update-my-mac" in result.stdout
+    assert "recursively invoked" not in result.stderr
