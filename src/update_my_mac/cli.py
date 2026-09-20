@@ -2,7 +2,7 @@
 
 import argparse
 
-from update_my_mac import __version__, app
+from update_my_mac import __version__, app, environment
 
 
 def build_argument_parser():
@@ -37,6 +37,7 @@ def build_argument_parser():
 
 def main(argv=None):
     args = build_argument_parser().parse_args(argv)
+    environment.prepare()
 
     if args.check:
         return app.run_check_mode()
