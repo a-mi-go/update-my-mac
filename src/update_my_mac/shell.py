@@ -44,3 +44,16 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
         proc.stderr.strip(),
         proc.returncode,
     )
+
+
+def stream_command(args, env=None):
+    """Run a command with the terminal attached, returning its exit code.
+
+    Upgrades are not captured: brew and mas may ask for a password, and a
+    prompt needs the real terminal to be readable. It also means a long
+    download shows progress as it happens.
+    """
+    try:
+        return subprocess.run(args, env=env).returncode
+    except (OSError, subprocess.SubprocessError):
+        return -1
