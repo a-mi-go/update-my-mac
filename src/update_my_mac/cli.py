@@ -2,10 +2,10 @@
 
 import argparse
 
-from update_my_mac import __version__
+from update_my_mac import __version__, app
 
 
-def build_parser():
+def build_argument_parser():
     parser = argparse.ArgumentParser(
         prog="update",
         description="Check and apply macOS updates across every source you use.",
@@ -36,11 +36,12 @@ def build_parser():
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    args = build_argument_parser().parse_args(argv)
 
     if args.check:
-        mode = "--check"
-    elif args.background:
+        return app.run_check_mode()
+
+    if args.background:
         mode = "--background"
     elif args.retry_app:
         mode = "--retry-app"

@@ -38,7 +38,7 @@ def test_version_under_launchd_path(launchd_home, uv_cache_env):
 
 
 def test_stub_mode_exits_non_zero(launchd_home, uv_cache_env):
-    result = run_launcher("--check", home=launchd_home, env=uv_cache_env)
+    result = run_launcher("--retry-app", home=launchd_home, env=uv_cache_env)
     assert result.returncode == 1, result.stderr
     assert "not implemented yet" in result.stdout
 
