@@ -43,17 +43,28 @@ def print_menu(keys, console):
 
 
 def upgrade_managers(keys, shell, console):
-    """Upgrade each manager in turn, reporting any that exit badly."""
+    """Upgrade each manager in turn. Returns the ones that exited badly."""
+    failed = []
     for key in keys:
         manager = package_managers.by_key(key)
         console.print(f"\n[bold]Upgrading {manager.label}[/]")
-        exit_code = package_managers.upgrade(manager, shell)
+        try:
+            exit_code = package_managers.upgrade(manager, shell)
+        except KeyboardInterrupt:
+            # Ctrl-C reaches us as well as the command, since it runs in the
+            # foreground. Stop here rather than starting the next upgrade.
+            console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
+            failed.append(key)
+            return failed
+
         if exit_code != 0:
             console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
+            failed.append(key)
+    return failed
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
-    """Offer the upgrade, then run whatever was chosen. Returns the keys used."""
+    """Offer the upgrade and run what was chosen. Returns the managers that failed."""
     console = console or Console()
     keys = upgradable_manager_keys(reports)
     if not keys:
@@ -61,12 +72,18 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
 
     while True:
         print_menu(keys, console)
-        choice = parse_menu_answer(ask("> "), keys)
+        try:
+            answer = ask("> ")
+        except (EOFError, KeyboardInterrupt):
+            # No terminal, or Ctrl-C. Silence is not consent to upgrade.
+            console.print("\nNothing upgraded.")
+            return []
+
+        choice = parse_menu_answer(answer, keys)
         if choice is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
         if choice == CANCEL:
             return []
         chosen = keys if choice == EVERYTHING else [choice]
-        upgrade_managers(chosen, shell, console)
-        return chosen
+        return upgrade_managers(chosen, shell, console)

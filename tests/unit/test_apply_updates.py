@@ -13,15 +13,16 @@ REPORTS = [
 
 
 class RecordingShell:
-    def __init__(self):
+    def __init__(self, exit_code=0):
         self.streamed = []
+        self.exit_code = exit_code
 
     def find_executable(self, command):
         return f"/fake/{command}"
 
     def stream_command(self, args, env=None):
         self.streamed.append(args)
-        return 0
+        return self.exit_code
 
 
 def answers(*replies):
@@ -57,15 +58,15 @@ def test_nonsense_is_not_understood():
 
 def test_cancelling_upgrades_nothing():
     shell = RecordingShell()
-    used = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("0"))
-    assert used == []
+    failed = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("0"))
+    assert failed == []
     assert shell.streamed == []
 
 
 def test_choosing_everything_upgrades_each_outdated_manager():
     shell = RecordingShell()
-    used = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("1"))
-    assert used == ["brew", "npm"]
+    failed = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("1"))
+    assert failed == []
     assert shell.streamed == [
         ["/fake/brew", "upgrade"],
         ["/fake/npm", "update", "-g"],
@@ -74,17 +75,14 @@ def test_choosing_everything_upgrades_each_outdated_manager():
 
 def test_choosing_one_manager_leaves_the_others_alone():
     shell = RecordingShell()
-    used = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("3"))
-    assert used == ["npm"]
+    apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("3"))
     assert shell.streamed == [["/fake/npm", "update", "-g"]]
 
 
 def test_a_bad_answer_asks_again():
     shell = RecordingShell()
-    used = apply_updates.run_upgrade_menu(
-        REPORTS, shell, quiet_console(), answers("what", "2")
-    )
-    assert used == ["brew"]
+    apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("what", "2"))
+    assert shell.streamed == [["/fake/brew", "upgrade"]]
 
 
 def test_a_failed_check_is_not_offered_for_upgrade():
@@ -100,10 +98,10 @@ def test_nothing_outdated_means_no_prompt():
         asked.append(prompt)
         return "1"
 
-    used = apply_updates.run_upgrade_menu(
+    failed = apply_updates.run_upgrade_menu(
         [ManagerReport("brew", "Homebrew", [])], shell, quiet_console(), record
     )
-    assert used == []
+    assert failed == []
     assert asked == []
 
 
@@ -114,3 +112,49 @@ def test_a_single_candidate_is_not_offered_twice(capsys):
     menu = capsys.readouterr().out
     assert "Everything" not in menu
     assert "1) Homebrew" in menu
+
+
+def raising(exception):
+    def ask(_prompt):
+        raise exception
+
+    return ask
+
+
+def test_no_terminal_cancels_instead_of_crashing():
+    # `update < /dev/null`, or a scheduled run that reached the menu.
+    shell = RecordingShell()
+    failed = apply_updates.run_upgrade_menu(
+        REPORTS, shell, quiet_console(), raising(EOFError())
+    )
+    assert failed == []
+    assert shell.streamed == []
+
+
+def test_ctrl_c_cancels_instead_of_crashing():
+    shell = RecordingShell()
+    failed = apply_updates.run_upgrade_menu(
+        REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
+    )
+    assert failed == []
+    assert shell.streamed == []
+
+
+def test_a_failed_upgrade_is_reported_back():
+    shell = RecordingShell(exit_code=3)
+    failed = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("1"))
+    assert failed == ["brew", "npm"]
+
+
+def test_ctrl_c_during_an_upgrade_stops_the_rest():
+    class InterruptedShell(RecordingShell):
+        def stream_command(self, args, env=None):
+            self.streamed.append(args)
+            raise KeyboardInterrupt
+
+    shell = InterruptedShell()
+    failed = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), answers("1"))
+
+    # Interrupted counts as failed, and npm is never started.
+    assert failed == ["brew"]
+    assert shell.streamed == [["/fake/brew", "upgrade"]]
