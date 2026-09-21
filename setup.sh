@@ -13,7 +13,7 @@ done
 cd "$(cd -P "$(dirname "$source")" && pwd)"
 
 if ! command -v uv &>/dev/null; then
-  if [ ! -t 0 ]; then
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
     echo "setup: 'uv' is missing and there is no terminal to ask on. See https://astral.sh/uv" >&2
     exit 1
   fi
