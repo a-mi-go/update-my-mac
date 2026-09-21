@@ -28,7 +28,8 @@ jobs:
           UV_TOOL_BIN_DIR: ${{ runner.temp }}/tools
         run: |
           uv tool install --editable .
-          UPDATE_MY_MAC_PREFIXES= "${{ runner.temp }}/tools/update" --version
+          export PATH="${{ runner.temp }}/tools:$PATH"
+          UPDATE_MY_MAC_PREFIXES= update --version
       - name: Lint the setup script
         if: runner.os == 'Linux'
         run: shellcheck setup.sh
