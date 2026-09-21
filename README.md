@@ -67,6 +67,11 @@ with no reinstall.
 
 macOS is the only requirement; uv brings its own Python.
 
+If an `update` alias already exists in your shell configuration, `setup.sh`
+offers to comment it out, or to install the command under a different name as
+well. That second name is a plain symlink uv doesn't know about, so
+`uv tool uninstall update-my-mac` leaves it behind — remove it yourself.
+
 Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
 (`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
 pnpm's global bin). If your package managers live somewhere unusual, set
