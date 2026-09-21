@@ -23,6 +23,12 @@ jobs:
         run: uv run --frozen pytest -q
       - name: Check the package builds
         run: uv build --no-sources
+      - name: Install it the way a user would
+        env:
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/tools
+        run: |
+          uv tool install --editable .
+          UPDATE_MY_MAC_PREFIXES= "${{ runner.temp }}/tools/update" --version
       - name: Lint the setup script
         if: runner.os == 'Linux'
         run: shellcheck setup.sh
