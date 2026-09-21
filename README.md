@@ -67,10 +67,18 @@ with no reinstall.
 
 macOS is the only requirement; uv brings its own Python.
 
-If an `update` alias already exists in your shell configuration, `setup.sh`
-offers to comment it out, or to install the command under a different name as
-well. That second name is a plain symlink uv doesn't know about, so
+`setup.sh` asks what to call the command, `update` unless you choose otherwise,
+or takes the name up front with `./setup.sh --name mac-update`. A name that
+another program or a shell builtin already has is refused. If your shell config
+defines an alias of that name, you choose: use another name, comment the alias
+out (a timestamped backup is kept), or leave it — nothing changes without you
+picking it.
+
+Any name other than `update` is a plain symlink uv doesn't know about, so
 `uv tool uninstall update-my-mac` leaves it behind — remove it yourself.
+
+If the terminal you ran it from is older than your shell config, `setup.sh`
+says so and prints a line that clears a stale alias from it.
 
 Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
 (`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
