@@ -97,3 +97,126 @@ def test_setup_replaces_an_older_symlink_install(tmp_path):
         timeout=120,
     )
     assert "update-my-mac" in installed.stdout
+
+
+def run_setup_answering(answers, home, bin_dir, tool_dir):
+    """Drive setup.sh through a pty, so its prompts behave as for a person."""
+    import pty
+
+    parent, child = pty.openpty()
+    process = subprocess.Popen(
+        [str(SETUP)],
+        stdin=child,
+        stdout=child,
+        stderr=child,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(home),
+            "UV_TOOL_BIN_DIR": str(bin_dir),
+            "UV_TOOL_DIR": str(tool_dir),
+            "TERM": "dumb",
+            **uv_caches(),
+        },
+        close_fds=True,
+    )
+    os.close(child)
+    os.write(parent, "".join(answer + "\n" for answer in answers).encode())
+
+    output = b""
+    while True:
+        try:
+            chunk = os.read(parent, 1024)
+        except OSError:
+            break
+        if not chunk:
+            break
+        output += chunk
+    os.close(parent)
+    process.wait(timeout=600)
+    return process.returncode, output.decode(errors="replace")
+
+
+def home_with_alias(tmp_path, line="alias update=\"~/apply_updates.sh\"\n"):
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".zshrc").write_text("# my shell\n" + line)
+    return home
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_an_existing_alias_is_pointed_out(tmp_path):
+    home = home_with_alias(tmp_path)
+    before = (home / ".zshrc").read_text()
+
+    result = run_setup(home, tmp_path / "bin", tmp_path / "tools")
+
+    assert result.returncode == 0, result.stderr
+    assert "An 'update' alias is defined in" in result.stdout
+    assert "unalias update" in result.stdout
+    # Nobody was there to ask, so the file is untouched.
+    assert (home / ".zshrc").read_text() == before
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_the_alias_can_be_commented_out(tmp_path):
+    home = home_with_alias(tmp_path)
+
+    code, output = run_setup_answering(["y"], home, tmp_path / "bin", tmp_path / "tools")
+
+    assert code == 0, output
+    assert "# alias update=" in (home / ".zshrc").read_text()
+    backups = list(home.glob(".zshrc.bak-*"))
+    assert len(backups) == 1
+    assert "\nalias update=" in backups[0].read_text()
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_it_can_be_installed_under_another_name(tmp_path):
+    home = home_with_alias(tmp_path)
+    bin_dir = tmp_path / "bin"
+
+    code, output = run_setup_answering(
+        ["n", "mac-update"], home, bin_dir, tmp_path / "tools"
+    )
+
+    assert code == 0, output
+    # The alias was left alone, so the command got a name of its own.
+    assert "alias update=" in (home / ".zshrc").read_text()
+    assert (bin_dir / "mac-update").exists()
+
+    installed = subprocess.run(
+        ["mac-update", "--version"],
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(home)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert "update-my-mac" in installed.stdout
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_a_name_that_is_not_a_plain_name_is_refused(tmp_path):
+    home = home_with_alias(tmp_path)
+    bin_dir = tmp_path / "bin"
+
+    code, output = run_setup_answering(
+        ["n", "../escaped"], home, bin_dir, tmp_path / "tools"
+    )
+
+    assert code == 1
+    assert "not a usable command name" in output
+    assert not (tmp_path / "escaped").exists()
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_an_existing_command_is_never_overwritten(tmp_path):
+    home = home_with_alias(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "npm").write_text("#!/bin/sh\necho real npm\n")
+
+    code, output = run_setup_answering(["n", "npm"], home, bin_dir, tmp_path / "tools")
+
+    assert code == 1
+    assert "already exists" in output
+    assert (bin_dir / "npm").read_text() == "#!/bin/sh\necho real npm\n"
