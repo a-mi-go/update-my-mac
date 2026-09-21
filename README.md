@@ -70,7 +70,9 @@ macOS is the only requirement; uv brings its own Python.
 Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
 (`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
 pnpm's global bin). If your package managers live somewhere unusual, set
-`UPDATE_MY_MAC_PREFIXES` to the prefixes to search instead.
+`UPDATE_MY_MAC_PREFIXES` to the prefixes to search — it replaces the list above
+rather than adding to it, so include every prefix you need (colon-separated).
+The home directories are always searched.
 
 ## Development
 
