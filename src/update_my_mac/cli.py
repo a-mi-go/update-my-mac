@@ -5,9 +5,9 @@ import argparse
 from update_my_mac import __version__, app, environment
 
 
-def build_argument_parser():
+def build_argument_parser(prog=None):
     parser = argparse.ArgumentParser(
-        prog="update",
+        prog=prog,
         description="Check and apply macOS updates across every source you use.",
     )
     parser.add_argument(
@@ -35,8 +35,10 @@ def build_argument_parser():
     return parser
 
 
-def main(argv=None):
-    args = build_argument_parser().parse_args(argv)
+def main(argv=None, prog=None):
+    # prog is None for the installed command, so the help names whatever it
+    # was invoked as, including a second name chosen during setup.
+    args = build_argument_parser(prog).parse_args(argv)
     environment.prepare()
 
     if args.check:
