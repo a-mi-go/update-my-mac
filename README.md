@@ -55,20 +55,22 @@ found you choose how it should be handled:
 
 ```bash
 git clone https://github.com/a-mi-go/update-my-mac.git
-ln -s "$PWD/update-my-mac/update" ~/.local/bin/update
+cd update-my-mac
+./setup.sh
 ```
 
-Any directory on your `PATH` works. The launcher follows the symlink back to the
-clone, so `update` runs from anywhere and a `git pull` updates the command.
+`setup.sh` runs once. It makes sure [uv](https://astral.sh/uv) is installed —
+asking first, then using Homebrew if you have it and the official installer
+otherwise — and then installs `update` into `~/.local/bin` with its own isolated
+environment. It is installed from the clone, so a `git pull` updates the command
+with no reinstall.
 
-`update` is a small bash launcher, not the Python program itself. It builds a
-`PATH` containing the tools being queried, makes sure [uv](https://astral.sh/uv)
-is installed — asking first, then using Homebrew if you have it and the official
-installer otherwise — and hands off to `uv run`. From there uv resolves a
-compatible Python, creates the project environment and installs dependencies on
-its own, so there is no Python setup to do by hand.
+macOS is the only requirement; uv brings its own Python.
 
-macOS is the only requirement.
+Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
+(`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
+pnpm's global bin). If your package managers live somewhere unusual, set
+`UPDATE_MY_MAC_PREFIXES` to the prefixes to search instead.
 
 ## Development
 
@@ -80,7 +82,8 @@ Tests come in two layers, both run by CI on macOS and Linux:
 
 - `tests/unit/` — pure logic, no mocking and no subprocesses.
 - `tests/integration/` — runs the real CLI against fake package managers that
-  sit alone on `PATH`, plus the launcher under launchd's environment.
+  sit alone on `PATH`, with an empty `HOME`, so nothing installed on the machine
+  takes part.
 
 ## License
 
