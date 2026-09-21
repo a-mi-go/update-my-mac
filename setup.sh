@@ -97,7 +97,7 @@ already_taken_by() {
 }
 
 ask_for_name() {
-  read -r -p "What should the command be called? [update] " name
+  read -r -p 'What should the command be called? (Enter for "update", or type another name): ' name
   name="${name:-update}"
 }
 
