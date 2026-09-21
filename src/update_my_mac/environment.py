@@ -45,15 +45,15 @@ def path_with_managers(env, exists=os.path.isdir):
     Appended rather than prepended: whatever the caller put on PATH was a
     decision, and these are guesses.
     """
-    current = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
-    # Absolute only: without HOME these come out relative, and a relative PATH
-    # entry runs whatever the current directory happens to contain.
-    missing = [
-        directory
-        for directory in manager_directories(env)
-        if os.path.isabs(directory) and directory not in current and exists(directory)
-    ]
-    return os.pathsep.join(current + missing)
+    entries = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
+    for directory in manager_directories(env):
+        # Absolute only: without HOME these come out relative, and a relative
+        # PATH entry runs whatever the current directory happens to contain.
+        if not os.path.isabs(directory) or directory in entries:
+            continue
+        if exists(directory):
+            entries.append(directory)
+    return os.pathsep.join(entries)
 
 
 def prepare(env=None):

@@ -95,3 +95,10 @@ def test_a_missing_home_adds_nothing_relative():
     result = environment.path_with_managers(env, everything_exists).split(":")
 
     assert all(entry.startswith("/") for entry in result)
+
+
+def test_a_pnpm_home_inside_a_prefix_is_not_added_twice():
+    env = {"HOME": "/Users/x", "PNPM_HOME": "/usr/local", "PATH": "/usr/bin"}
+    result = environment.path_with_managers(env, everything_exists).split(":")
+
+    assert result.count("/usr/local/bin") == 1
