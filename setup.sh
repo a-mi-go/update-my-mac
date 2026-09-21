@@ -3,7 +3,14 @@
 # Everyday runs go through that command, not through this script.
 set -euo pipefail
 
-cd "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Follow symlinks, so this works when linked somewhere convenient.
+source="${BASH_SOURCE[0]}"
+while [ -L "$source" ]; do
+  link_dir="$(cd -P "$(dirname "$source")" && pwd)"
+  source="$(readlink "$source")"
+  [[ "$source" != /* ]] && source="$link_dir/$source"
+done
+cd "$(cd -P "$(dirname "$source")" && pwd)"
 
 if ! command -v uv &>/dev/null; then
   if [ ! -t 0 ]; then
@@ -31,10 +38,11 @@ fi
 # --editable so a git pull updates the command, with no reinstall.
 uv tool install --editable .
 
+bin_dir="${UV_TOOL_BIN_DIR:-$HOME/.local/bin}"
 case ":$PATH:" in
-  *":$HOME/.local/bin:"*) ;;
+  *":$bin_dir:"*) ;;
   *) echo
-     echo "Add ~/.local/bin to your PATH, or run: uv tool update-shell" ;;
+     echo "Add $bin_dir to your PATH, or run: uv tool update-shell" ;;
 esac
 
 echo
