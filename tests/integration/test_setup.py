@@ -9,7 +9,6 @@ import os
 import pty
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -198,8 +197,9 @@ def test_an_existing_alias_is_pointed_out(tmp_path):
 
     result = run_setup(tmp_path, home)
 
-    assert result.returncode == 0, result.stderr
-    assert "'update' is already an alias in" in result.stdout
+    # Installing anyway would leave a command the alias hides.
+    assert result.returncode == 1
+    assert "'update' is already defined in your shell config" in result.stdout
     # Nobody was there to ask, so the file is untouched.
     assert (home / ".zshrc").read_text() == before
 
@@ -227,20 +227,12 @@ def test_an_alias_can_be_commented_out(tmp_path):
     assert "\nalias update=" in backups[0].read_text()
 
 
-def test_an_alias_can_be_left_alone(tmp_path):
-    home = home_with_alias(tmp_path)
-    before = (home / ".zshrc").read_text()
-
-    code, output = run_setup_answering(tmp_path, home, ["", "3"])
-
-    assert code == 0, output
-    assert (home / ".zshrc").read_text() == before
-
-
-def run_setup_from_zsh(tmp_path, home, **extra_env):
-    # "; true" keeps zsh from exec-ing setup.sh, so zsh really is its parent.
+def run_setup_from(shell, tmp_path, home, **extra_env):
+    # "; true" keeps the shell from exec-ing setup.sh, so it really is the parent.
+    no_config = {"zsh": "-f", "fish": "--no-config"}[shell]
+    # Looked up here, since the minimal PATH the child gets may not include it.
     return subprocess.run(
-        ["zsh", "-f", "-c", f"'{SETUP}' --name update; true"],
+        [shutil.which(shell), no_config, "-c", f"'{SETUP}' --name update; true"],
         env={**setup_env(home, tmp_path / "bin", tmp_path / "tools"), **extra_env},
         stdin=subprocess.DEVNULL,
         capture_output=True,
@@ -249,7 +241,6 @@ def run_setup_from_zsh(tmp_path, home, **extra_env):
     )
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="relies on BSD date and stat")
 @pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
 def test_a_terminal_older_than_its_config_is_warned_about(tmp_path):
     home = empty_home(tmp_path)
@@ -258,13 +249,12 @@ def test_a_terminal_older_than_its_config_is_warned_about(tmp_path):
     in_an_hour = time.time() + 3600
     os.utime(zshrc, (in_an_hour, in_an_hour))
 
-    result = run_setup_from_zsh(tmp_path, home)
+    result = run_setup_from("zsh", tmp_path, home)
 
     assert result.returncode == 0, result.stderr
-    assert "alias update >/dev/null 2>&1 && unalias update; hash -r" in result.stdout
+    assert "unalias update 2>/dev/null; unset -f update 2>/dev/null; hash -r" in result.stdout
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="relies on BSD date and stat")
 @pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
 def test_a_fresh_terminal_gets_no_warning(tmp_path):
     home = empty_home(tmp_path)
@@ -273,13 +263,12 @@ def test_a_fresh_terminal_gets_no_warning(tmp_path):
     long_ago = time.time() - 86400
     os.utime(zshrc, (long_ago, long_ago))
 
-    result = run_setup_from_zsh(tmp_path, home)
+    result = run_setup_from("zsh", tmp_path, home)
 
     assert result.returncode == 0, result.stderr
     assert "unalias" not in result.stdout
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="relies on BSD date and stat")
 @pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
 def test_the_warning_works_in_any_language(tmp_path):
     # ps writes "Mo. 21 Sep." in German, which date -j can't parse unless forced.
@@ -289,7 +278,7 @@ def test_the_warning_works_in_any_language(tmp_path):
     in_an_hour = time.time() + 3600
     os.utime(zshrc, (in_an_hour, in_an_hour))
 
-    result = run_setup_from_zsh(tmp_path, home, LC_ALL="de_DE.UTF-8", LANG="de_DE.UTF-8")
+    result = run_setup_from("zsh", tmp_path, home, LC_ALL="de_DE.UTF-8", LANG="de_DE.UTF-8")
 
     assert result.returncode == 0, result.stderr
     assert "unalias update" in result.stdout
@@ -312,8 +301,9 @@ def test_a_shell_builtin_is_refused(tmp_path):
 
     result = run_setup(tmp_path, home, "--name", "cd")
 
+    # macOS also ships a /usr/bin/cd, so which of the two is named varies.
     assert result.returncode == 1
-    assert "already a shell builtin" in result.stderr
+    assert "'cd' is already" in result.stderr
 
 
 def test_a_taken_name_is_asked_for_again(tmp_path):
@@ -331,10 +321,10 @@ def test_a_stray_answer_in_the_alias_menu_asks_again(tmp_path):
     home = home_with_alias(tmp_path)
     before = (home / ".zshrc").read_text()
 
-    code, output = run_setup_answering(tmp_path, home, ["", "x", "3"])
+    code, output = run_setup_answering(tmp_path, home, ["", "x", "1", "mac-update"])
 
     assert code == 0, output
-    assert "Please answer 1, 2 or 3" in output
+    assert "Please answer 1 or 2" in output
     assert (home / ".zshrc").read_text() == before
 
 
@@ -346,4 +336,60 @@ def test_a_dot_in_the_name_is_matched_literally(tmp_path):
     result = run_setup(tmp_path, home, "--name", "mac.update")
 
     assert result.returncode == 0, result.stderr
-    assert "already an alias" not in result.stdout
+    assert "already defined" not in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("fish") is None, reason="fish is not installed")
+def test_a_fish_terminal_older_than_its_config_is_told_the_fish_way(tmp_path):
+    home = empty_home(tmp_path)
+    config = home / ".config" / "fish" / "config.fish"
+    config.parent.mkdir(parents=True)
+    config.write_text("# changed after this terminal was opened\n")
+    in_an_hour = time.time() + 3600
+    os.utime(config, (in_an_hour, in_an_hour))
+
+    result = run_setup_from("fish", tmp_path, home)
+
+    assert result.returncode == 0, result.stderr
+    assert "functions -e update" in result.stdout
+    assert "unalias" not in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("fish") is None, reason="fish is not installed")
+def test_a_fish_alias_is_found_and_left_alone_without_a_terminal(tmp_path):
+    home = empty_home(tmp_path)
+    config = home / ".config" / "fish" / "config.fish"
+    config.parent.mkdir(parents=True)
+    config.write_text('alias update "echo wrong"\n')
+
+    result = run_setup(tmp_path, home)
+
+    assert result.returncode == 1
+    assert "alias in" in result.stdout and "config.fish:1" in result.stdout
+    assert config.read_text() == 'alias update "echo wrong"\n'
+
+
+@pytest.mark.skipif(shutil.which("fish") is None, reason="fish is not installed")
+def test_a_disabled_fish_alias_really_is_gone_for_fish(tmp_path):
+    """Not just a changed file: a fresh fish must no longer know the alias."""
+    home = home_with_fish_alias(tmp_path)
+
+    code, output = run_setup_answering(tmp_path, home, ["", "2"])
+
+    assert code == 0, output
+    fresh_fish = subprocess.run(
+        [shutil.which("fish"), "-c", "functions -q update; and echo still-defined; or echo gone"],
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert fresh_fish.stdout.strip() == "gone"
+
+
+def home_with_fish_alias(tmp_path):
+    home = empty_home(tmp_path)
+    config = home / ".config" / "fish" / "config.fish"
+    config.parent.mkdir(parents=True)
+    config.write_text('alias update "echo wrong"\n')
+    return home
