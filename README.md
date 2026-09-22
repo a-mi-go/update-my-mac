@@ -69,16 +69,22 @@ macOS is the only requirement; uv brings its own Python.
 
 `setup.sh` asks what to call the command, `update` unless you choose otherwise,
 or takes the name up front with `./setup.sh --name mac-update`. A name that
-another program or a shell builtin already has is refused. If your shell config
-defines an alias of that name, you choose: use another name, comment the alias
-out (a timestamped backup is kept), or leave it — nothing changes without you
-picking it.
+another program or a shell builtin already has is refused.
+
+If zsh, bash or fish already define that name — an alias, a function, or a fish
+abbreviation — you choose: keep it and give the command another name, or
+disable it. Nothing changes without you picking it, and setup never installs a
+command that something in your shell would hide; without a terminal to ask on,
+it stops and suggests `--name`. Disabling comments out a one-line definition
+(with a timestamped backup) or moves a fish function file aside; a multi-line
+function has to be removed by hand, and setup says where it is.
 
 Any name other than `update` is a plain symlink uv doesn't know about, so
 `uv tool uninstall update-my-mac` leaves it behind — remove it yourself.
 
-If the terminal you ran it from is older than your shell config, `setup.sh`
-says so and prints a line that clears a stale alias from it.
+If the terminal you ran it from is older than your shell config and the old
+definition is gone from the config, `setup.sh` says so and prints the line that
+clears it from that terminal, in zsh/bash or fish syntax as needed.
 
 Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
 (`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
