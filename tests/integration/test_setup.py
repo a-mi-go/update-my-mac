@@ -393,3 +393,25 @@ def home_with_fish_alias(tmp_path):
     config.parent.mkdir(parents=True)
     config.write_text('alias update "echo wrong"\n')
     return home
+
+
+def test_the_bin_dir_is_asked_of_uv_not_guessed(tmp_path):
+    # XDG_BIN_HOME moves uv's executables; a second name has to follow them.
+    home = empty_home(tmp_path)
+    xdg_bin = tmp_path / "xdg-bin"
+    env = setup_env(home, tmp_path / "unused", tmp_path / "tools")
+    del env["UV_TOOL_BIN_DIR"]
+    env["XDG_BIN_HOME"] = str(xdg_bin)
+
+    result = subprocess.run(
+        [str(SETUP), "--name", "mac-update"],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (xdg_bin / "mac-update").resolve() == (xdg_bin / "update").resolve()
+    assert "update-my-mac" in version_of("mac-update", xdg_bin, home)

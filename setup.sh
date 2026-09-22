@@ -45,7 +45,8 @@ uv tool install --editable .
 # Naming the command and dealing with whatever in zsh, bash or fish config would
 # shadow it is easier to get right in Python. The calling shell's pid goes along
 # so it can tell whether that terminal is out of date.
+# Asked rather than assumed: uv also honours XDG_BIN_HOME and XDG_DATA_HOME.
 exec uv run --frozen --no-dev --quiet python -m update_my_mac.finish_setup \
-  --bin-dir "${UV_TOOL_BIN_DIR:-$HOME/.local/bin}" \
+  --bin-dir "$(uv tool dir --bin)" \
   --calling-pid "$PPID" \
   "$@"
