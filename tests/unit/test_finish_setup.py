@@ -2,6 +2,7 @@ import os
 import time
 
 import pytest
+from rich.text import Text
 
 from update_my_mac import finish_setup, shell_configs
 
@@ -18,7 +19,8 @@ class Terminal:
         return self.answers.pop(0)
 
     def out(self, *parts, **_):
-        self.lines.append(" ".join(str(part) for part in parts))
+        # What a person would read, without the colour markup.
+        self.lines.append(Text.from_markup(" ".join(str(part) for part in parts)).plain)
 
     @property
     def text(self):
@@ -44,6 +46,7 @@ def run(machine, *argv, answers=(), interactive=True, now=None):
         ["--bin-dir", str(bin_dir), *argv],
         ask=terminal.ask,
         out=terminal.out,
+        err=terminal.out,
         env=env,
         interactive=interactive,
         now=now,
@@ -285,3 +288,24 @@ def test_a_missing_path_entry_is_pointed_out(machine):
     _, text = run(machine, interactive=False)
 
     assert f"Add {bin_dir} to your PATH" in text
+
+
+def test_a_bracket_in_a_path_is_text_not_colour_markup(tmp_path):
+    # rich would read "[ird]" as a style and either drop it or fail.
+    home = tmp_path / "we[ird]"
+    home.mkdir()
+    (home / ".zshrc").write_text("alias update=old\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "update").write_text("# update_my_mac\n")
+    terminal = Terminal()
+
+    finish_setup.main(
+        ["--bin-dir", str(bin_dir)],
+        out=terminal.out,
+        err=terminal.out,
+        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin"},
+        interactive=False,
+    )
+
+    assert "we[ird]/.zshrc" in terminal.text

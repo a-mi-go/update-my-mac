@@ -13,6 +13,9 @@ import sys
 import time
 from pathlib import Path
 
+from rich.console import Console
+from rich.markup import escape
+
 from update_my_mac import shell_configs
 
 USABLE_NAME = re.compile(r"[A-Za-z0-9._-]+")
@@ -54,27 +57,27 @@ def ask_for_name(ask):
     return ask(NAME_QUESTION).strip() or "update"
 
 
-def link_under_name(name, bin_dir, out):
+def link_under_name(name, bin_dir, out, err):
     """Point name at the installed update. False if something else is there."""
     target = Path(bin_dir) / name
     installed = Path(bin_dir) / "update"
     if target.is_symlink() and os.readlink(target) == str(installed):
         return True  # an earlier run already did this
     if target.exists() or target.is_symlink():
-        out(f"setup: {target} already exists — not touching it.", file=sys.stderr)
+        err(f"[yellow]setup: {escape(str(target))} already exists — not touching it.[/]")
         return False
     target.symlink_to(installed)
-    out(f"  {name} -> {installed}")
+    out(f"  [bold]{name}[/] -> {escape(str(installed))}")
     return True
 
 
-def choose_name(name, bin_dir, env, ask, out, interactive):
+def choose_name(name, bin_dir, env, ask, err, interactive):
     """Settle on a name that nothing else already answers to. None to give up."""
     while True:
         if not USABLE_NAME.fullmatch(name):
-            out(f"setup: '{name}' is not a usable command name.", file=sys.stderr)
+            err(f"[yellow]setup: '{escape(name)}' is not a usable command name.[/]")
         elif taken := already_taken_by(name, bin_dir, env):
-            out(f"setup: '{name}' is already {taken}.", file=sys.stderr)
+            err(f"[yellow]setup: '{name}' is already {escape(taken)}.[/]")
         else:
             return name
         if not interactive:
@@ -98,9 +101,9 @@ def resolve_shadowing(name, env, ask, out, interactive):
             return CLEAR
 
         out()
-        out(f"'{name}' is already defined in your shell config:")
+        out(f"[yellow]'[bold]{name}[/bold]' is already defined in your shell config:[/]")
         for definition in definitions:
-            out(f"  {definition.describe()}")
+            out(f"  {escape(definition.describe())}")
         if not interactive:
             out("It would hide the command. Run setup again with --name to pick")
             out("another name, or remove it first.")
@@ -109,25 +112,25 @@ def resolve_shadowing(name, env, ask, out, interactive):
         # A function spanning several lines can't be commented out safely, so
         # disabling is only offered when everything found can be.
         stuck = [definition for definition in definitions if not definition.can_disable]
-        out("  1) keep it, and call the command something else")
+        out("  [bold]1)[/] keep it, and call the command something else")
         if stuck:
-            out("  2) stop here — remove it yourself, then run setup again")
+            out("  [bold]2)[/] stop here — remove it yourself, then run setup again")
         else:
-            out("  2) disable it")
+            out("  [bold]2)[/] disable it")
         choice = ask("> ").strip()
 
         if choice == "1":
             return RENAME
         if choice == "2" and stuck:
             for definition in stuck:
-                out(f"  the {definition.kind} in {definition.path}:{definition.line_number}")
+                out(f"  the {definition.kind} in {escape(str(definition.path))}:{definition.line_number}")
                 out("  spans several lines, so it isn't edited automatically")
             return STOP
         if choice == "2":
             for change in shell_configs.disable(definitions):
-                out(f"  {change}")
+                out(f"  {escape(change)}")
             return DISABLED
-        out("Please answer 1 or 2.")
+        out("[yellow]Please answer 1 or 2.[/]")
 
 
 def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_something):
@@ -158,14 +161,19 @@ def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_somethi
         return
 
     out()
-    out("This terminal was opened before your shell config last changed, so it may")
-    out(f"still hold an old '{name}' definition. Run this to clear it from this")
+    # Each out() is its own piece of markup, so every line opens and closes its own.
+    out("[yellow]This terminal was opened before your shell config last changed, so it may[/]")
+    out(f"[yellow]still hold an old '[bold]{name}[/bold]' definition.[/] Run this to clear it from this")
     out("terminal, open a new tab, or rerun setup and pick another name:")
-    out(f"  {shell_configs.clear_line(shell, name)}")
+    out(f"  [bold]{escape(shell_configs.clear_line(shell, name))}[/]")
 
 
-def main(argv=None, ask=input, out=print, env=None, interactive=None, now=None):
+def main(argv=None, ask=input, out=None, err=None, env=None, interactive=None, now=None):
     args = build_argument_parser().parse_args(argv)
+    # Plain text when it isn't a terminal or NO_COLOR is set, as in the tool.
+    # soft_wrap, so a long path stays on one line and can still be copied.
+    out = out or Console(highlight=False, soft_wrap=True).print
+    err = err or Console(stderr=True, highlight=False, soft_wrap=True).print
     env = os.environ if env is None else env
     if interactive is None:
         interactive = sys.stdin.isatty() and sys.stdout.isatty()
@@ -177,7 +185,7 @@ def main(argv=None, ask=input, out=print, env=None, interactive=None, now=None):
 
     disabled_something = False
     while True:
-        name = choose_name(name, args.bin_dir, env, ask, out, interactive)
+        name = choose_name(name, args.bin_dir, env, ask, err, interactive)
         if name is None:
             return 1
         outcome = resolve_shadowing(name, env, ask, out, interactive)
@@ -189,17 +197,17 @@ def main(argv=None, ask=input, out=print, env=None, interactive=None, now=None):
         disabled_something = outcome == DISABLED
         break
 
-    if name != "update" and not link_under_name(name, args.bin_dir, out):
+    if name != "update" and not link_under_name(name, args.bin_dir, out, err):
         return 1
 
     if args.bin_dir not in env.get("PATH", "").split(os.pathsep):
         out()
-        out(f"Add {args.bin_dir} to your PATH, or run: uv tool update-shell")
+        out(f"[yellow]Add {escape(args.bin_dir)} to your PATH[/], or run: [bold]uv tool update-shell[/]")
 
     warn_if_terminal_is_stale(name, args.calling_pid, env, out, now, disabled_something)
 
     out()
-    out(f"Done. Try: {name} --check")
+    out(f"[green]Done.[/] Try: [bold]{name} --check[/]")
     return 0
 
 
