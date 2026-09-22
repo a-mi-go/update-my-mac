@@ -69,7 +69,12 @@ macOS is the only requirement; uv brings its own Python.
 
 `setup.sh` asks what to call the command, `update` unless you choose otherwise,
 or takes the name up front with `./setup.sh --name mac-update`. A name that
-another program or a shell builtin already has is refused.
+another program or a shell builtin already has is refused. Every question comes
+before anything is installed, so stopping partway leaves your machine as it was.
+
+Running it again recognises the earlier install from what is in uv's bin
+directory, offers to keep the name it has, and without a terminal simply keeps
+it.
 
 If zsh, bash or fish already define that name — an alias, a function, or a fish
 abbreviation — you choose: keep it and give the command another name, or
