@@ -112,11 +112,12 @@ def resolve_shadowing(name, env, ask, out, interactive):
         # A function spanning several lines can't be commented out safely, so
         # disabling is only offered when everything found can be.
         stuck = [definition for definition in definitions if not definition.can_disable]
-        out("  [bold]1)[/] keep it, and call the command something else")
+        # The colour rich gives numbers in the tool's upgrade menu, so both look alike.
+        out("  [bold cyan]1)[/] keep it, and call the command something else")
         if stuck:
-            out("  [bold]2)[/] stop here — remove it yourself, then run setup again")
+            out("  [bold cyan]2)[/] stop here — remove it yourself, then run setup again")
         else:
-            out("  [bold]2)[/] disable it")
+            out("  [bold cyan]2)[/] disable it")
         choice = ask("> ").strip()
 
         if choice == "1":
