@@ -189,6 +189,7 @@ def test_an_existing_command_is_never_overwritten(tmp_path):
     assert result.returncode == 1
     assert "already exists" in result.stderr
     assert (tmp_path / "bin" / "some-tool").read_text() == "#!/bin/sh\necho the real one\n"
+    assert not (tmp_path / "bin" / "update").exists()
 
 
 def test_an_existing_alias_is_pointed_out(tmp_path):
@@ -197,9 +198,10 @@ def test_an_existing_alias_is_pointed_out(tmp_path):
 
     result = run_setup(tmp_path, home)
 
-    # Installing anyway would leave a command the alias hides.
+    # Installing anyway would leave a command the alias hides, so nothing is.
     assert result.returncode == 1
     assert "'update' is already defined in your shell config" in result.stdout
+    assert not (tmp_path / "bin" / "update").exists()
     # Nobody was there to ask, so the file is untouched.
     assert (home / ".zshrc").read_text() == before
 
@@ -415,3 +417,24 @@ def test_the_bin_dir_is_asked_of_uv_not_guessed(tmp_path):
     assert result.returncode == 0, result.stderr
     assert (xdg_bin / "mac-update").resolve() == (xdg_bin / "update").resolve()
     assert "update-my-mac" in version_of("mac-update", xdg_bin, home)
+
+
+def test_a_second_run_keeps_the_name_it_was_given(tmp_path):
+    home = empty_home(tmp_path)
+    run_setup(tmp_path, home, "--name", "mac-update")
+
+    result = run_setup(tmp_path, home)
+
+    assert result.returncode == 0, result.stderr
+    assert "Try: mac-update --check" in result.stdout
+
+
+def test_a_second_run_offers_to_keep_the_name(tmp_path):
+    home = empty_home(tmp_path)
+    run_setup(tmp_path, home, "--name", "mac-update")
+
+    code, output = run_setup_answering(tmp_path, home, [""])
+
+    assert code == 0, output
+    assert "Setup has run before" in output
+    assert "What should the command be called?" not in output
