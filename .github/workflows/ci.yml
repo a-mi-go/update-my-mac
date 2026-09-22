@@ -19,6 +19,13 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+      - name: Install the shells setup.sh deals with
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install fish
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq fish zsh
+          fi
       - name: Run tests
         run: uv run --frozen pytest -q
       - name: Check the package builds
