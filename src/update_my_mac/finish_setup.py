@@ -180,6 +180,20 @@ def main(argv=None, ask=input, out=None, err=None, env=None, interactive=None, n
         interactive = sys.stdin.isatty() and sys.stdout.isatty()
     now = time.time() if now is None else now
 
+    try:
+        return finish(args, ask, out, err, env, interactive, now)
+    except KeyboardInterrupt:
+        # uv has already installed the command by now; only the naming stopped.
+        out()
+        err("[yellow]Setup stopped.[/] Run it again to finish naming the command.")
+        return 130
+    except EOFError:
+        out()
+        err("[yellow]Setup stopped: no more input to answer with.[/]")
+        return 1
+
+
+def finish(args, ask, out, err, env, interactive, now):
     name = args.name
     if name is None:
         name = ask_for_name(ask) if interactive else "update"

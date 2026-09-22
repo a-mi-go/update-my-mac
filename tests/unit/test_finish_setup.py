@@ -309,3 +309,44 @@ def test_a_bracket_in_a_path_is_text_not_colour_markup(tmp_path):
     )
 
     assert "we[ird]/.zshrc" in terminal.text
+
+
+def interrupted_by(exception):
+    def ask(_prompt):
+        raise exception
+
+    return ask
+
+
+def test_ctrl_c_at_a_question_stops_without_a_traceback(machine):
+    _, bin_dir, env = machine
+    terminal = Terminal()
+
+    code = finish_setup.main(
+        ["--bin-dir", str(bin_dir)],
+        ask=interrupted_by(KeyboardInterrupt()),
+        out=terminal.out,
+        err=terminal.out,
+        env=env,
+        interactive=True,
+    )
+
+    assert code == 130
+    assert "Setup stopped" in terminal.text
+
+
+def test_running_out_of_input_stops_too(machine):
+    _, bin_dir, env = machine
+    terminal = Terminal()
+
+    code = finish_setup.main(
+        ["--bin-dir", str(bin_dir)],
+        ask=interrupted_by(EOFError()),
+        out=terminal.out,
+        err=terminal.out,
+        env=env,
+        interactive=True,
+    )
+
+    assert code == 1
+    assert "no more input" in terminal.text
