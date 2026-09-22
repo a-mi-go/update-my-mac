@@ -1,6 +1,7 @@
 """Applying updates: the only module that changes the system."""
 
 from rich.console import Console
+from rich.markup import escape
 
 from update_my_mac import package_managers
 
@@ -31,15 +32,20 @@ def parse_menu_answer(answer, keys):
 
 
 def print_menu(keys, console):
+    # Numbers in cyan on purpose. Left to rich's highlighter they'd get the same
+    # colour, but so would every bracket and number in a label.
+    def option(number, text):
+        console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
+
     console.print("\nWhat should be upgraded?")
     if len(keys) == 1:
         # "Everything" and the only candidate would be the same choice.
-        console.print(f"  1) {package_managers.by_key(keys[0]).label}")
+        option(1, package_managers.by_key(keys[0]).label)
     else:
-        console.print("  1) Everything")
+        option(1, "Everything")
         for number, key in enumerate(keys, start=2):
-            console.print(f"  {number}) {package_managers.by_key(key).label}")
-    console.print("  0) Cancel")
+            option(number, package_managers.by_key(key).label)
+    option(0, "Cancel")
 
 
 def upgrade_managers(keys, shell, console):
