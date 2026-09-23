@@ -1,6 +1,16 @@
-# update-my-mac
+<p align="center">
+  <img src="docs/logo.svg" width="128" alt="update-my-mac logo" />
+</p>
 
-One command that checks — and optionally applies — software updates from every
+<p align="center">
+  One command for every update on your Mac.
+</p>
+
+<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue" />&nbsp;<img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<a href="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml/badge.svg" /></a></p>
+
+---
+
+update-my-mac checks — and optionally applies — software updates from every
 package manager on your Mac, plus macOS itself and the apps you installed by
 downloading a `.dmg` or `.pkg`.
 

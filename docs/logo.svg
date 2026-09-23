@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="update-my-mac logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f6feb"/>
+      <stop offset="1" stop-color="#1b4fc4"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+
+  <!-- Three sources feeding into one command. -->
+  <g fill="#ffffff" opacity="0.85">
+    <circle cx="34" cy="38" r="5"/>
+    <circle cx="34" cy="64" r="5"/>
+    <circle cx="34" cy="90" r="5"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.85" fill="none">
+    <path d="M42 38 H60"/>
+    <path d="M42 64 H60"/>
+    <path d="M42 90 H60"/>
+  </g>
+
+  <!-- The refresh arrow they all lead to. -->
+  <g transform="translate(86 64)">
+    <path d="M0 -24 A24 24 0 1 1 -17 -17" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+    <path d="M0 -34 L0 -14 L14 -24 Z" fill="#ffffff"/>
+  </g>
+</svg>
