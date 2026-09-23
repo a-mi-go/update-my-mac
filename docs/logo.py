@@ -41,7 +41,7 @@ def head(at, reach):
     )
 
 
-def build(background_top, background_bottom, arrow_fill):
+def build(background_top, background_bottom, cut_out):
     parts = []
     for start, end in ((185, 330), (5, 150)):
         parts.append(ring_segment(start, end, OUTER, INNER))
@@ -73,7 +73,7 @@ def build(background_top, background_bottom, arrow_fill):
 {teeth}
     <circle cx="{C}" cy="{C}" r="20"/>
   </g>
-  <circle cx="{C}" cy="{C}" r="12.5" fill="{arrow_fill}"/>
+  <circle cx="{C}" cy="{C}" r="12.5" fill="{cut_out}"/>
   <path d="M{C - 6.5:.1f} {C:.0f} L{C - 1.5:.1f} {C + 5:.0f} L{C + 7.5:.1f} {C - 6:.0f}" fill="none"
         stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
