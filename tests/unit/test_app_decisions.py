@@ -104,3 +104,10 @@ def test_a_successful_write_says_so(tmp_path):
     decisions.ignore("TokenEater", "5.12.2")
 
     assert decisions.save() is True
+
+
+def test_a_file_holding_something_other_than_an_object(tmp_path):
+    # Valid JSON, wrong shape: it used to raise on .get().
+    (tmp_path / "apps.json").write_text("[]")
+
+    assert decisions_in(tmp_path).ignored_names() == []

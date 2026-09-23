@@ -228,3 +228,28 @@ def test_bringing_an_app_back_that_cannot_be_saved_says_so(tmp_path):
 
     assert brought_back == 0
     assert "won't be remembered" in terminal.text
+
+
+def test_choosing_none_of_them_says_nothing(tmp_path):
+    decisions = decisions_in(tmp_path)
+    decisions.ignore("Alpha", "1.0")
+    decisions.save()
+    terminal = Terminal("0")
+
+    brought_back = track_apps.run_revisit_menu(decisions, terminal.ask, terminal.out)
+
+    assert brought_back == 0
+    assert "Answer a number" not in terminal.text
+
+
+def test_an_answer_outside_the_list_is_pointed_out(tmp_path):
+    decisions = decisions_in(tmp_path)
+    decisions.ignore("Alpha", "1.0")
+    decisions.save()
+    terminal = Terminal("7")
+
+    brought_back = track_apps.run_revisit_menu(decisions, terminal.ask, terminal.out)
+
+    assert brought_back == 0
+    assert "Answer a number from 1 to 1" in terminal.text
+    assert decisions_in(tmp_path).ignored_names() == ["Alpha"]

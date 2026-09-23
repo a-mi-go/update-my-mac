@@ -84,7 +84,11 @@ def run_revisit_menu(decisions, ask=input, out=None, interactive=True):
         answer = _answer(ask, "List one of them again? ")
     except Stopped:
         return 0
+
+    if answer in ("0", ""):
+        return 0
     if not answer.isdigit() or not 1 <= int(answer) <= len(names):
+        console_print(f"[yellow]Answer a number from 1 to {len(names)}, or 0 for none.[/]")
         return 0
 
     name = names[int(answer) - 1]

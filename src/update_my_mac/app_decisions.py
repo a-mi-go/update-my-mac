@@ -30,6 +30,8 @@ class AppDecisions:
             stored = json.loads(self.path.read_text())
         except (OSError, ValueError):
             return {}
+        if not isinstance(stored, dict):
+            return {}
         if stored.get("version") != FORMAT_VERSION:
             # A file from a version that doesn't exist yet: better to ask again
             # than to act on something written for other rules.
