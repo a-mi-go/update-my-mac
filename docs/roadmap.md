@@ -27,6 +27,11 @@ that it should be left alone. `--retry-app` revisits what was left alone.
 | Python | `uv tool`, `pipx` |
 | Ruby | `gem` |
 | Rust | `cargo` |
+| Nix | `nix profile` |
+
+Nix needs a decision of its own: `nix profile upgrade` and a flake-based setup
+behave differently from the other managers, and a Nix user may not want a tool
+outside Nix changing their profile. Reporting what is outdated is the safe part.
 
 **Stale casks (D2).** `brew outdated` compares the version Homebrew recorded at
 install time, not the app on disk, and skips casks marked `auto_updates` unless
