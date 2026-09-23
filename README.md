@@ -14,14 +14,11 @@ update-my-mac checks for software updates from every package manager on your
 Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 `.pkg`, and applies them when you ask it to.
 
-Those last ones are the interesting case. No package manager tracks them, so
-they go stale silently. `update-my-mac` finds them and offers to start tracking
-them, so they stop being invisible.
+Apps installed from a `.dmg` belong to no package manager. update-my-mac finds
+them and offers to start tracking them.
 
-> **Status: in progress.** Checking and applying updates works for mas,
-> Homebrew, npm and pnpm. The remaining sources in the table below and the
-> untracked-app discovery are still being built; `--background` and
-> `--retry-app` are stubs that exit 1.
+What works today is marked in the table below. Everything else is listed in
+[the roadmap](docs/roadmap.md).
 
 ## Usage
 
