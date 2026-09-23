@@ -8,6 +8,12 @@
 
 <p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue" />&nbsp;<img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<a href="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml/badge.svg" /></a></p>
 
+<p align="center">
+  <a href="https://buymeacoffee.com/a.mi.go">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="42" alt="Buy Me a Coffee" />
+  </a>
+</p>
+
 ---
 
 update-my-mac checks for software updates from every package manager on your
