@@ -13,9 +13,14 @@ behind the design is in the commit messages and in the pull requests.
 ## Next
 
 **Untracked apps (D7).** Find apps in `/Applications` that no package manager
-knows about, and offer a way to track each one: adopt it into Homebrew Cask
-when a cask matches, watch its own update feed when it has one, or remember
-that it should be left alone. `--retry-app` revisits what was left alone.
+knows about, and offer a way to track each one:
+
+- **Adopt it into Homebrew Cask**, when `brew` is installed and a cask matches.
+  Homebrew then knows about the app and it shows up in ordinary checks.
+- **Watch it directly**: compare the installed bundle's version against the
+  app's own update feed. Needs no package manager, and it is the only option for
+  an app with no cask.
+- **Ignore it**, remembered between runs and revisitable with `--retry-app`.
 
 **The remaining package managers.** One registry entry plus a fixture each:
 

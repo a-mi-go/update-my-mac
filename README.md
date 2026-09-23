@@ -14,16 +14,17 @@ update-my-mac checks for software updates from every package manager on your
 Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 `.pkg`, and applies them when you ask it to.
 
-Apps installed from a `.dmg` belong to no package manager. update-my-mac finds
-them and offers to start tracking them.
+Apps installed from a `.dmg` belong to no package manager, which is what makes
+them go stale unnoticed. Finding and tracking those is the next thing being
+built.
 
 ## Usage
 
 ```bash
-update                # interactive: find untracked apps, report, offer to apply
+update                # report what is outdated, then offer to apply
 update --check        # report only, no prompts to apply
-update --background   # unattended (launchd): no prompts, notify if anything is outdated
-update --retry-app    # revisit apps you previously chose not to track
+update --background   # planned: unattended run for launchd, notify only
+update --retry-app    # planned: revisit apps you chose not to track
 ```
 
 ## What it checks
@@ -42,18 +43,6 @@ none of these is a requirement:
 | Ruby | `gem` | planned |
 | Rust | `cargo` | planned |
 | Directly downloaded apps | app bundle versions | planned |
-
-## Tracking a downloaded app
-
-An app that came from a `.dmg` belongs to no package manager, so for each one
-found you choose how it should be handled:
-
-- **Adopt it into Homebrew Cask**, when `brew` is installed and a cask matches.
-  Homebrew then knows about the app and it shows up in ordinary checks.
-- **Watch it directly**: compare the installed bundle's version against the
-  app's own update feed. Needs no package manager, and it is the only option for
-  an app with no cask.
-- **Ignore it**, remembered between runs and revisitable with `--retry-app`.
 
 ## Installation
 
