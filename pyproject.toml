@@ -26,8 +26,8 @@ build-backend = "hatchling.build"
 packages = ["src/update_my_mac"]
 
 [tool.uv]
-# The launcher installs whatever uv Homebrew currently ships; this is the floor
-# it has to clear (--frozen, dependency-groups, automatic Python downloads).
+# setup.sh installs whatever uv Homebrew currently ships; this is the floor it
+# has to clear (uv tool install --editable, automatic Python downloads).
 required-version = ">=0.5.0"
 
 [tool.pytest.ini_options]

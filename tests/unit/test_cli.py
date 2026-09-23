@@ -32,3 +32,9 @@ def test_unimplemented_modes_exit_non_zero(capsys):
     for argv in (["--background"], ["--retry-app"]):
         assert main(argv) == 1
         assert "not implemented yet" in capsys.readouterr().out
+
+
+def test_the_help_names_the_command_it_was_given(capsys):
+    with pytest.raises(SystemExit):
+        build_argument_parser("mac-update").parse_args(["--help"])
+    assert capsys.readouterr().out.startswith("usage: mac-update")

@@ -158,3 +158,14 @@ def test_ctrl_c_during_an_upgrade_stops_the_rest():
     # Interrupted counts as failed, and npm is never started.
     assert failed == ["brew"]
     assert shell.streamed == [["/fake/brew", "upgrade"]]
+
+
+def test_only_the_menu_numbers_are_coloured():
+    # Left to rich's highlighter, the brackets in "npm (global)" got coloured too.
+    console = Console(force_terminal=True, color_system="standard", width=200)
+    with console.capture() as captured:
+        apply_updates.print_menu(["brew", "npm"], console)
+    menu = captured.get()
+
+    assert "\x1b[1;36m3)\x1b[0m" in menu
+    assert "npm (global)" in menu

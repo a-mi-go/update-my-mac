@@ -15,12 +15,14 @@ MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"
 
 
-def run_check_against_mocks(scenario, path=None):
+def run_check_against_mocks(scenario, home, path=None):
     env = {
         "PATH": path if path is not None else f"{MOCKS}:/usr/bin:/bin",
         "MOCK_FIXTURES": str(FIXTURES / scenario),
-        "HOME": str(Path.home()),
+        "HOME": str(home),
         "TERM": "dumb",
+        # Only the fakes on PATH above, never this machine's real managers.
+        "UPDATE_MY_MAC_PREFIXES": "",
     }
     return subprocess.run(
         [sys.executable, "-m", "update_my_mac", "--check"],
@@ -31,8 +33,8 @@ def run_check_against_mocks(scenario, path=None):
     )
 
 
-def test_reports_outdated_packages():
-    result = run_check_against_mocks("outdated")
+def test_reports_outdated_packages(empty_home):
+    result = run_check_against_mocks("outdated", empty_home)
     assert result.returncode == 0, result.stderr
     out = result.stdout
     assert "Xcode" in out
@@ -42,27 +44,27 @@ def test_reports_outdated_packages():
     assert "5 outdated in total" in out
 
 
-def test_nothing_outdated_says_so():
-    result = run_check_against_mocks("clean")
+def test_nothing_outdated_says_so(empty_home):
+    result = run_check_against_mocks("clean", empty_home)
     assert "Everything is up to date" in result.stdout
 
 
 @pytest.mark.parametrize("label", ["Mac App Store", "Homebrew", "npm", "pnpm"])
-def test_clean_managers_are_listed_as_up_to_date(label):
-    result = run_check_against_mocks("clean")
+def test_clean_managers_are_listed_as_up_to_date(label, empty_home):
+    result = run_check_against_mocks("clean", empty_home)
     assert label in result.stdout
 
 
-def test_managers_that_are_not_installed_are_skipped(tmp_path):
+def test_managers_that_are_not_installed_are_skipped(tmp_path, empty_home):
     # An empty PATH entry means nothing resolves, so nothing should be reported.
-    result = run_check_against_mocks("outdated", path=f"{tmp_path}:/usr/bin:/bin")
+    result = run_check_against_mocks("outdated", empty_home, path=f"{tmp_path}:/usr/bin:/bin")
     assert result.returncode == 0, result.stderr
     assert "No supported package managers found" in result.stdout
 
 
-def test_a_failing_manager_is_reported_as_failed_not_outdated():
+def test_a_failing_manager_is_reported_as_failed_not_outdated(empty_home):
     # npm exits 1 for a registry failure exactly as it does for updates found.
-    result = run_check_against_mocks("npm_failure")
+    result = run_check_against_mocks("npm_failure", empty_home)
     # Non-zero so a scheduled run can tell "nothing outdated" from "did not run".
     assert result.returncode == 1
     assert "npm (global): check failed" in result.stdout

@@ -19,10 +19,24 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+      - name: Install the shells setup.sh deals with
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install fish
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq fish zsh
+          fi
       - name: Run tests
         run: uv run --frozen pytest -q
       - name: Check the package builds
         run: uv build --no-sources
-      - name: Lint the launcher
+      - name: Install it the way a user would
+        env:
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/tools
+        run: |
+          uv tool install --editable .
+          export PATH="${{ runner.temp }}/tools:$PATH"
+          UPDATE_MY_MAC_PREFIXES= update --version
+      - name: Lint the setup script
         if: runner.os == 'Linux'
-        run: shellcheck update
+        run: shellcheck setup.sh
