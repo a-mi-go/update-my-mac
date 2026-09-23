@@ -42,6 +42,16 @@ the definition is gone from that configuration, setup says so and prints the
 line that clears it from that terminal, in zsh, bash or fish syntax as needed.
 Opening a new tab works as well.
 
+## Where your decisions are kept
+
+Choosing to leave an app alone is written to
+`~/.local/state/update-my-mac/apps.json`, or under `XDG_STATE_HOME` when you
+have that set. It is a small JSON file you can read, copy to another machine or
+delete; deleting it means every app is offered again.
+
+Nothing else is stored, and a run that only checks never writes it. If the file
+cannot be written, the run says so and carries on rather than stopping.
+
 ## Where the tool looks for package managers
 
 A scheduled run starts with a bare `PATH`, so the tool adds the usual locations

@@ -8,6 +8,12 @@
 
 <p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue" />&nbsp;<img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<a href="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml/badge.svg" /></a></p>
 
+<p align="center">
+  <a href="https://buymeacoffee.com/a.mi.go">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="42" alt="Buy Me a Coffee" />
+  </a>
+</p>
+
 ---
 
 update-my-mac checks for software updates from every package manager on your
@@ -15,8 +21,9 @@ Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 `.pkg`, and applies them when you ask it to.
 
 Apps installed from a `.dmg` belong to no package manager, which is what makes
-them go stale unnoticed. Finding and tracking those is the next thing being
-built.
+them go stale unnoticed. Those are listed separately, and an interactive run
+offers to leave an app alone so it stops being listed. Adopting one into
+Homebrew Cask or watching its update feed is the next thing being built.
 
 ## Usage
 
@@ -24,7 +31,7 @@ built.
 update                # report what is outdated, then offer to apply
 update --check        # report only, no prompts to apply
 update --background   # planned: unattended run for launchd, notify only
-update --retry-app    # planned: revisit apps you chose not to track
+update --retry-app    # list an app again that you chose to leave alone
 ```
 
 ## What it checks
@@ -42,7 +49,7 @@ none of these is a requirement:
 | Python | `uv tool`, `pipx` | planned |
 | Ruby | `gem` | planned |
 | Rust | `cargo` | planned |
-| Directly downloaded apps | app bundle versions | planned |
+| Directly downloaded apps | app bundle versions | ✅ listed |
 
 ## Installation
 
@@ -79,8 +86,8 @@ Tests come in two layers, both run by CI on macOS and Linux:
 ## More
 
 - [docs/setup.md](docs/setup.md): choosing the command name, what setup does
-  about an alias that would hide it, and where the tool looks for package
-  managers.
+  about an alias that would hide it, where your decisions about apps are kept,
+  and where the tool looks for package managers.
 - [docs/roadmap.md](docs/roadmap.md): what is built, what is next, and the open
   questions.
 

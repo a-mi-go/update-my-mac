@@ -15,14 +15,16 @@ MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"
 
 
-def run_check_against_mocks(scenario, home, path=None):
+def run_check_against_mocks(scenario, home, path=None, app_dirs=""):
     env = {
         "PATH": path if path is not None else f"{MOCKS}:/usr/bin:/bin",
         "MOCK_FIXTURES": str(FIXTURES / scenario),
         "HOME": str(home),
         "TERM": "dumb",
-        # Only the fakes on PATH above, never this machine's real managers.
+        # Only the fakes on PATH above, never this machine's real managers,
+        # and no scanning of the real /Applications either.
         "UPDATE_MY_MAC_PREFIXES": "",
+        "UPDATE_MY_MAC_APP_DIRS": app_dirs,
     }
     return subprocess.run(
         [sys.executable, "-m", "update_my_mac", "--check"],
@@ -71,3 +73,21 @@ def test_a_failing_manager_is_reported_as_failed_not_outdated(empty_home):
     assert "ENOTFOUND" in result.stdout
     # A failed check must not be summarised as everything being fine.
     assert "Everything is up to date" not in result.stdout
+
+
+def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
+    apps = tmp_path / "Applications"
+    (apps / "TokenEater.app" / "Contents").mkdir(parents=True)
+    plist = apps / "TokenEater.app" / "Contents" / "Info.plist"
+    plist.write_bytes(
+        b'<?xml version="1.0" encoding="UTF-8"?>\n'
+        b'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+        b'<plist version="1.0"><dict><key>CFBundleShortVersionString</key>'
+        b"<string>5.12.2</string></dict></plist>\n"
+    )
+
+    result = run_check_against_mocks("clean", empty_home, app_dirs=str(apps))
+
+    assert result.returncode == 0, result.stderr
+    assert "Not tracked by any package manager: 1" in result.stdout
+    assert "TokenEater  5.12.2" in result.stdout

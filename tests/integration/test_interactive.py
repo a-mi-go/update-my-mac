@@ -21,8 +21,10 @@ def run_interactively(answer, home, scenario="outdated", log=None):
         "MOCK_FIXTURES": str(FIXTURES / scenario),
         "HOME": str(home),
         "TERM": "dumb",
-        # Only the fakes on PATH above, never this machine's real managers.
+        # Only the fakes on PATH above, never this machine's real managers,
+        # and no scanning of the real /Applications either.
         "UPDATE_MY_MAC_PREFIXES": "",
+        "UPDATE_MY_MAC_APP_DIRS": "",
     }
     if log is not None:
         env["MOCK_LOG"] = str(log)
@@ -41,6 +43,11 @@ def logged(log):
     return log.read_text().splitlines() if log.exists() else []
 
 
+def upgrades(log):
+    """Only the calls that change something, not the ones that ask."""
+    return [line for line in logged(log) if "upgrade" in line or "update" in line]
+
+
 def test_everything_upgrades_each_outdated_manager(tmp_path, empty_home):
     log = tmp_path / "calls.log"
     result = run_interactively("1\n", empty_home, log=log)
@@ -57,8 +64,7 @@ def test_choosing_one_manager_leaves_the_others_alone(tmp_path, empty_home):
     log = tmp_path / "calls.log"
     run_interactively("3\n", empty_home, log=log)
 
-    upgrades = [line for line in logged(log) if "outdated" not in line]
-    assert upgrades == ["brew upgrade"]
+    assert upgrades(log) == ["brew upgrade"]
 
 
 def test_cancelling_upgrades_nothing(tmp_path, empty_home):
@@ -66,7 +72,7 @@ def test_cancelling_upgrades_nothing(tmp_path, empty_home):
     result = run_interactively("0\n", empty_home, log=log)
 
     assert result.returncode == 0
-    assert [line for line in logged(log) if "outdated" not in line] == []
+    assert upgrades(log) == []
 
 
 def test_nothing_outdated_means_no_menu(tmp_path, empty_home):
@@ -75,7 +81,7 @@ def test_nothing_outdated_means_no_menu(tmp_path, empty_home):
 
     assert "What should be upgraded?" not in result.stdout
     assert "Everything is up to date" in result.stdout
-    assert [line for line in logged(log) if "outdated" not in line] == []
+    assert upgrades(log) == []
 
 
 def test_no_answer_on_stdin_cancels(tmp_path, empty_home):
@@ -84,7 +90,7 @@ def test_no_answer_on_stdin_cancels(tmp_path, empty_home):
 
     assert result.returncode == 0, result.stderr
     assert "Traceback" not in result.stderr
-    assert [line for line in logged(log) if "outdated" not in line] == []
+    assert upgrades(log) == []
 
 
 def test_a_failed_upgrade_exits_non_zero(tmp_path, empty_home):

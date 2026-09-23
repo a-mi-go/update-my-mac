@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from rich.console import Console
 
 from update_my_mac import report
+from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport
 
 
@@ -44,3 +47,28 @@ def test_brackets_in_an_error_are_text_not_markup():
 def test_brackets_in_a_package_name_are_text_not_markup():
     out = rendered([ManagerReport("npm", "npm (global)", ["pkg [beta]  1.0 → 2.0"])])
     assert "pkg [beta]  1.0 → 2.0" in out
+
+
+def test_untracked_apps_are_listed_with_their_versions():
+    console = Console(width=200, no_color=True, soft_wrap=True)
+    apps = [
+        InstalledApp("TokenEater", "5.12.2", Path("/Applications/TokenEater.app")),
+        InstalledApp("Some [beta] App", "1.0", Path("/Applications/Some [beta] App.app")),
+    ]
+
+    with console.capture() as captured:
+        report.print_untracked_apps(apps, console)
+    out = captured.get()
+
+    assert "Not tracked by any package manager: 2" in out
+    assert "TokenEater  5.12.2" in out
+    # Brackets in a name are text, not colour markup.
+    assert "Some [beta] App  1.0" in out
+
+
+def test_nothing_is_said_when_every_app_is_tracked():
+    console = Console(width=200, no_color=True)
+    with console.capture() as captured:
+        report.print_untracked_apps([], console)
+
+    assert captured.get() == ""
