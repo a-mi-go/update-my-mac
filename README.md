@@ -15,8 +15,8 @@ Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 `.pkg`, and applies them when you ask it to.
 
 Apps installed from a `.dmg` belong to no package manager, which is what makes
-them go stale unnoticed. Finding and tracking those is the next thing being
-built.
+them go stale unnoticed. Those are listed separately, so at least they are
+visible. Tracking them is the next thing being built.
 
 ## Usage
 
@@ -42,7 +42,7 @@ none of these is a requirement:
 | Python | `uv tool`, `pipx` | planned |
 | Ruby | `gem` | planned |
 | Rust | `cargo` | planned |
-| Directly downloaded apps | app bundle versions | planned |
+| Directly downloaded apps | app bundle versions | ✅ listed |
 
 ## Installation
 

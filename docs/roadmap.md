@@ -9,11 +9,13 @@ behind the design is in the commit messages and in the pull requests.
 - `update`: the same check, then a menu to upgrade one manager or all of them.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
+- Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor
+  macOS itself accounts for.
 
 ## Next
 
-**Untracked apps (D7).** Find apps in `/Applications` that no package manager
-knows about, and offer a way to track each one:
+**Untracked apps (D7).** Finding them is done. What is left is offering a way
+to track each one:
 
 - **Adopt it into Homebrew Cask**, when `brew` is installed and a cask matches.
   Homebrew then knows about the app and it shows up in ordinary checks.
