@@ -6,7 +6,7 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Local state (personal data — never commit)
+# Local state (personal data, never commit)
 *.state.json
 
 # Build output

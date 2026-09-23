@@ -1,4 +1,4 @@
-"""Command line entry point. Flags in, dispatch out — no logic here."""
+"""Command line entry point. Flags in, dispatch out, no logic here."""
 
 import argparse
 

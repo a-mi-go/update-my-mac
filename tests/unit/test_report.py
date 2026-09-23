@@ -19,12 +19,12 @@ def test_outdated_and_failed_managers_side_by_side():
     out = rendered(
         [
             ManagerReport("brew", "Homebrew", ["git 2.48.1 → 2.49.0"]),
-            ManagerReport("npm", "npm (global)", [], "ENOTFOUND — registry is down"),
+            ManagerReport("npm", "npm (global)", [], "ENOTFOUND: registry is down"),
             ManagerReport("mas", "Mac App Store", []),
         ]
     )
     assert "Homebrew: 1 outdated" in out
-    assert "npm (global): check failed — ENOTFOUND" in out
+    assert "npm (global): check failed (ENOTFOUND" in out
     assert "Mac App Store: up to date" in out
     assert "1 outdated in total" in out
 

@@ -38,9 +38,9 @@ if ! command -v uv &>/dev/null; then
   command -v uv &>/dev/null || { echo "setup: uv still isn't on PATH after installing it." >&2; exit 1; }
 fi
 
-# Everything else — choosing the name, dealing with whatever in zsh, bash or
-# fish config would hide it, and the install itself — is easier to get right in
-# Python. It asks every question before it installs anything. The calling
+# Everything else is easier to get right in Python: choosing the name, dealing
+# with whatever in zsh, bash or fish config would hide it, and the install
+# itself. It asks every question before it installs anything. The calling
 # shell's pid goes along so it can tell whether that terminal is out of date,
 # and uv is asked where it puts commands, since XDG_BIN_HOME can move them.
 exec uv run --frozen --no-dev --quiet python -m update_my_mac.install_command \
