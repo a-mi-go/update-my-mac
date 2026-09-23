@@ -35,6 +35,7 @@ def run_check(home, prefixes=""):
         "MOCK_FIXTURES": str(FIXTURES / "clean"),
         # No real prefixes, so only what this test planted can be found.
         "UPDATE_MY_MAC_PREFIXES": prefixes,
+        "UPDATE_MY_MAC_APP_DIRS": "",
     }
     return subprocess.run(
         [sys.executable, "-m", "update_my_mac", "--check"],
