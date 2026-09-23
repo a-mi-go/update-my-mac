@@ -86,8 +86,8 @@ Tests come in two layers, both run by CI on macOS and Linux:
 ## More
 
 - [docs/setup.md](docs/setup.md): choosing the command name, what setup does
-  about an alias that would hide it, and where the tool looks for package
-  managers.
+  about an alias that would hide it, where your decisions about apps are kept,
+  and where the tool looks for package managers.
 - [docs/roadmap.md](docs/roadmap.md): what is built, what is next, and the open
   questions.
 
