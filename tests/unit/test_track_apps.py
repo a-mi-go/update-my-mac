@@ -199,3 +199,32 @@ def test_ctrl_c_while_revisiting_changes_nothing(tmp_path):
 
     assert brought_back == 0
     assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
+
+
+def test_a_decision_that_cannot_be_saved_is_said_out_loud(tmp_path):
+    locked = tmp_path / "locked"
+    locked.mkdir(mode=0o500)
+    decisions = app_decisions.AppDecisions(locked / "update-my-mac" / "apps.json")
+    terminal = Terminal("y", "1")
+
+    ignored = track_apps.run_untracked_menu([app("TokenEater")], decisions, terminal.ask, terminal.out)
+
+    assert ignored == 1
+    assert "won't be remembered" in terminal.text
+
+
+def test_bringing_an_app_back_that_cannot_be_saved_says_so(tmp_path):
+    decisions = decisions_in(tmp_path)
+    decisions.ignore("Alpha", "1.0")
+    decisions.save()
+    (tmp_path / "apps.json").chmod(0o400)
+    tmp_path.chmod(0o500)
+    terminal = Terminal("1")
+
+    try:
+        brought_back = track_apps.run_revisit_menu(decisions, terminal.ask, terminal.out)
+    finally:
+        tmp_path.chmod(0o700)
+
+    assert brought_back == 0
+    assert "won't be remembered" in terminal.text

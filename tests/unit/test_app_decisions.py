@@ -88,3 +88,19 @@ def test_an_interrupted_write_leaves_the_old_file_intact(tmp_path, monkeypatch):
         pass
 
     assert decisions_in(tmp_path).ignored_names() == ["First"]
+
+
+def test_a_directory_that_cannot_be_written_is_reported_not_raised(tmp_path):
+    locked = tmp_path / "locked"
+    locked.mkdir(mode=0o500)
+    decisions = app_decisions.AppDecisions(locked / "update-my-mac" / "apps.json")
+    decisions.ignore("TokenEater", "5.12.2")
+
+    assert decisions.save() is False
+
+
+def test_a_successful_write_says_so(tmp_path):
+    decisions = decisions_in(tmp_path)
+    decisions.ignore("TokenEater", "5.12.2")
+
+    assert decisions.save() is True

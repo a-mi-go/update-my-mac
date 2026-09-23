@@ -56,8 +56,8 @@ def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
     except Stopped:
         console_print()
 
-    if ignored:
-        decisions.save()
+    if ignored and not decisions.save():
+        _say_it_was_not_written(decisions, console_print)
     return ignored
 
 
@@ -89,6 +89,15 @@ def run_revisit_menu(decisions, ask=input, out=None, interactive=True):
 
     name = names[int(answer) - 1]
     decisions.forget(name)
-    decisions.save()
+    if not decisions.save():
+        _say_it_was_not_written(decisions, console_print)
+        return 0
     console_print(f"[bold]{escape(name)}[/] will be listed again.")
     return 1
+
+
+def _say_it_was_not_written(decisions, console_print):
+    console_print(
+        f"[yellow]Could not write {escape(str(decisions.path))}, "
+        f"so this won't be remembered.[/]"
+    )

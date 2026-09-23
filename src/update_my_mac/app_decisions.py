@@ -54,15 +54,20 @@ class AppDecisions:
         self.apps.pop(name, None)
 
     def save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Written beside the file and moved into place, so an interrupted run
-        # can't leave half a file behind.
-        temporary = self.path.with_name(self.path.name + ".new")
-        temporary.write_text(
-            json.dumps({"version": FORMAT_VERSION, "apps": self.apps}, indent=2, sort_keys=True)
-            + "\n"
-        )
-        temporary.replace(self.path)
+        """Whether it was written. Losing a decision is not worth a crash."""
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            # Written beside the file and moved into place, so an interrupted
+            # run can't leave half a file behind.
+            temporary = self.path.with_name(self.path.name + ".new")
+            temporary.write_text(
+                json.dumps({"version": FORMAT_VERSION, "apps": self.apps}, indent=2, sort_keys=True)
+                + "\n"
+            )
+            temporary.replace(self.path)
+        except OSError:
+            return False
+        return True
 
 
 def load(env=None):
