@@ -41,7 +41,7 @@ def _describe_error(error):
     if not isinstance(error, dict):
         return str(error)
     # The code alone is cryptic and the summary alone loses the category.
-    described = " — ".join(part for part in (error.get("code"), error.get("summary")) if part)
+    described = ": ".join(part for part in (error.get("code"), error.get("summary")) if part)
     return described or str(error)
 
 

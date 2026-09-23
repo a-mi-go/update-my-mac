@@ -1,8 +1,8 @@
 """setup.sh is how the tool gets installed, so it gets run for real.
 
-Everything uv would otherwise write to the machine — the tool directory and the
-executable — goes to a temporary place, so this leaves no trace and can't
-disturb an install the developer already has.
+Everything uv would otherwise write to the machine, the tool directory and the
+executable, goes to a temporary place. This leaves no trace and can't disturb
+an install the developer already has.
 """
 
 import os

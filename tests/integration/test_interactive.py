@@ -1,7 +1,7 @@
 """A bare `update`: check, report, then offer to upgrade.
 
 The fakes record what they were asked to do, so these tests can assert that an
-upgrade really was — or really wasn't — run.
+upgrade really was run, or really wasn't.
 """
 
 import subprocess

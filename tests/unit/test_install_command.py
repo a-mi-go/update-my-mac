@@ -327,7 +327,7 @@ def test_a_second_run_offers_to_keep_the_name(machine):
     code, text, _ = run(machine, answers=[""])
 
     assert code == 0
-    assert "Setup has run before — the command is called mac-update" in text
+    assert "Setup has run before. The command is called mac-update" in text
     assert "What should the command be called?" not in text
     assert "Try: mac-update --check" in text
 
@@ -337,7 +337,7 @@ def test_a_second_run_without_other_names_keeps_update(machine):
 
     _, text, _ = run(machine, answers=[""])
 
-    assert "the command is called update" in text
+    assert "The command is called update" in text
     assert "Try: update --check" in text
 
 

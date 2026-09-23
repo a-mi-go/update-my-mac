@@ -9,8 +9,8 @@ import os
 
 PREFIXES = ("/opt/homebrew", "/usr/local", "/opt/local")
 
-# Set UPDATE_MY_MAC_PREFIXES to look somewhere else entirely — a Homebrew in an
-# unusual place, a Nix profile — or to an empty string to look nowhere.
+# Set UPDATE_MY_MAC_PREFIXES to look somewhere else entirely, such as a Homebrew
+# in an unusual place or a Nix profile, or to an empty string to look nowhere.
 PREFIX_OVERRIDE = "UPDATE_MY_MAC_PREFIXES"
 
 

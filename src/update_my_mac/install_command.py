@@ -97,7 +97,7 @@ def first_name(args, ask, out, interactive):
         return earlier[0]
 
     shown = ", ".join(f"[bold]{name}[/]" for name in earlier)
-    out(f"Setup has run before — the command is called {shown}.")
+    out(f"Setup has run before. The command is called {shown}.")
     answer = ask("Keep it? [Y/n] ").strip().lower()
     if answer in ("", "y", "yes"):
         return earlier[0]
@@ -121,7 +121,7 @@ def usable_name(name, bin_dir, env, ask, err, interactive):
         if not USABLE_NAME.fullmatch(name):
             err(f"[yellow]setup: '{escape(name)}' is not a usable command name.[/]")
         elif occupied_in_bin_dir(name, bin_dir):
-            err(f"[yellow]setup: {escape(str(Path(bin_dir) / name))} already exists — not touching it.[/]")
+            err(f"[yellow]setup: {escape(str(Path(bin_dir) / name))} already exists, so it is left alone.[/]")
         elif taken := already_taken_by(name, env):
             err(f"[yellow]setup: '{name}' is already {escape(taken)}.[/]")
         else:
@@ -153,7 +153,7 @@ def decide_about_shadowing(name, env, ask, out, interactive):
         # The colour rich gives numbers in the tool's upgrade menu, so both look alike.
         out("  [bold cyan]1)[/] keep it, and call the command something else")
         if stuck:
-            out("  [bold cyan]2)[/] stop here — remove it yourself, then run setup again")
+            out("  [bold cyan]2)[/] stop here, remove it yourself, then run setup again")
         else:
             out("  [bold cyan]2)[/] disable it")
         choice = ask("> ").strip()

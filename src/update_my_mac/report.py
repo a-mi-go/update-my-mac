@@ -21,7 +21,7 @@ def print_outdated_summary(reports, console=None):
         if report.error_message:
             # The message comes from another tool, so brackets in it are text.
             console.print(
-                f"[yellow]{report.label}: check failed[/] — {escape(report.error_message)}"
+                f"[yellow]{report.label}: check failed[/] ({escape(report.error_message)})"
             )
         elif report.outdated_packages:
             count = len(report.outdated_packages)

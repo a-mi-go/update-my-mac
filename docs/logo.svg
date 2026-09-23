@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="update-my-mac logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f6feb"/>
+      <stop offset="1" stop-color="#1b4fc4"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+
+  <!-- The cycle: two arrows, each a ring segment and a head in one shape. -->
+  <g fill="#ffffff">
+    <path d="M16.18 59.82 A48.0 48.0 0 0 1 105.57 40.00 L95.18 46.00 A36.0 36.0 0 0 0 28.14 60.86 Z"/>
+    <path d="M105.36 56.71 L112.50 36.00 L88.25 50.00 Z"/>
+    <path d="M111.82 68.18 A48.0 48.0 0 0 1 22.43 88.00 L32.82 82.00 A36.0 36.0 0 0 0 99.86 67.14 Z"/>
+    <path d="M22.64 71.29 L15.50 92.00 L39.75 78.00 Z"/>
+  </g>
+
+  <!-- The gear, with a tick for "checked". -->
+  <g fill="#ffffff">
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(0 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(45 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(90 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(135 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(180 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(225 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(270 64.0 64.0)"/>
+    <rect x="58.50" y="37.00" width="9" height="12" rx="3" transform="rotate(315 64.0 64.0)"/>
+    <circle cx="64.0" cy="64.0" r="20"/>
+  </g>
+  <circle cx="64.0" cy="64.0" r="12.5" fill="#1b4fc4"/>
+  <path d="M57.5 64 L62.5 69 L71.5 58" fill="none"
+        stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
