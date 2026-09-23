@@ -181,3 +181,21 @@ def test_a_normal_app_does_not_look_like_a_system_one(tmp_path):
     app = make_app(tmp_path, "TokenEater")
 
     assert not installed_apps.belongs_to_macos(app)
+
+
+def test_the_same_directory_twice_lists_each_app_once(tmp_path):
+    make_app(tmp_path, "Thing")
+    env = {"HOME": str(tmp_path), "UPDATE_MY_MAC_APP_DIRS": f"{tmp_path}:{tmp_path}"}
+
+    found = installed_apps.find_untracked(FakeShell(casks=[]), env)
+
+    assert [app.name for app in found] == ["Thing"]
+
+
+def test_without_a_home_the_home_directory_is_simply_skipped():
+    # It used to become a second /Applications, which a launchd job would hit.
+    assert [str(p) for p in installed_apps.app_directories({})] == ["/Applications"]
+    assert [str(p) for p in installed_apps.app_directories({"HOME": "/Users/x"})] == [
+        "/Applications",
+        "/Users/x/Applications",
+    ]

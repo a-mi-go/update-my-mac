@@ -34,8 +34,18 @@ def app_directories(env):
         directories = APP_DIRECTORIES
     else:
         directories = tuple(entry for entry in configured.split(os.pathsep) if entry)
+
     home = env.get("HOME", "")
-    return [Path(directory.replace("~", home, 1)) for directory in directories]
+    found = []
+    for directory in directories:
+        if directory.startswith("~"):
+            # Without HOME this would turn into a second /Applications, which
+            # is exactly the environment a launchd job starts in.
+            if not home:
+                continue
+            directory = home + directory[1:]
+        found.append(Path(directory))
+    return found
 
 
 def read_version(app_path):
@@ -126,10 +136,13 @@ def find_untracked(shell, env=None):
     from_homebrew = apps_installed_by_homebrew(shell)
 
     found = []
+    visited = set()
     for directory in app_directories(env):
-        if not directory.is_dir():
+        resolved = directory.resolve()
+        if resolved in visited or not resolved.is_dir():
             continue
-        for app_path in sorted(directory.glob("*.app")):
+        visited.add(resolved)
+        for app_path in sorted(resolved.glob("*.app")):
             if (
                 app_path.name in from_homebrew
                 or comes_from_the_app_store(app_path)
