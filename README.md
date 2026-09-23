@@ -17,9 +17,6 @@ Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 Apps installed from a `.dmg` belong to no package manager. update-my-mac finds
 them and offers to start tracking them.
 
-What works today is marked in the table below. Everything else is listed in
-[the roadmap](docs/roadmap.md).
-
 ## Usage
 
 ```bash
@@ -66,44 +63,16 @@ cd update-my-mac
 ./setup.sh
 ```
 
-`setup.sh` runs once. It makes sure [uv](https://astral.sh/uv) is installed,
-asking first and then using Homebrew if you have it or the official installer
-otherwise. Then it installs `update` into `~/.local/bin` with its own isolated
-environment. It is installed from the clone, so a `git pull` updates the command
-with no reinstall.
+macOS is the only requirement; uv brings its own Python. Setup asks what to
+call the command, or takes the name up front with `./setup.sh --name mac-update`.
 
-macOS is the only requirement; uv brings its own Python.
+## Updating
 
-`setup.sh` asks what to call the command, `update` unless you choose otherwise,
-or takes the name up front with `./setup.sh --name mac-update`. A name that
-another program or a shell builtin already has is refused. Every question comes
-before anything is installed, so stopping partway leaves your machine as it was.
+```bash
+git pull
+```
 
-Running it again recognises the earlier install from what is in uv's bin
-directory, offers to keep the name it has, and without a terminal simply keeps
-it.
-
-If zsh, bash or fish already define that name, as an alias, a function or a
-fish abbreviation, you choose: keep it and give the command another name, or
-disable it. Nothing changes without you picking it, and setup never installs a
-command that something in your shell would hide; without a terminal to ask on,
-it stops and suggests `--name`. Disabling comments out a one-line definition
-(with a timestamped backup) or moves a fish function file aside; a multi-line
-function has to be removed by hand, and setup says where it is.
-
-Any name other than `update` is a plain symlink uv doesn't know about, so
-`uv tool uninstall update-my-mac` leaves it behind, so remove it yourself.
-
-If the terminal you ran it from is older than your shell config and the old
-definition is gone from the config, `setup.sh` says so and prints the line that
-clears it from that terminal, in zsh/bash or fish syntax as needed.
-
-Scheduled runs get a bare `PATH`, so the tool adds the usual locations itself
-(`/opt/homebrew`, `/usr/local`, `/opt/local`, `~/.local/bin`, `~/.cargo/bin` and
-pnpm's global bin). If your package managers live somewhere unusual, set
-`UPDATE_MY_MAC_PREFIXES` to the prefixes to search. It replaces the list above
-rather than adding to it, so include every prefix you need (colon-separated).
-The home directories are always searched.
+The command runs from the clone, so there is nothing to reinstall.
 
 ## Development
 
@@ -117,6 +86,14 @@ Tests come in two layers, both run by CI on macOS and Linux:
 - `tests/integration/`: runs the real CLI against fake package managers that
   sit alone on `PATH`, with an empty `HOME`, so nothing installed on the machine
   takes part.
+
+## More
+
+- [docs/setup.md](docs/setup.md): choosing the command name, what setup does
+  about an alias that would hide it, and where the tool looks for package
+  managers.
+- [docs/roadmap.md](docs/roadmap.md): what is built, what is next, and the open
+  questions.
 
 ## License
 
