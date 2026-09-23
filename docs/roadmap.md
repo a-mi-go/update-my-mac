@@ -10,19 +10,21 @@ behind the design is in the commit messages and in the pull requests.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor
-  macOS itself accounts for.
+  macOS itself accounts for, and remembering which of them to leave alone.
+- `update --retry-app`: list an app again that was left alone.
 
 ## Next
 
-**Untracked apps (D7).** Finding them is done. What is left is offering a way
-to track each one:
+**Untracked apps (D7).** Finding them, leaving them alone and revisiting that
+are done. What is left are the two ways to actually track one:
 
 - **Adopt it into Homebrew Cask**, when `brew` is installed and a cask matches.
   Homebrew then knows about the app and it shows up in ordinary checks.
 - **Watch it directly**: compare the installed bundle's version against the
   app's own update feed. Needs no package manager, and it is the only option for
   an app with no cask.
-- **Ignore it**, remembered between runs and revisitable with `--retry-app`.
+
+Both become another decision in the same file, next to "leave it alone".
 
 **The remaining package managers.** One registry entry plus a fixture each:
 

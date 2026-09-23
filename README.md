@@ -15,8 +15,9 @@ Mac, plus macOS itself and the apps you installed by downloading a `.dmg` or
 `.pkg`, and applies them when you ask it to.
 
 Apps installed from a `.dmg` belong to no package manager, which is what makes
-them go stale unnoticed. Those are listed separately, so at least they are
-visible. Tracking them is the next thing being built.
+them go stale unnoticed. Those are listed separately, and an interactive run
+offers to leave an app alone so it stops being listed. Adopting one into
+Homebrew Cask or watching its update feed is the next thing being built.
 
 ## Usage
 
@@ -24,7 +25,7 @@ visible. Tracking them is the next thing being built.
 update                # report what is outdated, then offer to apply
 update --check        # report only, no prompts to apply
 update --background   # planned: unattended run for launchd, notify only
-update --retry-app    # planned: revisit apps you chose not to track
+update --retry-app    # list an app again that you chose to leave alone
 ```
 
 ## What it checks
