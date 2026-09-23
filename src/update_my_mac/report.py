@@ -8,16 +8,22 @@ def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
 
 
-def print_untracked_apps(apps, console=None):
+def print_untracked_apps(apps, console=None, left_alone=0):
     """Apps no package manager accounts for, so nothing else will mention them."""
     console = console or Console(highlight=False, soft_wrap=True)
-    if not apps:
+    if not apps and not left_alone:
         return
 
     console.print()
-    console.print(f"[bold]Not tracked by any package manager[/]: {len(apps)}")
-    for app in apps:
-        console.print(f"    {app.describe()}", markup=False, highlight=False)
+    if apps:
+        console.print(f"[bold]Not tracked by any package manager[/]: {len(apps)}")
+        for app in apps:
+            console.print(f"    {app.describe()}", markup=False, highlight=False)
+    if left_alone:
+        console.print(
+            f"[dim]{left_alone} more left alone on purpose. "
+            f"Run with --retry-app to list one again.[/]"
+        )
 
 
 def print_outdated_summary(reports, console=None):

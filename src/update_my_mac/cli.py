@@ -44,10 +44,11 @@ def main(argv=None, prog=None):
     if args.check:
         return app.run_check_mode()
 
+    if args.retry_app:
+        return app.run_retry_app_mode()
+
     if args.background:
         mode = "--background"
-    elif args.retry_app:
-        mode = "--retry-app"
     else:
         return app.run_interactive_mode()
 
