@@ -6,10 +6,11 @@ as outdated. Finding those is the first half of doing something about it.
 
 import json
 import os
-import plistlib
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from update_my_mac import app_updaters
 
 APP_DIRECTORIES = ("/Applications", "~/Applications")
 
@@ -23,6 +24,7 @@ class InstalledApp:
     name: str
     version: str
     path: Path
+    updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
 
     def describe(self):
         return f"{self.name}  {self.version}"
@@ -48,13 +50,9 @@ def app_directories(env):
     return found
 
 
-def read_version(app_path):
+def read_version(app_path, info=None):
     """The version a person would recognise, from the app's own Info.plist."""
-    try:
-        with open(app_path / "Contents" / "Info.plist", "rb") as plist:
-            info = plistlib.load(plist)
-    except (OSError, plistlib.InvalidFileException):
-        return "?"
+    info = app_updaters.read_bundle_info(app_path) if info is None else info
     return info.get("CFBundleShortVersionString") or info.get("CFBundleVersion") or "?"
 
 
@@ -149,7 +147,31 @@ def find_untracked(shell, env=None):
                 or belongs_to_macos(app_path)
             ):
                 continue
+            # One read of Info.plist answers both the version and the updater.
+            info = app_updaters.read_bundle_info(app_path)
             found.append(
-                InstalledApp(app_path.stem, read_version(app_path), app_path)
+                InstalledApp(
+                    app_path.stem,
+                    read_version(app_path, info),
+                    app_path,
+                    app_updaters.detect(app_path, shell, info),
+                )
             )
     return found
+
+
+def group_by_updater(apps):
+    """Split untracked apps by whether anything looks after them.
+
+    The first group is the point of the whole exercise: nothing on the machine
+    will ever tell you these are behind.
+    """
+    unattended, self_updating, unclear = [], [], []
+    for app in apps:
+        if app.updater.kind == app_updaters.NONE:
+            unattended.append(app)
+        elif app.updater.looks_after_itself:
+            self_updating.append(app)
+        else:
+            unclear.append(app)
+    return unattended, self_updating, unclear
