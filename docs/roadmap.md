@@ -5,8 +5,13 @@ behind the design is in the commit messages and in the pull requests.
 
 ## Works today
 
-- `update --check`: mas, Homebrew formulae, global npm and pnpm packages.
-- `update`: the same check, then a menu to upgrade one manager or all of them.
+- `update --check`: the package managers themselves, then mas, Homebrew
+  formulae, global npm and pnpm packages.
+- `update`: the managers are offered first and on their own, so that everything
+  checked afterwards comes from current tools. Then one menu that takes a number
+  or several separated by commas, with the untracked apps as an entry in it.
+- Telling which untracked apps update themselves, by reading Sparkle's settings
+  out of the app bundle and the user's own preferences.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor
@@ -26,21 +31,30 @@ are done. What is left are the two ways to actually track one:
 
 Both become another decision in the same file, next to "leave it alone".
 
-**The remaining package managers.** One registry entry plus a fixture each:
+**The remaining package managers.** One registry entry plus a fixture each.
+This table is the source for the one in the README, so keep it here:
 
+<!-- planned-sources:start -->
 | Source | Command |
 | --- | --- |
-| macOS | `softwareupdate` (report always, apply only when asked) |
-| MacPorts | `port` |
-| JavaScript | `yarn`, `bun` |
-| Python | `uv tool`, `pipx` |
-| Ruby | `gem` |
-| Rust | `cargo` |
-| Nix | `nix profile` |
+| `softwareupdate` | `softwareupdate --list` |
+| [Homebrew Cask](https://github.com/Homebrew/homebrew-cask) | `brew outdated --cask --greedy` |
+| [MacPorts](https://github.com/macports/macports-base) | `port outdated` |
+| [Yarn](https://github.com/yarnpkg/yarn) | `yarn global list` |
+| [Bun](https://github.com/oven-sh/bun) | not decided |
+| [uv](https://github.com/astral-sh/uv) | `uv tool list --outdated` |
+| [pipx](https://github.com/pypa/pipx) | `pipx list --json` |
+| [RubyGems](https://github.com/rubygems/rubygems) | `gem outdated` |
+| [Cargo](https://github.com/rust-lang/cargo) | `cargo install --list` |
+| [Nix](https://github.com/NixOS/nix) | `nix profile list` |
+<!-- planned-sources:end -->
 
-Nix needs a decision of its own: `nix profile upgrade` and a flake-based setup
-behave differently from the other managers, and a Nix user may not want a tool
-outside Nix changing their profile. Reporting what is outdated is the safe part.
+Three of these need a decision rather than a fixture. Nix, because
+`nix profile upgrade` and a flake-based setup behave differently from the other
+managers and a Nix user may not want a tool outside Nix touching their profile,
+so reporting is the safe part. Yarn, because only Yarn Classic has global
+installs at all and Yarn 2 dropped them. And Bun, which has global installs but
+no command that reports them as outdated.
 
 **Stale casks (D2).** `brew outdated` compares the version Homebrew recorded at
 install time, not the app on disk, and skips casks marked `auto_updates` unless

@@ -33,13 +33,10 @@ def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
         return 0
 
     console_print()
-    console_print(f"{len(waiting)} of these are not tracked by any package manager.")
+    console_print(f"Going through {len(waiting)} untracked apps.")
 
     ignored = 0
     try:
-        if _answer(ask, "Go through them now? [y/N] ").lower() not in ("y", "yes"):
-            return 0
-
         for app in waiting:
             console_print()
             console_print(f"[bold]{escape(app.name)}[/] {escape(app.version)}")

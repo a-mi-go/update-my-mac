@@ -2,9 +2,10 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import report
+from update_my_mac import app_updaters, report
+from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
-from update_my_mac.package_managers import ManagerReport
+from update_my_mac.package_managers import ManagerReport, ManagerUpdate
 
 
 def rendered(reports):
@@ -72,3 +73,158 @@ def test_nothing_is_said_when_every_app_is_tracked():
         report.print_untracked_apps([], console)
 
     assert captured.get() == ""
+
+
+def test_the_managers_are_listed_before_anything_else(capsys):
+    report.print_manager_updates(
+        [
+            ManagerUpdate("brew", "Homebrew", "index is 3 days old"),
+            ManagerUpdate("npm", "npm (global)", "npm  12.0.2 → 12.1.0"),
+        ],
+        Console(width=200, no_color=True),
+    )
+
+    printed = capsys.readouterr().out
+    assert "Package managers" in printed
+    assert "Homebrew: index is 3 days old" in printed
+    assert "npm (global): npm  12.0.2 → 12.1.0" in printed
+
+
+def test_current_managers_are_said_to_be_current(capsys):
+    report.print_manager_updates([], Console(width=200, no_color=True))
+
+    assert "Package managers: up to date" in capsys.readouterr().out
+
+
+def test_a_machine_with_no_managers_is_not_told_they_are_current(capsys):
+    report.print_manager_updates([], Console(width=200, no_color=True), any_installed=False)
+
+    assert capsys.readouterr().out == ""
+
+
+def test_a_failed_manager_check_says_so(capsys):
+    report.print_manager_updates(
+        [ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
+        Console(width=200, no_color=True),
+    )
+
+    assert "check failed" in capsys.readouterr().out
+
+
+def untracked(name, version, updater=None):
+    return InstalledApp(name, version, Path(f"/Applications/{name}.app"),
+                        updater or UpdaterStatus())
+
+
+def test_untracked_apps_are_split_by_who_looks_after_them(capsys):
+    report.print_untracked_apps(
+        [
+            untracked("Docker", "4.91.0"),
+            untracked("Air", "262.579.44",
+                      UpdaterStatus(app_updaters.SPARKLE, True, last_checked="2026-09-24")),
+            untracked("Dockish", "1.1", UpdaterStatus(app_updaters.SPARKLE, None)),
+        ],
+        Console(width=200, no_color=True),
+    )
+
+    printed = capsys.readouterr().out
+    assert "Not tracked by any package manager: 3" in printed
+    assert "Nothing looks after these: 1" in printed
+    assert "They have an updater, nobody answered for it: 1" in printed
+    assert "These update themselves: 1" in printed
+    assert "Air  262.579.44  (checks by itself, last checked 2026-09-24)" in printed
+
+
+def test_a_group_nobody_falls_into_is_not_printed(capsys):
+    report.print_untracked_apps([untracked("Docker", "4.91.0")], Console(width=200, no_color=True))
+
+    printed = capsys.readouterr().out
+    assert "Nothing looks after these: 1" in printed
+    assert "update themselves" not in printed
+
+
+def outdated(count):
+    return [ManagerReport("brew", "Homebrew", [f"package-{n}" for n in range(count)])]
+
+
+def test_a_short_list_stays_one_per_line(capsys):
+    report.print_outdated_summary(outdated(5), Console(width=120, no_color=True))
+
+    printed = capsys.readouterr().out
+    assert "    package-0\n" in printed
+    assert "package-0" in printed.splitlines()[1]
+    assert len([line for line in printed.splitlines() if "package-" in line]) == 5
+
+
+def test_a_longer_list_goes_into_four_columns(capsys):
+    report.print_outdated_summary(outdated(6), Console(width=120, no_color=True))
+
+    rows = [line for line in capsys.readouterr().out.splitlines() if "package-" in line]
+    assert len(rows) == 2
+    assert rows[0].split() == ["package-0", "package-1", "package-2", "package-3"]
+    assert rows[1].split() == ["package-4", "package-5"]
+
+
+def test_the_columns_hold_names_without_versions(capsys):
+    apps = [untracked(f"App{n}", "1.2.3") for n in range(6)]
+    report.print_untracked_apps(apps, Console(width=120, no_color=True))
+
+    printed = capsys.readouterr().out
+    assert "App0" in printed
+    assert "1.2.3" not in printed
+
+
+def test_a_short_list_of_apps_keeps_its_versions(capsys):
+    report.print_untracked_apps(
+        [untracked("Docker", "4.91.0")], Console(width=120, no_color=True)
+    )
+
+    assert "Docker  4.91.0" in capsys.readouterr().out
+
+
+BRACKETS = ["oops[/]", "[bold]weird[/bold]"]
+
+
+def test_a_short_list_prints_brackets_as_text(capsys):
+    report.print_outdated_summary(
+        [ManagerReport("brew", "Homebrew", BRACKETS)], Console(width=120, no_color=True)
+    )
+
+    printed = capsys.readouterr().out
+    assert "oops[/]" in printed
+    assert "[bold]weird[/bold]" in printed
+
+
+def test_the_columns_print_brackets_as_text(capsys):
+    # As a plain string, "oops[/]" raised MarkupError and "[bold]x[/bold]"
+    # vanished into styling, which is worse because nobody notices.
+    packages = [f"package-{n}" for n in range(5)] + BRACKETS
+    report.print_outdated_summary(
+        [ManagerReport("brew", "Homebrew", packages)], Console(width=200, no_color=True)
+    )
+
+    printed = capsys.readouterr().out
+    assert "oops[/]" in printed
+    assert "[bold]weird[/bold]" in printed
+
+
+def test_an_app_name_with_brackets_survives_the_columns(capsys):
+    apps = [untracked(f"App{n}", "1.0") for n in range(5)] + [untracked("Foo [beta]", "2.0")]
+    report.print_untracked_apps(apps, Console(width=200, no_color=True))
+
+    assert "Foo [beta]" in capsys.readouterr().out
+
+
+def test_a_switched_off_updater_is_not_called_unknown(capsys):
+    # "Switched off" is a claim; "nobody answered" is the absence of one.
+    report.print_untracked_apps(
+        [
+            untracked("Off", "1.0", UpdaterStatus(app_updaters.SPARKLE, False)),
+            untracked("Unanswered", "1.0", UpdaterStatus(app_updaters.SPARKLE, None)),
+        ],
+        Console(width=200, no_color=True),
+    )
+
+    printed = capsys.readouterr().out
+    assert "Their updater is switched off: 1" in printed
+    assert "They have an updater, nobody answered for it: 1" in printed
