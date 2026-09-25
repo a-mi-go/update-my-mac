@@ -180,3 +180,36 @@ def test_a_short_list_of_apps_keeps_its_versions(capsys):
     )
 
     assert "Docker  4.91.0" in capsys.readouterr().out
+
+
+BRACKETS = ["oops[/]", "[bold]weird[/bold]"]
+
+
+def test_a_short_list_prints_brackets_as_text(capsys):
+    report.print_outdated_summary(
+        [ManagerReport("brew", "Homebrew", BRACKETS)], Console(width=120, no_color=True)
+    )
+
+    printed = capsys.readouterr().out
+    assert "oops[/]" in printed
+    assert "[bold]weird[/bold]" in printed
+
+
+def test_the_columns_print_brackets_as_text(capsys):
+    # As a plain string, "oops[/]" raised MarkupError and "[bold]x[/bold]"
+    # vanished into styling, which is worse because nobody notices.
+    packages = [f"package-{n}" for n in range(5)] + BRACKETS
+    report.print_outdated_summary(
+        [ManagerReport("brew", "Homebrew", packages)], Console(width=200, no_color=True)
+    )
+
+    printed = capsys.readouterr().out
+    assert "oops[/]" in printed
+    assert "[bold]weird[/bold]" in printed
+
+
+def test_an_app_name_with_brackets_survives_the_columns(capsys):
+    apps = [untracked(f"App{n}", "1.0") for n in range(5)] + [untracked("Foo [beta]", "2.0")]
+    report.print_untracked_apps(apps, Console(width=200, no_color=True))
+
+    assert "Foo [beta]" in capsys.readouterr().out

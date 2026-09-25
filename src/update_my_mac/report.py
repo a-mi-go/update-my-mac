@@ -4,8 +4,9 @@ from rich.console import Console
 from rich.markup import escape
 from rich.padding import Padding
 from rich.table import Table
+from rich.text import Text
 
-from update_my_mac import installed_apps
+from update_my_mac import app_updaters
 
 
 # A handful reads fine one per line. Beyond that the list pushes everything
@@ -31,7 +32,10 @@ def print_list(console, items, indent="    ", names=None):
         table.add_column(overflow="fold")
     for start in range(0, len(cells), COLUMNS):
         row = cells[start : start + COLUMNS]
-        table.add_row(*(row + [""] * (COLUMNS - len(row))))
+        row += [""] * (COLUMNS - len(row))
+        # Text rather than str: a cell is a name, and a name with brackets in
+        # it would otherwise be read as markup and silently disappear.
+        table.add_row(*(Text(cell) for cell in row))
     console.print(Padding(table, (0, 0, 0, len(indent))))
 
 
@@ -87,7 +91,7 @@ def print_untracked_apps(apps, console=None, left_alone=0):
         console.print(
             f"[bold]Not tracked by any package manager[/]: [bold cyan]{len(apps)}[/]"
         )
-        unattended, self_updating, unclear = installed_apps.group_by_updater(apps)
+        unattended, self_updating, unclear = app_updaters.group_by_status(apps)
         _print_group(console, "Nothing looks after these", unattended, with_updater=False)
         _print_group(console, "Updater found, but not switched on", unclear)
         _print_group(console, "These update themselves", self_updating)
