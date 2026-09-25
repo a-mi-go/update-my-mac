@@ -204,9 +204,14 @@ def check_homebrew_index(manager, shell):
         # offering an update we can't justify.
         return None
 
-    marker = cache / "api" / "formula_names.txt"
+    api = cache / "api"
+    if not api.is_dir():
+        # A Homebrew that fetches formulae over git rather than the API keeps
+        # no such directory, and then its age says nothing.
+        return None
+
     try:
-        age = time.time() - marker.stat().st_mtime
+        age = time.time() - (api / "formula_names.txt").stat().st_mtime
     except OSError:
         return ManagerUpdate(manager.key, manager.label, "index has never been fetched")
 

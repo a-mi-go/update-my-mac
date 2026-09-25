@@ -260,3 +260,11 @@ def test_only_installed_managers_are_asked_about_themselves():
     shell = FakeShell(set(), CommandResult(True, "{}", ""))
 
     assert package_managers.check_managers_themselves(shell) == []
+
+
+def test_a_homebrew_without_an_api_cache_is_left_alone(tmp_path):
+    # Fetching formulae over git leaves no api directory, and then its age
+    # says nothing about whether Homebrew is behind.
+    shell = HomebrewShell(tmp_path)
+
+    assert package_managers.check_self(manager("brew"), shell) is None

@@ -17,12 +17,6 @@ def _exit_code(reports):
     return 1 if any(r.error_message for r in reports) else 0
 
 
-def _any_manager_installed():
-    # Without this, a machine with no package managers would be told its
-    # package managers are up to date.
-    return bool(package_managers.installed_managers(shell))
-
-
 def _untracked_apps(decisions):
     """Untracked apps, minus the ones the user asked not to see again."""
     found = installed_apps.find_untracked(shell)
@@ -33,8 +27,9 @@ def _untracked_apps(decisions):
 def run_check_mode():
     # The managers come first: an outdated manager is what everything else
     # below it depends on.
-    manager_updates = package_managers.check_managers_themselves(shell)
-    report.print_manager_updates(manager_updates, any_installed=_any_manager_installed())
+    installed = package_managers.installed_managers(shell)
+    manager_updates = package_managers.check_managers_themselves(shell, installed)
+    report.print_manager_updates(manager_updates, any_installed=bool(installed))
 
     reports = package_managers.check_installed(shell)
     report.print_outdated_summary(reports)
@@ -45,8 +40,9 @@ def run_check_mode():
 
 
 def run_interactive_mode():
-    manager_updates = package_managers.check_managers_themselves(shell)
-    report.print_manager_updates(manager_updates, any_installed=_any_manager_installed())
+    installed = package_managers.installed_managers(shell)
+    manager_updates = package_managers.check_managers_themselves(shell, installed)
+    report.print_manager_updates(manager_updates, any_installed=bool(installed))
     failed = apply_updates.run_manager_menu(manager_updates, shell)
 
     # Everything below is checked afterwards, so the list is what the current

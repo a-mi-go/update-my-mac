@@ -159,19 +159,3 @@ def find_untracked(shell, env=None):
             )
     return found
 
-
-def group_by_updater(apps):
-    """Split untracked apps by whether anything looks after them.
-
-    The first group is the point of the whole exercise: nothing on the machine
-    will ever tell you these are behind.
-    """
-    unattended, self_updating, unclear = [], [], []
-    for app in apps:
-        if app.updater.kind == app_updaters.NONE:
-            unattended.append(app)
-        elif app.updater.looks_after_itself:
-            self_updating.append(app)
-        else:
-            unclear.append(app)
-    return unattended, self_updating, unclear

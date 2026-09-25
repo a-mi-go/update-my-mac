@@ -69,15 +69,15 @@ def test_only_managers_with_something_outdated_get_an_entry():
     entries = apply_updates.build_menu(REPORTS)
 
     assert [entry.label for entry in entries] == [
-        "Homebrew (1 packages)",
-        "npm (global) (1 packages)",
+        "Homebrew (1 package)",
+        "npm (global) (1 package)",
     ]
 
 
 def test_the_app_store_counts_apps_not_packages():
     reports = [ManagerReport("mas", "Mac App Store", ["Pages 14.0 → 14.1"])]
 
-    assert apply_updates.build_menu(reports)[0].label == "Mac App Store (1 apps)"
+    assert apply_updates.build_menu(reports)[0].label == "Mac App Store (1 app)"
 
 
 def test_a_failed_check_is_not_offered_for_upgrade():
@@ -89,7 +89,7 @@ def test_the_managers_themselves_are_not_in_this_menu():
     # They are dealt with before it, so that what it lists is already current.
     entries = apply_updates.build_menu(REPORTS)
 
-    assert all(entry.kind != apply_updates.MANAGERS_THEMSELVES for entry in entries)
+    assert all(entry.kind == apply_updates.PACKAGES for entry in entries)
 
 
 def numbers(answer, entries):
@@ -107,14 +107,14 @@ def test_everything_comes_first_and_nothing_comes_last():
 def test_several_numbers_can_be_given_at_once():
     entries = apply_updates.build_menu(REPORTS)
 
-    assert numbers("2,3", entries) == ["Homebrew (1 packages)", "npm (global) (1 packages)"]
-    assert numbers(" 3 , 2 ", entries) == ["npm (global) (1 packages)", "Homebrew (1 packages)"]
+    assert numbers("2,3", entries) == ["Homebrew (1 package)", "npm (global) (1 package)"]
+    assert numbers(" 3 , 2 ", entries) == ["npm (global) (1 package)", "Homebrew (1 package)"]
 
 
 def test_the_same_number_twice_is_counted_once():
     entries = apply_updates.build_menu(REPORTS)
 
-    assert numbers("2,2", entries) == ["Homebrew (1 packages)"]
+    assert numbers("2,2", entries) == ["Homebrew (1 package)"]
 
 
 def test_empty_answer_cancels():
@@ -328,3 +328,23 @@ def test_a_manager_that_fails_to_update_is_reported_back():
     failed = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("yes"))
 
     assert failed == ["brew", "npm"]
+
+
+def test_the_manager_question_asks_again_when_it_is_not_understood():
+    shell = RecordingShell()
+    failed = apply_updates.run_manager_menu(
+        MANAGER_UPDATES, shell, quiet_console(), answers("maybe", "y")
+    )
+
+    assert failed == []
+    assert shell.streamed == [
+        ["/fake/brew", "update"],
+        ["/fake/npm", "install", "-g", "npm@latest"],
+    ]
+
+
+def test_saying_no_outright_leaves_them_alone():
+    shell = RecordingShell()
+
+    assert apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("n")) == []
+    assert shell.streamed == []

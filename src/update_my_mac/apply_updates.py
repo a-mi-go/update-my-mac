@@ -8,8 +8,6 @@ from rich.markup import escape
 from update_my_mac import package_managers, track_apps
 
 CANCEL = "cancel"
-EVERYTHING = "everything"
-MANAGERS_THEMSELVES = "managers"
 PACKAGES = "packages"
 UNTRACKED_APPS = "untracked"
 
@@ -32,11 +30,12 @@ def build_menu(reports, untracked_apps=()):
     for report in reports:
         if not report.outdated_packages:
             continue
+        count = len(report.outdated_packages)
         counted_as = package_managers.by_key(report.manager).counted_as
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{report.label} ({len(report.outdated_packages)} {counted_as})",
+                f"{report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
                 [report.manager],
             )
         )
@@ -139,16 +138,22 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    try:
-        answer = ask("Update them now? [y/N] ")
-    except (EOFError, KeyboardInterrupt):
-        console.print("\nNothing updated.")
-        return []
+    while True:
+        try:
+            answer = ask("Update them now? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\nNothing updated.")
+            return []
 
-    if answer.strip().lower() not in ("y", "yes"):
-        return []
+        if answer in ("", "n", "no"):
+            return []
+        if answer in ("y", "yes"):
+            break
+        console.print("[yellow]Didn't catch that.[/]")
 
-    failed, _ = upgrade_managers_themselves([update.key for update in manager_updates], shell, console)
+    failed, _ = upgrade_managers_themselves(
+        [update.key for update in manager_updates], shell, console
+    )
     return failed
 
 
