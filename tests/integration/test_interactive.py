@@ -53,7 +53,7 @@ def test_everything_upgrades_each_outdated_manager(tmp_path, empty_home):
     result = run_interactively("1\n", empty_home, log=log)
 
     assert result.returncode == 0, result.stderr
-    assert "What should be upgraded?" in result.stdout
+    assert "What should be updated?" in result.stdout
     assert "mas upgrade" in logged(log)
     assert "brew upgrade" in logged(log)
     assert "npm update -g" in logged(log)
@@ -65,6 +65,13 @@ def test_choosing_one_manager_leaves_the_others_alone(tmp_path, empty_home):
     run_interactively("3\n", empty_home, log=log)
 
     assert upgrades(log) == ["brew upgrade"]
+
+
+def test_several_numbers_at_once(tmp_path, empty_home):
+    log = tmp_path / "calls.log"
+    run_interactively("2,4\n", empty_home, log=log)
+
+    assert upgrades(log) == ["mas upgrade", "npm update -g"]
 
 
 def test_cancelling_upgrades_nothing(tmp_path, empty_home):
@@ -79,7 +86,7 @@ def test_nothing_outdated_means_no_menu(tmp_path, empty_home):
     log = tmp_path / "calls.log"
     result = run_interactively("1\n", empty_home, scenario="clean", log=log)
 
-    assert "What should be upgraded?" not in result.stdout
+    assert "What should be updated?" not in result.stdout
     assert "Everything is up to date" in result.stdout
     assert upgrades(log) == []
 

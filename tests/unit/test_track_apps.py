@@ -40,7 +40,7 @@ def test_nothing_is_asked_when_every_app_is_accounted_for(tmp_path):
     assert terminal.text == ""
 
 
-def test_declining_to_go_through_them_changes_nothing(tmp_path):
+def test_an_answer_that_means_nothing_keeps_the_app_listed(tmp_path):
     decisions = decisions_in(tmp_path)
     terminal = Terminal("")
 
@@ -53,7 +53,7 @@ def test_declining_to_go_through_them_changes_nothing(tmp_path):
 
 def test_leaving_an_app_alone_is_remembered(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("y", "1")
+    terminal = Terminal("1")
 
     ignored = track_apps.run_untracked_menu([app("TokenEater", "5.12.2")], decisions, terminal.ask, terminal.out)
 
@@ -63,7 +63,7 @@ def test_leaving_an_app_alone_is_remembered(tmp_path):
 
 def test_keeping_an_app_listed_writes_nothing(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("y", "2")
+    terminal = Terminal("2")
 
     track_apps.run_untracked_menu([app("TokenEater")], decisions, terminal.ask, terminal.out)
 
@@ -72,7 +72,7 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 
 def test_stopping_partway_keeps_what_was_decided_so_far(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("y", "1", "3")
+    terminal = Terminal("1", "3")
 
     ignored = track_apps.run_untracked_menu(
         [app("First"), app("Second"), app("Third")], decisions, terminal.ask, terminal.out
@@ -172,7 +172,7 @@ def test_no_more_input_stops_instead_of_crashing(tmp_path):
 
 def test_ctrl_c_partway_keeps_what_was_decided(tmp_path):
     decisions = decisions_in(tmp_path)
-    answers = iter(["y", "1"])
+    answers = iter(["1"])
 
     def ask(_prompt):
         try:
@@ -205,7 +205,7 @@ def test_a_decision_that_cannot_be_saved_is_said_out_loud(tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir(mode=0o500)
     decisions = app_decisions.AppDecisions(locked / "update-my-mac" / "apps.json")
-    terminal = Terminal("y", "1")
+    terminal = Terminal("1")
 
     ignored = track_apps.run_untracked_menu([app("TokenEater")], decisions, terminal.ask, terminal.out)
 

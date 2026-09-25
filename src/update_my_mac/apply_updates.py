@@ -1,95 +1,189 @@
 """Applying updates: the only module that changes the system."""
 
+from dataclasses import dataclass, field
+
 from rich.console import Console
 from rich.markup import escape
 
-from update_my_mac import package_managers
+from update_my_mac import package_managers, track_apps
 
 CANCEL = "cancel"
 EVERYTHING = "everything"
+MANAGERS_THEMSELVES = "managers"
+PACKAGES = "packages"
+UNTRACKED_APPS = "untracked"
 
 
-def upgradable_manager_keys(reports):
-    return [report.manager for report in reports if report.outdated_packages]
+@dataclass
+class MenuEntry:
+    kind: str
+    label: str
+    keys: list = field(default_factory=list)
+    apps: list = field(default_factory=list)
 
 
-def parse_menu_answer(answer, keys):
-    """Turn what was typed into a manager key, EVERYTHING, CANCEL, or None.
+def build_menu(reports, untracked_apps=()):
+    """One entry per manager with something outdated, then the apps.
+
+    The managers themselves are not in here. They are dealt with before this
+    menu, so that what it lists comes from tools that are already current.
+    """
+    entries = []
+    for report in reports:
+        if not report.outdated_packages:
+            continue
+        counted_as = package_managers.by_key(report.manager).counted_as
+        entries.append(
+            MenuEntry(
+                PACKAGES,
+                f"{report.label} ({len(report.outdated_packages)} {counted_as})",
+                [report.manager],
+            )
+        )
+
+    if untracked_apps:
+        entries.append(
+            MenuEntry(
+                UNTRACKED_APPS,
+                f"untracked apps ({len(untracked_apps)} to go through)",
+                apps=list(untracked_apps),
+            )
+        )
+    return entries
+
+
+def parse_menu_answer(answer, entries):
+    """Turn what was typed into the chosen entries, or CANCEL, or None.
 
     None means "didn't understand", which the caller turns into another prompt.
+    Everything is always 1, the entries follow it, and Nothing sits last, so
+    its number depends on how many entries there are.
     """
     answer = answer.strip().lower()
-    if answer in ("", "0", "c", "q", "cancel"):
+    if answer in ("", "q", "c", "cancel", "exit", "0"):
         return CANCEL
-    if answer in ("1", "a", "all"):
-        return EVERYTHING
 
-    if answer.isdigit():
-        index = int(answer) - 2
-        if 0 <= index < len(keys):
-            return keys[index]
-    return None
+    nothing = len(entries) + 2
+
+    chosen = []
+    for part in answer.split(","):
+        part = part.strip()
+        if not part.isdigit():
+            return None
+        number = int(part)
+        if number == nothing:
+            return CANCEL
+        if number == 1:
+            return list(entries)
+        if not 2 <= number <= len(entries) + 1:
+            return None
+        entry = entries[number - 2]
+        if entry not in chosen:
+            chosen.append(entry)
+    return chosen or None
 
 
-def print_menu(keys, console):
+def print_menu(entries, console):
     # Numbers in cyan on purpose. Left to rich's highlighter they'd get the same
     # colour, but so would every bracket and number in a label.
     def option(number, text):
         console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
 
-    console.print("\nWhat should be upgraded?")
-    if len(keys) == 1:
-        # "Everything" and the only candidate would be the same choice.
-        option(1, package_managers.by_key(keys[0]).label)
-    else:
-        option(1, "Everything")
-        for number, key in enumerate(keys, start=2):
-            option(number, package_managers.by_key(key).label)
-    option(0, "Cancel")
+    console.print("\nWhat should be updated?")
+    option(1, "Everything")
+    for number, entry in enumerate(entries, start=2):
+        option(number, entry.label)
+    option(len(entries) + 2, "Nothing, leave it all as it is")
+    console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def upgrade_managers(keys, shell, console):
-    """Upgrade each manager in turn. Returns the ones that exited badly."""
+def _run_each(keys, shell, console, announce, run_one):
+    """Returns the keys that went badly, and whether Ctrl-C ended the run.
+
+    Ctrl-C reaches us as well as the command, since it runs in the foreground.
+    It has to stop everything that was queued, not just the step it landed in.
+    """
     failed = []
     for key in keys:
         manager = package_managers.by_key(key)
-        console.print(f"\n[bold]Upgrading {manager.label}[/]")
+        console.print(f"\n[bold]{announce} {manager.label}[/]")
         try:
-            exit_code = package_managers.upgrade(manager, shell)
+            exit_code = run_one(manager, shell)
         except KeyboardInterrupt:
-            # Ctrl-C reaches us as well as the command, since it runs in the
-            # foreground. Stop here rather than starting the next upgrade.
             console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
-            failed.append(key)
-            return failed
+            return failed + [key], True
 
         if exit_code != 0:
             console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
             failed.append(key)
+    return failed, False
+
+
+def upgrade_managers_themselves(keys, shell, console):
+    """Update the managers first, so the upgrades after them use current tools."""
+    return _run_each(keys, shell, console, "Updating", package_managers.upgrade_self)
+
+
+def upgrade_managers(keys, shell, console):
+    """Upgrade each manager's packages in turn."""
+    return _run_each(keys, shell, console, "Upgrading", package_managers.upgrade)
+
+
+def run_manager_menu(manager_updates, shell, console=None, ask=input):
+    """Offer to update the managers, before anything is checked against them."""
+    if not manager_updates:
+        return []
+
+    console = console or Console()
+    named = ", ".join(update.label for update in manager_updates)
+    console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
+    console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
+
+    try:
+        answer = ask("Update them now? [y/N] ")
+    except (EOFError, KeyboardInterrupt):
+        console.print("\nNothing updated.")
+        return []
+
+    if answer.strip().lower() not in ("y", "yes"):
+        return []
+
+    failed, _ = upgrade_managers_themselves([update.key for update in manager_updates], shell, console)
     return failed
 
 
-def run_upgrade_menu(reports, shell, console=None, ask=input):
-    """Offer the upgrade and run what was chosen. Returns the managers that failed."""
+def run_upgrade_menu(reports, shell, console=None, ask=input, untracked_apps=(), decisions=None):
+    """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
-    keys = upgradable_manager_keys(reports)
-    if not keys:
+    entries = build_menu(reports, untracked_apps)
+    if not entries:
         return []
 
     while True:
-        print_menu(keys, console)
+        print_menu(entries, console)
         try:
             answer = ask("> ")
         except (EOFError, KeyboardInterrupt):
             # No terminal, or Ctrl-C. Silence is not consent to upgrade.
-            console.print("\nNothing upgraded.")
+            console.print("\nNothing updated.")
             return []
 
-        choice = parse_menu_answer(answer, keys)
-        if choice is None:
+        chosen = parse_menu_answer(answer, entries)
+        if chosen is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
-        if choice == CANCEL:
+        if chosen == CANCEL:
             return []
-        chosen = keys if choice == EVERYTHING else [choice]
-        return upgrade_managers(chosen, shell, console)
+        return run_chosen(chosen, shell, console, ask, decisions)
+
+
+def run_chosen(entries, shell, console, ask=input, decisions=None):
+    # Questions before updates, so everything that needs an answer is over
+    # before the first long-running command starts.
+    for entry in entries:
+        if entry.kind == UNTRACKED_APPS and decisions is not None:
+            track_apps.run_untracked_menu(entry.apps, decisions, ask, console.print)
+
+    package_keys = [key for entry in entries if entry.kind == PACKAGES for key in entry.keys]
+    failed, _ = upgrade_managers(package_keys, shell, console)
+    return failed
