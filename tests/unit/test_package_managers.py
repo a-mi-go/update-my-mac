@@ -162,3 +162,101 @@ def test_a_manager_without_upgrade_arguments_is_not_run():
     entry = package_managers.PackageManager("x", "X", "brew", ("outdated",))
 
     assert package_managers.upgrade(entry, shell) == -1
+
+
+NPM_ITSELF_OUTDATED = """{
+  "npm": {"current": "12.0.2", "wanted": "12.1.0", "latest": "12.1.0"}
+}"""
+
+
+def test_a_manager_that_cannot_update_itself_is_never_offered():
+    shell = FakeShell({"mas"}, CommandResult(True, "", ""))
+
+    assert package_managers.check_self(manager("mas"), shell) is None
+
+
+def test_npm_reports_its_own_new_version():
+    shell = FakeShell({"npm"}, CommandResult(True, NPM_ITSELF_OUTDATED, "", 1))
+
+    update = package_managers.check_self(manager("npm"), shell)
+    assert update.key == "npm"
+    assert update.description == "npm  12.0.2 → 12.1.0"
+
+
+def test_a_current_npm_is_not_offered():
+    shell = FakeShell({"npm"}, CommandResult(True, "{}", ""))
+
+    assert package_managers.check_self(manager("npm"), shell) is None
+
+
+def test_other_packages_in_the_answer_are_not_mistaken_for_npm():
+    # `npm outdated -g npm` should only answer about npm, but the reply is read
+    # by name rather than trusted to hold nothing else.
+    shell = FakeShell({"npm"}, CommandResult(True, NPM_OUTDATED, "", 1))
+
+    assert package_managers.check_self(manager("npm"), shell) is None
+
+
+def test_a_failed_self_check_is_reported_rather_than_raised():
+    shell = FakeShell({"npm"}, CommandResult(True, NPM_NETWORK_FAILURE, "", 1))
+
+    update = package_managers.check_self(manager("npm"), shell)
+    assert "ENOTFOUND" in update.error_message
+
+
+class HomebrewShell(FakeShell):
+    def __init__(self, cache):
+        super().__init__({"brew"}, CommandResult(True, str(cache), ""))
+
+
+def homebrew_cache(tmp_path, age_in_days):
+    import os
+    import time
+
+    api = tmp_path / "api"
+    api.mkdir()
+    marker = api / "formula_names.txt"
+    marker.write_text("git\n")
+    when = time.time() - age_in_days * 24 * 60 * 60
+    os.utime(marker, (when, when))
+    return tmp_path
+
+
+def test_a_fresh_homebrew_index_is_not_offered(tmp_path):
+    shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=0))
+
+    assert package_managers.check_self(manager("brew"), shell) is None
+
+
+def test_a_stale_homebrew_index_says_how_old_it_is(tmp_path):
+    shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=3))
+
+    update = package_managers.check_self(manager("brew"), shell)
+    assert update.description == "index is 3 days old"
+
+
+def test_one_day_is_written_in_the_singular(tmp_path):
+    shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=1.5))
+
+    assert package_managers.check_self(manager("brew"), shell).description == "index is 1 day old"
+
+
+def test_a_cache_without_an_index_is_offered(tmp_path):
+    (tmp_path / "api").mkdir()
+    shell = HomebrewShell(tmp_path)
+
+    update = package_managers.check_self(manager("brew"), shell)
+    assert update.description == "index has never been fetched"
+
+
+def test_a_brew_that_says_nothing_about_its_cache_is_left_alone():
+    # An empty answer used to be read as the current directory.
+    shell = HomebrewShell("")
+
+    assert package_managers.check_self(manager("brew"), shell) is None
+
+
+def test_only_installed_managers_are_asked_about_themselves():
+    shell = FakeShell(set(), CommandResult(True, "{}", ""))
+
+    assert package_managers.check_managers_themselves(shell) == []
