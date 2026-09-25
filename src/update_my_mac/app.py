@@ -11,10 +11,12 @@ from update_my_mac import (
 )
 
 
-def _exit_code(reports):
+def _exit_code(reports, manager_updates=()):
     # Outdated packages are the normal case, so only a check that could not run
-    # is worth a non-zero exit. A scheduled caller needs to tell those apart.
-    return 1 if any(r.error_message for r in reports) else 0
+    # is worth a non-zero exit. A scheduled caller needs to tell those apart,
+    # and a manager that could not answer about itself is such a check.
+    failed = [thing for thing in list(reports) + list(manager_updates) if thing.error_message]
+    return 1 if failed else 0
 
 
 def _untracked_apps(decisions):
@@ -36,7 +38,7 @@ def run_check_mode():
 
     listed, left_alone = _untracked_apps(app_decisions.load())
     report.print_untracked_apps(listed, left_alone=left_alone)
-    return _exit_code(reports)
+    return _exit_code(reports, manager_updates)
 
 
 def run_interactive_mode():
@@ -57,7 +59,7 @@ def run_interactive_mode():
     failed += apply_updates.run_upgrade_menu(
         reports, shell, untracked_apps=listed, decisions=decisions
     )
-    return 1 if failed else _exit_code(reports)
+    return 1 if failed else _exit_code(reports, manager_updates)
 
 
 def run_retry_app_mode():

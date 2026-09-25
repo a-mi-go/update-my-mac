@@ -128,17 +128,21 @@ def detect(app_path, shell, info=None):
 
 
 def group_by_status(apps):
-    """Split untracked apps by whether anything looks after them.
+    """Split untracked apps by what looks after them.
 
     The first group is the point of the whole exercise: nothing on the machine
-    will ever tell you these are behind.
+    will ever tell you these are behind. An updater that was switched off and
+    one nobody ever answered for are kept apart, because saying "switched off"
+    about the second would be a claim we cannot make.
     """
-    unattended, self_updating, unclear = [], [], []
+    unattended, switched_off, unclear, self_updating = [], [], [], []
     for app in apps:
         if app.updater.kind == NONE:
             unattended.append(app)
         elif app.updater.looks_after_itself:
             self_updating.append(app)
+        elif app.updater.is_switched_off:
+            switched_off.append(app)
         else:
             unclear.append(app)
-    return unattended, self_updating, unclear
+    return unattended, switched_off, unclear, self_updating

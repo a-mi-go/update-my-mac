@@ -62,20 +62,25 @@ def parse_menu_answer(answer, entries):
     if answer in ("", "q", "c", "cancel", "exit", "0"):
         return CANCEL
 
-    nothing = len(entries) + 2
-
-    chosen = []
+    # Every part has to make sense before any of it counts, otherwise
+    # "1,garbage" would quietly pass as "everything".
+    numbers = []
     for part in answer.split(","):
         part = part.strip()
         if not part.isdigit():
             return None
-        number = int(part)
-        if number == nothing:
-            return CANCEL
-        if number == 1:
-            return list(entries)
-        if not 2 <= number <= len(entries) + 1:
-            return None
+        numbers.append(int(part))
+
+    nothing = len(entries) + 2
+    if nothing in numbers:
+        return CANCEL
+    if any(not 1 <= number <= len(entries) + 1 for number in numbers):
+        return None
+    if 1 in numbers:
+        return list(entries)
+
+    chosen = []
+    for number in numbers:
         entry = entries[number - 2]
         if entry not in chosen:
             chosen.append(entry)

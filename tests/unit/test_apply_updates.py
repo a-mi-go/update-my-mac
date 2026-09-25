@@ -348,3 +348,17 @@ def test_saying_no_outright_leaves_them_alone():
 
     assert apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("n")) == []
     assert shell.streamed == []
+
+
+def test_everything_is_not_accepted_with_rubbish_after_it():
+    # "1" used to win before the rest of the line was even looked at.
+    entries = apply_updates.build_menu(REPORTS)
+
+    assert numbers("1,garbage", entries) is None
+    assert numbers("1,9", entries) is None
+
+
+def test_nothing_wins_over_everything_when_both_are_given():
+    entries = apply_updates.build_menu(REPORTS)
+
+    assert numbers("1,4", entries) == CANCEL

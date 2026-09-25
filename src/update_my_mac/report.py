@@ -91,9 +91,10 @@ def print_untracked_apps(apps, console=None, left_alone=0):
         console.print(
             f"[bold]Not tracked by any package manager[/]: [bold cyan]{len(apps)}[/]"
         )
-        unattended, self_updating, unclear = app_updaters.group_by_status(apps)
+        unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(apps)
         _print_group(console, "Nothing looks after these", unattended, with_updater=False)
-        _print_group(console, "Updater found, but not switched on", unclear)
+        _print_group(console, "Their updater is switched off", switched_off)
+        _print_group(console, "They have an updater, nobody answered for it", unclear)
         _print_group(console, "These update themselves", self_updating)
     if left_alone:
         console.print(

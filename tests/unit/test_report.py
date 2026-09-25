@@ -130,7 +130,7 @@ def test_untracked_apps_are_split_by_who_looks_after_them(capsys):
     printed = capsys.readouterr().out
     assert "Not tracked by any package manager: 3" in printed
     assert "Nothing looks after these: 1" in printed
-    assert "Updater found, but not switched on: 1" in printed
+    assert "They have an updater, nobody answered for it: 1" in printed
     assert "These update themselves: 1" in printed
     assert "Air  262.579.44  (checks by itself, last checked 2026-09-24)" in printed
 
@@ -213,3 +213,18 @@ def test_an_app_name_with_brackets_survives_the_columns(capsys):
     report.print_untracked_apps(apps, Console(width=200, no_color=True))
 
     assert "Foo [beta]" in capsys.readouterr().out
+
+
+def test_a_switched_off_updater_is_not_called_unknown(capsys):
+    # "Switched off" is a claim; "nobody answered" is the absence of one.
+    report.print_untracked_apps(
+        [
+            untracked("Off", "1.0", UpdaterStatus(app_updaters.SPARKLE, False)),
+            untracked("Unanswered", "1.0", UpdaterStatus(app_updaters.SPARKLE, None)),
+        ],
+        Console(width=200, no_color=True),
+    )
+
+    printed = capsys.readouterr().out
+    assert "Their updater is switched off: 1" in printed
+    assert "They have an updater, nobody answered for it: 1" in printed
