@@ -88,6 +88,20 @@ def _print_group(console, heading, apps, with_updater=True):
     print_list(console, lines, "      ", [app.name for app in apps])
 
 
+def print_still_running_old(apps, console=None):
+    """Apps upgraded underneath a running process, which nothing else notices."""
+    if not apps:
+        return
+
+    console = console or Console(highlight=False, soft_wrap=True)
+    console.print()
+    console.print(f"[yellow]Running an old version[/]: [bold cyan]{len(apps)}[/]")
+    print_list(console, [app.describe() for app in apps], names=[app.name for app in apps])
+    console.print(
+        "    [dim]The new version is already on disk. These only need restarting.[/]"
+    )
+
+
 def print_behind_the_recipe(behind, console=None):
     """Apps older than Homebrew's recipe, which Homebrew itself never says."""
     if not behind:

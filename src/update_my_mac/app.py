@@ -11,6 +11,8 @@ from update_my_mac import (
     package_managers,
     report,
     resolve_duplicates,
+    restart_apps,
+    running_apps,
     shell,
     track_apps,
 )
@@ -40,6 +42,15 @@ def _website_and_cask():
 def _behind_the_recipe():
     """Apps older than their cask, which is the one thing Homebrew never says."""
     return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
+
+
+def _restart_walkthrough():
+    def go_through_restarts(apps, ask, out):
+        return restart_apps.run_restart_menu(
+            apps, lambda app: restart_apps.restart(app, shell), ask, out
+        )
+
+    return go_through_restarts
 
 
 def _duplicate_walkthrough():
@@ -99,6 +110,7 @@ def run_check_mode():
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     report.print_duplicate_commands(duplicate_commands.find(shell))
     report.print_behind_the_recipe(_behind_the_recipe())
+    report.print_still_running_old(running_apps.find(shell))
     return _exit_code(reports, manager_updates)
 
 
@@ -121,6 +133,8 @@ def run_interactive_mode():
     doubled = duplicate_commands.find(shell)
     report.print_duplicate_commands(doubled)
     report.print_behind_the_recipe(_behind_the_recipe())
+    stale = running_apps.find(shell)
+    report.print_still_running_old(stale)
 
     failed += apply_updates.run_upgrade_menu(
         reports,
@@ -129,6 +143,8 @@ def run_interactive_mode():
         go_through_apps=_app_walkthrough(decisions),
         duplicates=doubled,
         go_through_duplicates=_duplicate_walkthrough(),
+        still_running_old=stale,
+        go_through_restarts=_restart_walkthrough(),
     )
     return 1 if failed else _exit_code(reports, manager_updates)
 

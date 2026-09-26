@@ -72,3 +72,31 @@ def open_in_browser(url):
     if executable is None:
         return False
     return run_command([executable, url]).success
+
+
+def ask_application_to_quit(bundle_id):
+    """Ask an app to quit the way the Quit menu item does.
+
+    Never a kill: an app with unsaved work must get its chance to say so, and
+    whether to lose that work is not this tool's decision.
+    """
+    executable = find_executable("osascript")
+    if executable is None:
+        return False
+    return run_command(
+        [executable, "-e", f'tell application id "{bundle_id}" to quit']
+    ).success
+
+
+def open_application(path):
+    executable = find_executable("open")
+    if executable is None:
+        return False
+    return run_command([executable, "-a", str(path)]).success
+
+
+def is_running(pid):
+    executable = find_executable("ps")
+    if executable is None:
+        return False
+    return run_command([executable, "-p", str(pid)], (0, 1)).exit_code == 0
