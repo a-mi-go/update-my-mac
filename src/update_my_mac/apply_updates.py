@@ -11,7 +11,6 @@ CANCEL = "cancel"
 PACKAGES = "packages"
 UNTRACKED_APPS = "untracked"
 DOUBLED = "doubled"
-STILL_RUNNING_OLD = "running-old"
 
 
 @dataclass
@@ -21,12 +20,11 @@ class MenuEntry:
     keys: list = field(default_factory=list)
     apps: list = field(default_factory=list)
     duplicates: list = field(default_factory=list)
-    stale: list = field(default_factory=list)
     # What was outdated when the menu was drawn, to compare against afterwards.
     outdated: list = field(default_factory=list)
 
 
-def build_menu(reports, untracked_apps=(), duplicates=(), still_running_old=()):
+def build_menu(reports, untracked_apps=(), duplicates=()):
     """One entry per manager with something outdated, then the apps.
 
     The managers themselves are not in here. They are dealt with before this
@@ -62,15 +60,6 @@ def build_menu(reports, untracked_apps=(), duplicates=(), still_running_old=()):
                 DOUBLED,
                 f"apps installed twice ({len(duplicates)} to go through)",
                 duplicates=list(duplicates),
-            )
-        )
-
-    if still_running_old:
-        entries.append(
-            MenuEntry(
-                STILL_RUNNING_OLD,
-                f"apps running an old version ({len(still_running_old)} to restart)",
-                stale=list(still_running_old),
             )
         )
     return entries
@@ -199,12 +188,10 @@ def run_upgrade_menu(
     go_through_apps=None,
     duplicates=(),
     go_through_duplicates=None,
-    still_running_old=(),
-    go_through_restarts=None,
 ):
     """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
-    entries = build_menu(reports, untracked_apps, duplicates, still_running_old)
+    entries = build_menu(reports, untracked_apps, duplicates)
     if not entries:
         return []
 
@@ -230,7 +217,6 @@ def run_upgrade_menu(
             ask,
             go_through_apps,
             go_through_duplicates,
-            go_through_restarts,
         )
 
 
@@ -283,7 +269,6 @@ def run_chosen(
     ask=input,
     go_through_apps=None,
     go_through_duplicates=None,
-    go_through_restarts=None,
 ):
     # Questions before updates, so everything that needs an answer is over
     # before the first long-running command starts.
@@ -292,8 +277,6 @@ def run_chosen(
             go_through_apps(entry.apps, ask, console.print)
         elif entry.kind == DOUBLED and go_through_duplicates is not None:
             go_through_duplicates(entry.duplicates, ask, console.print)
-        elif entry.kind == STILL_RUNNING_OLD and go_through_restarts is not None:
-            go_through_restarts(entry.stale, ask, console.print)
 
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]

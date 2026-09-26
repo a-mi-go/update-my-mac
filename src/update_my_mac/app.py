@@ -44,15 +44,6 @@ def _behind_the_recipe():
     return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
 
 
-def _restart_walkthrough():
-    def go_through_restarts(apps, ask, out):
-        return restart_apps.run_restart_menu(
-            apps, lambda app: restart_apps.restart(app, shell), ask, out
-        )
-
-    return go_through_restarts
-
-
 def _duplicate_walkthrough():
     def remove(copy):
         executable = shell.find_executable(copy.remove_with[0])
@@ -135,6 +126,9 @@ def run_interactive_mode():
     report.print_behind_the_recipe(_behind_the_recipe())
     stale = running_apps.find(shell)
     report.print_still_running_old(stale)
+    # Asked before the update menu, not inside it: restarting updates nothing,
+    # the new version is already on disk.
+    restart_apps.run_restart_menu(stale, lambda app: restart_apps.restart(app, shell))
 
     failed += apply_updates.run_upgrade_menu(
         reports,
@@ -143,8 +137,6 @@ def run_interactive_mode():
         go_through_apps=_app_walkthrough(decisions),
         duplicates=doubled,
         go_through_duplicates=_duplicate_walkthrough(),
-        still_running_old=stale,
-        go_through_restarts=_restart_walkthrough(),
     )
     return 1 if failed else _exit_code(reports, manager_updates)
 
