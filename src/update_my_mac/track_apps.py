@@ -1,8 +1,9 @@
 """Going through the apps no package manager tracks, and revisiting that later.
 
-Deciding to leave an app alone is the only decision on offer so far. Adopting
-one into Homebrew Cask, or watching its update feed, comes later; the menu is
-where those will appear.
+Leaving an app alone is the only decision on offer so far; the menu can also
+show where an app came from, which is not a decision but the thing you need
+when you have to fetch the update yourself. Handing an app to Homebrew, or
+watching its update feed, comes later and will appear in the same menu.
 """
 
 from rich.console import Console
@@ -25,8 +26,31 @@ def _answer(ask, question):
         raise Stopped
 
 
-def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
-    """Offer to leave each untracked app alone. Returns how many were ignored."""
+def _show_website(website, console_print, open_url):
+    if not website:
+        console_print("  [dim]Nothing on this Mac says where that app came from.[/]")
+        return
+
+    console_print(f"  {escape(website)}")
+    if open_url is not None and not open_url(website):
+        console_print("  [yellow]Could not open that in a browser.[/]")
+
+
+def run_untracked_menu(
+    apps,
+    decisions,
+    ask=input,
+    out=None,
+    interactive=True,
+    find_website=None,
+    open_url=None,
+):
+    """Offer a decision about each untracked app. Returns how many were ignored.
+
+    `find_website` is asked where an app came from. It is a function rather
+    than a ready answer so that nothing is looked up before someone is
+    actually standing in front of the menu.
+    """
     console_print = _printer(out)
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]
     if not waiting or not interactive:
@@ -42,13 +66,21 @@ def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
             console_print(f"[bold]{escape(app.name)}[/] {escape(app.version)}")
             console_print("  [bold cyan]1)[/] leave it alone, and stop listing it")
             console_print("  [bold cyan]2)[/] keep listing it")
-            console_print("  [bold cyan]3)[/] stop going through them")
-            choice = _answer(ask, "> ")
+            console_print("  [bold cyan]3)[/] show me where it came from")
+            console_print("  [bold cyan]4)[/] stop going through them")
+
+            while True:
+                choice = _answer(ask, "> ")
+                if choice != "3":
+                    break
+                # Showing where it came from decides nothing, so the same app
+                # is asked about again afterwards.
+                _show_website(find_website(app) if find_website else "", console_print, open_url)
 
             if choice == "1":
                 decisions.ignore(app.name, app.version)
                 ignored += 1
-            elif choice == "3":
+            elif choice == "4":
                 break
     except Stopped:
         console_print()

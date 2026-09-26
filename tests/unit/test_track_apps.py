@@ -72,7 +72,7 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 
 def test_stopping_partway_keeps_what_was_decided_so_far(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("1", "3")
+    terminal = Terminal("1", "4")
 
     ignored = track_apps.run_untracked_menu(
         [app("First"), app("Second"), app("Third")], decisions, terminal.ask, terminal.out
@@ -253,3 +253,100 @@ def test_an_answer_outside_the_list_is_pointed_out(tmp_path):
     assert brought_back == 0
     assert "Answer a number from 1 to 1" in terminal.text
     assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
+
+
+def website_for(known):
+    return lambda app: known.get(app.name, "")
+
+
+class Opener:
+    def __init__(self, works=True):
+        self.opened = []
+        self.works = works
+
+    def __call__(self, url):
+        self.opened.append(url)
+        return self.works
+
+
+def test_where_an_app_came_from_is_shown_and_opened(tmp_path):
+    terminal = Terminal("3", "2")
+    opener = Opener()
+
+    track_apps.run_untracked_menu(
+        [app("Docker")],
+        decisions_in(tmp_path),
+        terminal.ask,
+        terminal.out,
+        find_website=website_for({"Docker": "https://www.docker.com/"}),
+        open_url=opener,
+    )
+
+    assert "https://www.docker.com/" in terminal.text
+    assert opener.opened == ["https://www.docker.com/"]
+
+
+def test_showing_it_is_not_a_decision(tmp_path):
+    # After looking, the same app is asked about again.
+    decisions = decisions_in(tmp_path)
+    terminal = Terminal("3", "1")
+
+    ignored = track_apps.run_untracked_menu(
+        [app("Docker")],
+        decisions,
+        terminal.ask,
+        terminal.out,
+        find_website=website_for({"Docker": "https://www.docker.com/"}),
+        open_url=Opener(),
+    )
+
+    assert ignored == 1
+    assert decisions_in(tmp_path).is_ignored("Docker")
+
+
+def test_an_app_nobody_knows_the_origin_of_says_so(tmp_path):
+    terminal = Terminal("3", "2")
+    opener = Opener()
+
+    track_apps.run_untracked_menu(
+        [app("TokenEater")],
+        decisions_in(tmp_path),
+        terminal.ask,
+        terminal.out,
+        find_website=website_for({}),
+        open_url=opener,
+    )
+
+    assert "Nothing on this Mac says where that app came from" in terminal.text
+    assert opener.opened == []
+
+
+def test_a_browser_that_will_not_open_is_said_out_loud(tmp_path):
+    terminal = Terminal("3", "2")
+
+    track_apps.run_untracked_menu(
+        [app("Docker")],
+        decisions_in(tmp_path),
+        terminal.ask,
+        terminal.out,
+        find_website=website_for({"Docker": "https://www.docker.com/"}),
+        open_url=Opener(works=False),
+    )
+
+    assert "Could not open that in a browser" in terminal.text
+
+
+def test_the_origin_is_only_looked_up_when_someone_asks(tmp_path):
+    asked_about = []
+
+    def find_website(app):
+        asked_about.append(app.name)
+        return ""
+
+    terminal = Terminal("2")
+    track_apps.run_untracked_menu(
+        [app("Docker")], decisions_in(tmp_path), terminal.ask, terminal.out,
+        find_website=find_website,
+    )
+
+    assert asked_about == []

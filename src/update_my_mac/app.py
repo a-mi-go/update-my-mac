@@ -3,6 +3,7 @@
 from update_my_mac import (
     app_decisions,
     apply_updates,
+    cask_index,
     installed_apps,
     package_managers,
     report,
@@ -17,6 +18,40 @@ def _exit_code(reports, manager_updates=()):
     # and a manager that could not answer about itself is such a check.
     failed = [thing for thing in list(reports) + list(manager_updates) if thing.error_message]
     return 1 if failed else 0
+
+
+def _website_lookup():
+    """Where an app came from, answered from Homebrew's list of casks.
+
+    The list is only fetched once someone actually asks, so a run where nobody
+    picks that option stays offline.
+    """
+    casks = None
+
+    def find_website(app):
+        nonlocal casks
+        if casks is None:
+            casks = cask_index.load()
+        cask = casks.for_app(app.path)
+        return cask.homepage if cask else ""
+
+    return find_website
+
+
+def _app_walkthrough(decisions):
+    find_website = _website_lookup()
+
+    def go_through_apps(apps, ask, out):
+        return track_apps.run_untracked_menu(
+            apps,
+            decisions,
+            ask,
+            out,
+            find_website=find_website,
+            open_url=shell.open_in_browser,
+        )
+
+    return go_through_apps
 
 
 def _untracked_apps(decisions):
@@ -57,7 +92,7 @@ def run_interactive_mode():
     report.print_untracked_apps(listed, left_alone=left_alone)
 
     failed += apply_updates.run_upgrade_menu(
-        reports, shell, untracked_apps=listed, decisions=decisions
+        reports, shell, untracked_apps=listed, go_through_apps=_app_walkthrough(decisions)
     )
     return 1 if failed else _exit_code(reports, manager_updates)
 

@@ -36,18 +36,16 @@ class FakeApp:
         self.version = "1.0"
 
 
-class FakeDecisions:
+class RecordingWalkthrough:
+    """Stands in for going through the untracked apps."""
+
     def __init__(self):
-        self.ignored = []
+        self.seen = []
 
-    def is_ignored(self, name):
-        return name in self.ignored
-
-    def ignore(self, name, version, now=None):
-        self.ignored.append(name)
-
-    def save(self):
-        return True
+    def __call__(self, apps, ask, out):
+        self.seen += [app.name for app in apps]
+        ask("> ")
+        return len(apps)
 
 
 def answers(*replies):
@@ -59,9 +57,9 @@ def quiet_console():
     return Console(file=open("/dev/null", "w"), width=200)
 
 
-def run(shell, *replies, reports=REPORTS, untracked_apps=(), decisions=None):
+def run(shell, *replies, reports=REPORTS, untracked_apps=(), go_through_apps=None):
     return apply_updates.run_upgrade_menu(
-        reports, shell, quiet_console(), answers(*replies), untracked_apps, decisions
+        reports, shell, quiet_console(), answers(*replies), untracked_apps, go_through_apps
     )
 
 
@@ -235,11 +233,11 @@ def test_without_untracked_apps_there_is_no_such_entry():
 
 def test_going_through_the_apps_is_one_of_the_choices():
     shell = RecordingShell()
-    decisions = FakeDecisions()
-    # Entry 4 is the apps, then "1" leaves the only app alone.
-    run(shell, "4", "1", untracked_apps=[FakeApp("Docker")], decisions=decisions)
+    walkthrough = RecordingWalkthrough()
+    # Entry 4 is the apps, and nothing else is chosen, so nothing is upgraded.
+    run(shell, "4", "1", untracked_apps=[FakeApp("Docker")], go_through_apps=walkthrough)
 
-    assert decisions.ignored == ["Docker"]
+    assert walkthrough.seen == ["Docker"]
     assert shell.streamed == []
 
 
@@ -258,7 +256,7 @@ def test_the_apps_are_asked_about_before_anything_is_upgraded():
         return "2"
 
     apply_updates.run_upgrade_menu(
-        REPORTS, WatchingShell(), quiet_console(), ask, [FakeApp("Docker")], FakeDecisions()
+        REPORTS, WatchingShell(), quiet_console(), ask, [FakeApp("Docker")], RecordingWalkthrough()
     )
 
     assert order[0] == "ask"

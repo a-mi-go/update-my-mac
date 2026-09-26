@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from rich.console import Console
 from rich.markup import escape
 
-from update_my_mac import package_managers, track_apps
+from update_my_mac import package_managers
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -162,7 +162,9 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     return failed
 
 
-def run_upgrade_menu(reports, shell, console=None, ask=input, untracked_apps=(), decisions=None):
+def run_upgrade_menu(
+    reports, shell, console=None, ask=input, untracked_apps=(), go_through_apps=None
+):
     """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
     entries = build_menu(reports, untracked_apps)
@@ -184,15 +186,15 @@ def run_upgrade_menu(reports, shell, console=None, ask=input, untracked_apps=(),
             continue
         if chosen == CANCEL:
             return []
-        return run_chosen(chosen, shell, console, ask, decisions)
+        return run_chosen(chosen, shell, console, ask, go_through_apps)
 
 
-def run_chosen(entries, shell, console, ask=input, decisions=None):
+def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
     # Questions before updates, so everything that needs an answer is over
     # before the first long-running command starts.
     for entry in entries:
-        if entry.kind == UNTRACKED_APPS and decisions is not None:
-            track_apps.run_untracked_menu(entry.apps, decisions, ask, console.print)
+        if entry.kind == UNTRACKED_APPS and go_through_apps is not None:
+            go_through_apps(entry.apps, ask, console.print)
 
     package_keys = [key for entry in entries if entry.kind == PACKAGES for key in entry.keys]
     failed, _ = upgrade_managers(package_keys, shell, console)

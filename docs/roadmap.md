@@ -12,6 +12,8 @@ behind the design is in the commit messages and in the pull requests.
   or several separated by commas, with the untracked apps as an entry in it.
 - Telling which untracked apps update themselves, by reading Sparkle's settings
   out of the app bundle and the user's own preferences.
+- Showing where an untracked app came from, matched against Homebrew's list of
+  casks by the app's file name, and opening that website.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor

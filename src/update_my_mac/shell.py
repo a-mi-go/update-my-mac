@@ -57,3 +57,18 @@ def stream_command(args, env=None):
         return subprocess.run(args, env=env).returncode
     except (OSError, subprocess.SubprocessError):
         return -1
+
+
+def open_in_browser(url):
+    """Hand a web address to whatever the Mac opens web addresses with.
+
+    Only https, so that a bad entry somewhere upstream cannot turn this into
+    opening a file or running something. Returns whether it worked.
+    """
+    if not url.startswith("https://"):
+        return False
+
+    executable = find_executable("open")
+    if executable is None:
+        return False
+    return run_command([executable, url]).success
