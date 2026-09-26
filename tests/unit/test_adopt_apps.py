@@ -114,3 +114,21 @@ def test_an_unreadable_record_is_not_treated_as_a_mismatch(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
 
     assert adopt_apps.hand_to_homebrew(app, CASK, BrewShell(""))[0]
+
+
+def test_a_recipe_that_lags_the_app_does_not_suggest_going_back(tmp_path):
+    # The Codex cask sat weeks behind the installed app, and installing it
+    # would have been a downgrade dressed up as an update.
+    app = bundle(tmp_path, "Codex", "26.831.21537")
+    cask = Cask("codex-app", "https://openai.com/codex", "26.623.141536")
+
+    taken, message = adopt_apps.hand_to_homebrew(app, cask, BrewShell(""))
+    assert not taken
+    assert "going back a version" in message
+    assert "brew install" not in message
+
+
+def test_which_way_round_the_versions_are():
+    assert adopt_apps.cask_is_behind("26.831.21537", "26.623.141536")
+    assert not adopt_apps.cask_is_behind("5.0.5", "5.0.6")
+    assert not adopt_apps.cask_is_behind("5.0.6", "5.0.6,1234")

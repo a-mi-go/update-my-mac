@@ -9,6 +9,8 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
+import re
+
 from update_my_mac import installed_apps, package_managers
 
 
@@ -21,6 +23,19 @@ def same_version(app_version, cask_version):
     return app_version.strip() == cask_version.split(",")[0].strip()
 
 
+def _numbers_in(version):
+    return [int(part) for part in re.findall(r"\d+", version)]
+
+
+def cask_is_behind(app_version, cask_version):
+    """Whether Homebrew's recipe is older than the app already installed.
+
+    It happens often enough to matter: a recipe can lag the app by weeks, and
+    then installing it would be a step backwards rather than an update.
+    """
+    return _numbers_in(cask_version) < _numbers_in(app_version)
+
+
 def hand_to_homebrew(app, cask, shell):
     """Returns whether the app is now properly looked after, and why."""
     if cask is None:
@@ -30,6 +45,12 @@ def hand_to_homebrew(app, cask, shell):
 
     # Trying anyway would download the whole thing and then refuse.
     if not same_version(app.version, cask.version):
+        if cask_is_behind(app.version, cask.version):
+            return False, (
+                f"Your app is {app.version} and Homebrew's recipe is still "
+                f"{cask.version}. Taking it over would mean going back a version, "
+                f"so wait until the recipe catches up."
+            )
         return False, (
             f"Homebrew has {cask.token} {cask.version} and yours is {app.version}. "
             f"It can only take over a version it already knows, so install over it "
