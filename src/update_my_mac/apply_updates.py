@@ -58,7 +58,7 @@ def build_menu(reports, untracked_apps=(), duplicates=()):
         entries.append(
             MenuEntry(
                 DOUBLED,
-                f"commands installed twice ({len(duplicates)} to go through)",
+                f"apps installed twice ({len(duplicates)} to go through)",
                 duplicates=list(duplicates),
             )
         )
@@ -111,7 +111,7 @@ def print_menu(entries, console):
     option(1, "Everything")
     for number, entry in enumerate(entries, start=2):
         option(number, entry.label)
-    option(len(entries) + 2, "Nothing, leave it all as it is")
+    option(len(entries) + 2, "Nothing (Exit)")
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
