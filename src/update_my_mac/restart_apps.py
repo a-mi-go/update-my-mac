@@ -45,35 +45,73 @@ def restart(app, shell, pause=time.sleep):
 
 
 def run_restart_menu(apps, restart_one, ask=input, out=None, interactive=True):
-    """Offer to restart each app. Returns how many were restarted."""
+    """Ask what to do about the apps running an old version. Returns how many went.
+
+    The answer is usually the same for all of them, so it is asked once. Going
+    one at a time is there for the app that has something unsaved in it.
+    """
     console_print = _printer(out)
     if not apps or not interactive:
         return 0
 
     console_print()
-    counted = "app" if len(apps) == 1 else "apps"
-    console_print(f"Going through {len(apps)} {counted} running an old version.")
-
-    restarted = 0
     try:
-        for app in apps:
-            console_print()
-            console_print(f"[bold]{escape(app.name)}[/]")
-            console_print(f"  {escape(app.describe())}")
-            console_print("  [bold cyan]1)[/] quit it and start it again")
-            console_print("  [bold cyan]2)[/] leave it running")
-            console_print("  [bold cyan]3)[/] stop going through them")
-
-            choice = _answer(ask, "> ")
-            if choice == "3":
-                break
-            if choice != "1":
-                continue
-
-            done, message = restart_one(app)
-            console_print(f"  {'' if done else '[yellow]'}{escape(message)}{'' if done else '[/]'}")
-            restarted += 1 if done else 0
+        choice = _ask_how_to_deal(apps, ask, console_print)
+        if choice == "1":
+            return _restart_all(apps, restart_one, console_print)
+        if choice == "2":
+            return _walk_through(apps, restart_one, ask, console_print)
     except Stopped:
         console_print()
 
+    return 0
+
+
+def _ask_how_to_deal(apps, ask, console_print):
+    counted = "app" if len(apps) == 1 else "apps"
+    console_print(f"{len(apps)} {counted} running an old version. What now?")
+    console_print("  [bold cyan]1)[/] quit all of them and start them again")
+    console_print("  [bold cyan]2)[/] go through them one at a time")
+    console_print("  [bold cyan]3)[/] leave them all running")
+
+    while True:
+        # Asked again rather than guessed at, because guessing wrong here quits
+        # an app that was about to ask about unsaved work.
+        choice = _answer(ask, "> ")
+        if choice in ("1", "2", "3"):
+            return choice
+
+
+def _restart_all(apps, restart_one, console_print):
+    restarted = 0
+    for app in apps:
+        console_print()
+        console_print(f"[bold]{escape(app.name)}[/]")
+        if _restart_one(app, restart_one, console_print):
+            restarted += 1
     return restarted
+
+
+def _walk_through(apps, restart_one, ask, console_print):
+    """One question per app, for when the answer is not the same for all."""
+    restarted = 0
+    for app in apps:
+        console_print()
+        console_print(f"[bold]{escape(app.name)}[/]")
+        console_print(f"  {escape(app.describe())}")
+        console_print("  [bold cyan]1)[/] quit it and start it again")
+        console_print("  [bold cyan]2)[/] leave it running")
+        console_print("  [bold cyan]3)[/] stop going through them")
+
+        choice = _answer(ask, "> ")
+        if choice == "3":
+            break
+        if choice == "1" and _restart_one(app, restart_one, console_print):
+            restarted += 1
+    return restarted
+
+
+def _restart_one(app, restart_one, console_print):
+    done, message = restart_one(app)
+    console_print(f"  {'' if done else '[yellow]'}{escape(message)}{'' if done else '[/]'}")
+    return done

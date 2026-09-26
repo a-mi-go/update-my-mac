@@ -105,36 +105,123 @@ def test_a_restart_that_does_not_come_back_says_so(tmp_path):
 
 
 def restarting(done, message="done"):
-    return lambda _app: (done, message)
+    def restart(_app):
+        return done, message
+
+    return restart
 
 
-def test_the_menu_offers_a_restart(tmp_path):
+def recording(restarted, done=True, message="done"):
+    """A restart that remembers which app it was asked about."""
+
+    def restart(app):
+        restarted.append(app.name)
+        return done, message
+
+    return restart
+
+
+def two_apps(tmp_path):
+    return [app_at(tmp_path), app_at(tmp_path, name="Other")]
+
+
+def test_the_menu_asks_what_to_do_with_them(tmp_path):
+    terminal = Terminal("3")
+
+    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.ask, terminal.out)
+
+    assert "2 apps running an old version" in terminal.text
+    assert "1) quit all of them and start them again" in terminal.text
+    assert "2) go through them one at a time" in terminal.text
+    assert "3) leave them all running" in terminal.text
+    # The old walk-through wording is what this question replaced.
+    assert "Going through" not in terminal.text
+
+
+def test_one_app_is_asked_about_in_the_singular(tmp_path):
+    terminal = Terminal("3")
+
+    restart_apps.run_restart_menu([app_at(tmp_path)], restarting(True), terminal.ask, terminal.out)
+
+    assert "1 app running an old version" in terminal.text
+
+
+def test_restarting_everyone_at_once_takes_a_single_answer(tmp_path):
     terminal = Terminal("1")
-    restarted = restart_apps.run_restart_menu(
-        [app_at(tmp_path)], restarting(True), terminal.ask, terminal.out
+    restarted = []
+
+    count = restart_apps.run_restart_menu(
+        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
     )
 
-    assert restarted == 1
+    assert count == 2
+    assert restarted == ["Thing", "Other"]
+    assert terminal.text.count("> ") == 1
+
+
+def test_leaving_them_all_running_restarts_nothing(tmp_path):
+    terminal = Terminal("3")
+    restarted = []
+
+    count = restart_apps.run_restart_menu(
+        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+    )
+
+    assert count == 0
+    assert restarted == []
+    # One question, not one per app: the answer covered all of them.
+    assert terminal.text.count("> ") == 1
+
+
+def test_going_through_them_one_at_a_time(tmp_path):
+    terminal = Terminal("2", "1", "2")
+    restarted = []
+
+    count = restart_apps.run_restart_menu(
+        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+    )
+
+    assert count == 1
+    assert restarted == ["Thing"]
     assert "1) quit it and start it again" in terminal.text
 
 
-def test_leaving_it_running_restarts_nothing(tmp_path):
-    terminal = Terminal("2")
-
-    assert restart_apps.run_restart_menu(
-        [app_at(tmp_path)], restarting(True), terminal.ask, terminal.out
-    ) == 0
-
-
 def test_stopping_partway_leaves_the_rest(tmp_path):
-    terminal = Terminal("3")
+    terminal = Terminal("2", "1", "3")
+    restarted = []
+
+    count = restart_apps.run_restart_menu(
+        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+    )
+
+    assert count == 1
+    assert restarted == ["Thing"]
+
+
+def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
+    terminal = Terminal("", "yes", "1")
+    restarted = []
+
+    count = restart_apps.run_restart_menu(
+        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+    )
+
+    # An empty line must not be taken for a decision, least of all to quit apps.
+    assert count == 2
+    assert terminal.text.count("> ") == 3
+
+
+def test_nothing_to_answer_with_stops_the_question(tmp_path):
+    asked = []
+
+    def ask(prompt):
+        asked.append(prompt)
+        raise EOFError
 
     assert restart_apps.run_restart_menu(
-        [app_at(tmp_path), app_at(tmp_path, name="Other")],
-        restarting(True),
-        terminal.ask,
-        terminal.out,
+        two_apps(tmp_path), restarting(True), ask, Terminal().out
     ) == 0
+    assert len(asked) == 1
 
 
 def test_a_restart_that_failed_is_not_counted(tmp_path):
@@ -143,8 +230,22 @@ def test_a_restart_that_failed_is_not_counted(tmp_path):
     restarted = restart_apps.run_restart_menu(
         [app_at(tmp_path)], restarting(False, "it would not quit"), terminal.ask, terminal.out
     )
+
     assert restarted == 0
     assert "it would not quit" in terminal.text
+
+
+def test_one_refusing_does_not_stop_the_others(tmp_path):
+    terminal = Terminal("1")
+
+    def restart(app):
+        return app.name != "Other", "done" if app.name != "Other" else "it would not quit"
+
+    restarted = restart_apps.run_restart_menu(
+        two_apps(tmp_path), restart, terminal.ask, terminal.out
+    )
+
+    assert restarted == 1
 
 
 def test_no_terminal_means_nothing_is_asked(tmp_path):
