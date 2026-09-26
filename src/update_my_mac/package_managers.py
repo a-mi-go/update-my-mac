@@ -19,6 +19,8 @@ class ManagerReport:
     label: str
     outdated_packages: list
     error_message: str = ""
+    # Taps Homebrew is leaving out of the answer it just gave.
+    ignored_taps: list = field(default_factory=list)
 
 
 def nonblank_lines(output):
@@ -164,7 +166,32 @@ def check_for_outdated(manager, shell):
         packages = manager.parse_output(result.stdout)
     except CheckFailed as failure:
         return ManagerReport(manager.key, manager.label, [], str(failure))
-    return ManagerReport(manager.key, manager.label, packages)
+
+    # Homebrew says on stderr when it is ignoring a tap, and an ignored tap is
+    # left out of the answer silently. Without this the report looks complete.
+    ignored = untrusted_taps(shell) if "not trusted" in result.stderr else []
+    return ManagerReport(manager.key, manager.label, packages, ignored_taps=ignored)
+
+
+def untrusted_taps(shell):
+    """The taps Homebrew will not read from until they are trusted."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return []
+
+    result = shell.run_command([executable, "tap-info", "--json", "--installed"], (0,))
+    if not result.success:
+        return []
+
+    try:
+        taps = json.loads(result.stdout)
+    except ValueError:
+        return []
+    return [
+        tap["name"]
+        for tap in taps
+        if isinstance(tap, dict) and tap.get("trusted") is False and tap.get("name")
+    ]
 
 
 def check_installed(shell, managers=MANAGERS):

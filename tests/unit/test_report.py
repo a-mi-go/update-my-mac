@@ -243,3 +243,29 @@ def test_the_version_is_not_taken_apart_by_the_highlighter(capsys):
     report.print_header(Console(width=60, no_color=True))
 
     assert __version__ in capsys.readouterr().out
+
+
+def test_apps_owned_by_someone_else_come_with_a_way_out(capsys):
+    report.print_foreign_owners(
+        [Path("/Applications/Firefox.app"), Path("/Applications/Disk Drill.app")],
+        Console(width=120, no_color=True),
+    )
+
+    printed = capsys.readouterr().out
+    assert "Owned by another user: 2" in printed
+    assert "Firefox.app" in printed
+    assert 'sudo chown -R $(id -un) "/Applications/Firefox.app"' in printed
+
+
+def test_nothing_is_printed_when_every_app_is_mine(capsys):
+    report.print_foreign_owners([], Console(width=120, no_color=True))
+
+    assert capsys.readouterr().out == ""
+
+
+def test_a_manager_says_when_it_left_something_out(capsys):
+    reports = [ManagerReport("brew", "Homebrew", [], ignored_taps=["anomalyco/tap", "clerk/stable"])]
+    report.print_outdated_summary(reports, Console(width=120, no_color=True))
+
+    printed = capsys.readouterr().out
+    assert "Nothing from anomalyco/tap, clerk/stable was checked" in printed

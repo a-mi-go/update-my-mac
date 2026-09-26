@@ -75,6 +75,7 @@ def run_check_mode():
 
     listed, left_alone = _untracked_apps(app_decisions.load())
     report.print_untracked_apps(listed, left_alone=left_alone)
+    report.print_foreign_owners(installed_apps.owned_by_someone_else())
     return _exit_code(reports, manager_updates)
 
 
@@ -93,6 +94,7 @@ def run_interactive_mode():
     decisions = app_decisions.load()
     listed, left_alone = _untracked_apps(decisions)
     report.print_untracked_apps(listed, left_alone=left_alone)
+    report.print_foreign_owners(installed_apps.owned_by_someone_else())
 
     failed += apply_updates.run_upgrade_menu(
         reports, shell, untracked_apps=listed, go_through_apps=_app_walkthrough(decisions)

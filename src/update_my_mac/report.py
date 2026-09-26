@@ -88,6 +88,23 @@ def _print_group(console, heading, apps, with_updater=True):
     print_list(console, lines, "      ", [app.name for app in apps])
 
 
+def print_foreign_owners(apps, console=None):
+    """Apps a Homebrew upgrade would break on, with the way out."""
+    if not apps:
+        return
+
+    console = console or Console(highlight=False, soft_wrap=True)
+    console.print()
+    console.print(f"[yellow]Owned by another user[/]: [bold cyan]{len(apps)}[/]")
+    print_list(console, [path.name for path in apps])
+    console.print(
+        "    [dim]Homebrew cannot upgrade these until they are yours. "
+        "Take them over with:[/]"
+    )
+    quoted = " ".join(f'"{path}"' for path in apps)
+    console.print(f"    sudo chown -R $(id -un) {quoted}", markup=False, highlight=False)
+
+
 def print_untracked_apps(apps, console=None, left_alone=0):
     """Apps no package manager accounts for, so nothing else will mention them."""
     console = console or Console(highlight=False, soft_wrap=True)
@@ -111,6 +128,18 @@ def print_untracked_apps(apps, console=None, left_alone=0):
         )
 
 
+def _say_what_was_left_out(console, report):
+    """A manager that answered about only part of what it holds has to say so."""
+    if not report.ignored_taps:
+        return
+
+    named = ", ".join(report.ignored_taps)
+    console.print(
+        f"    [yellow]Nothing from {escape(named)} was checked[/], "
+        f"Homebrew ignores a tap until you trust it."
+    )
+
+
 def print_outdated_summary(reports, console=None):
     # soft_wrap keeps a package manager's own table columns from being rewrapped
     # into nonsense; markup=False because package names may contain brackets.
@@ -132,6 +161,7 @@ def print_outdated_summary(reports, console=None):
             print_list(console, report.outdated_packages)
         else:
             console.print(f"[green]{report.label}[/]: up to date")
+        _say_what_was_left_out(console, report)
 
     total = count_outdated_packages(reports)
     failures = sum(1 for report in reports if report.error_message)

@@ -199,3 +199,30 @@ def test_without_a_home_the_home_directory_is_simply_skipped():
         "/Applications",
         "/Users/x/Applications",
     ]
+
+
+def make_bundle(directory, name):
+    app = directory / f"{name}.app"
+    (app / "Contents").mkdir(parents=True)
+    return app
+
+
+def test_my_own_apps_are_not_flagged(tmp_path):
+    make_bundle(tmp_path, "Mine")
+
+    assert installed_apps.owned_by_someone_else({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+
+
+def test_an_app_belonging_to_another_user_is_flagged(tmp_path, monkeypatch):
+    # Homebrew would fail to set permissions on it halfway through an upgrade.
+    app = make_bundle(tmp_path, "Theirs")
+    monkeypatch.setattr(installed_apps.os, "getuid", lambda: 999999)
+
+    found = installed_apps.owned_by_someone_else({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert found == [app]
+
+
+def test_a_directory_that_is_not_there_is_skipped(monkeypatch):
+    monkeypatch.setattr(installed_apps.os, "getuid", lambda: 999999)
+
+    assert installed_apps.owned_by_someone_else({"UPDATE_MY_MAC_APP_DIRS": "/nowhere"}) == []

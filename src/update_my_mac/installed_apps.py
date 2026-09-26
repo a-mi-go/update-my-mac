@@ -159,3 +159,33 @@ def find_untracked(shell, env=None):
             )
     return found
 
+
+
+def owned_by_someone_else(env=None):
+    """Apps in the usual places that belong to another user.
+
+    Homebrew upgrades a cask by replacing the app and then setting its
+    permissions, and setting permissions on something you do not own fails.
+    The upgrade then breaks halfway, which is worth a warning beforehand.
+
+    Apps owned by root are left out: the App Store keeps its own that way, and
+    they are not Homebrew's to touch.
+    """
+    env = os.environ if env is None else env
+    mine = os.getuid()
+
+    found = []
+    visited = set()
+    for directory in app_directories(env):
+        resolved = directory.resolve()
+        if resolved in visited or not resolved.is_dir():
+            continue
+        visited.add(resolved)
+        for app_path in sorted(resolved.glob("*.app")):
+            try:
+                owner = app_path.stat().st_uid
+            except OSError:
+                continue
+            if owner not in (mine, 0):
+                found.append(app_path)
+    return found
