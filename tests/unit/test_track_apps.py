@@ -72,7 +72,7 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 
 def test_stopping_partway_keeps_what_was_decided_so_far(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("1", "4")
+    terminal = Terminal("1", "5")
 
     ignored = track_apps.run_untracked_menu(
         [app("First"), app("Second"), app("Third")], decisions, terminal.ask, terminal.out
@@ -270,7 +270,7 @@ class Opener:
 
 
 def test_where_an_app_came_from_is_shown_and_opened(tmp_path):
-    terminal = Terminal("3", "2")
+    terminal = Terminal("4", "2")
     opener = Opener()
 
     track_apps.run_untracked_menu(
@@ -289,7 +289,7 @@ def test_where_an_app_came_from_is_shown_and_opened(tmp_path):
 def test_showing_it_is_not_a_decision(tmp_path):
     # After looking, the same app is asked about again.
     decisions = decisions_in(tmp_path)
-    terminal = Terminal("3", "1")
+    terminal = Terminal("4", "1")
 
     ignored = track_apps.run_untracked_menu(
         [app("Docker")],
@@ -305,7 +305,7 @@ def test_showing_it_is_not_a_decision(tmp_path):
 
 
 def test_an_app_nobody_knows_the_origin_of_says_so(tmp_path):
-    terminal = Terminal("3", "2")
+    terminal = Terminal("4", "2")
     opener = Opener()
 
     track_apps.run_untracked_menu(
@@ -322,7 +322,7 @@ def test_an_app_nobody_knows_the_origin_of_says_so(tmp_path):
 
 
 def test_a_browser_that_will_not_open_is_said_out_loud(tmp_path):
-    terminal = Terminal("3", "2")
+    terminal = Terminal("4", "2")
 
     track_apps.run_untracked_menu(
         [app("Docker")],
@@ -350,3 +350,68 @@ def test_the_origin_is_only_looked_up_when_someone_asks(tmp_path):
     )
 
     assert asked_about == []
+
+
+def adopting(taken, message="done"):
+    def adopt(_app):
+        return taken, message
+
+    return adopt
+
+
+def test_an_app_can_be_handed_to_homebrew(tmp_path):
+    decisions = decisions_in(tmp_path)
+    terminal = Terminal("3")
+
+    ignored = track_apps.run_untracked_menu(
+        [app("BetterDisplay")], decisions, terminal.ask, terminal.out,
+        adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."),
+    )
+
+    assert "Homebrew looks after it now, as betterdisplay." in terminal.text
+    # Handed over, so it is neither ignored nor asked about again.
+    assert ignored == 0
+    assert decisions_in(tmp_path).ignored_names() == []
+
+
+def test_an_app_with_no_recipe_is_asked_about_again(tmp_path):
+    terminal = Terminal("3", "2")
+
+    track_apps.run_untracked_menu(
+        [app("TokenEater")], decisions_in(tmp_path), terminal.ask, terminal.out,
+        adopt=adopting(False, "Homebrew has no recipe for this app."),
+    )
+
+    assert "Homebrew has no recipe for this app." in terminal.text
+
+
+def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
+    decisions = decisions_in(tmp_path)
+    terminal = Terminal("3", "1")
+
+    ignored = track_apps.run_untracked_menu(
+        [app("BetterDisplay")], decisions, terminal.ask, terminal.out,
+        adopt=adopting(False, "Homebrew could not take it over."),
+    )
+
+    # The second answer still counted, so nothing was swallowed.
+    assert ignored == 1
+
+
+def test_without_homebrew_the_choice_says_so(tmp_path):
+    terminal = Terminal("3", "2")
+
+    track_apps.run_untracked_menu(
+        [app("BetterDisplay")], decisions_in(tmp_path), terminal.ask, terminal.out
+    )
+
+    assert "Homebrew is not installed" in terminal.text
+
+
+def test_the_menu_offers_the_handover(tmp_path):
+    terminal = Terminal("5")
+    track_apps.run_untracked_menu(
+        [app("BetterDisplay")], decisions_in(tmp_path), terminal.ask, terminal.out
+    )
+
+    assert "3) let Homebrew take it over" in terminal.text

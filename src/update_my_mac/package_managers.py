@@ -290,6 +290,20 @@ def check_managers_themselves(shell, managers=MANAGERS):
     return [update for update in updates if update is not None]
 
 
+def adopt_cask(token, shell):
+    """Hand an app that is already installed over to Homebrew.
+
+    `--adopt` keeps the app where it is instead of downloading and replacing
+    it, but it only works when the installed version matches the cask, so the
+    index must be current. That is why this one does not suppress Homebrew's
+    own update.
+    """
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return -1
+    return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+
+
 def upgrade_self(manager, shell):
     """Update the manager itself, with the terminal attached."""
     if not manager.self_upgrade_args:

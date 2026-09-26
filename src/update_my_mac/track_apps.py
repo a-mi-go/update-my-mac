@@ -26,6 +26,17 @@ def _answer(ask, question):
         raise Stopped
 
 
+def _hand_to_homebrew(app, adopt, console_print):
+    """Returns whether the app is dealt with and the walk can move on."""
+    if adopt is None:
+        console_print("  [dim]Homebrew is not installed, so it cannot take anything over.[/]")
+        return False
+
+    taken, message = adopt(app)
+    console_print(f"  {'' if taken else '[yellow]'}{escape(message)}{'' if taken else '[/]'}")
+    return taken
+
+
 def _show_website(website, console_print, open_url):
     if not website:
         console_print("  [dim]Nothing on this Mac says where that app came from.[/]")
@@ -44,6 +55,7 @@ def run_untracked_menu(
     interactive=True,
     find_website=None,
     open_url=None,
+    adopt=None,
 ):
     """Offer a decision about each untracked app. Returns how many were ignored.
 
@@ -66,21 +78,24 @@ def run_untracked_menu(
             console_print(f"[bold]{escape(app.name)}[/] {escape(app.version)}")
             console_print("  [bold cyan]1)[/] leave it alone, and stop listing it")
             console_print("  [bold cyan]2)[/] keep listing it")
-            console_print("  [bold cyan]3)[/] show me where it came from")
-            console_print("  [bold cyan]4)[/] stop going through them")
+            console_print("  [bold cyan]3)[/] let Homebrew take it over")
+            console_print("  [bold cyan]4)[/] show me where it came from")
+            console_print("  [bold cyan]5)[/] stop going through them")
 
             while True:
                 choice = _answer(ask, "> ")
-                if choice != "3":
+                if choice == "3" and not _hand_to_homebrew(app, adopt, console_print):
+                    # Nothing came of it, so the app is still undecided.
+                    continue
+                if choice != "4":
                     break
-                # Showing where it came from decides nothing, so the same app
-                # is asked about again afterwards.
+                # Showing where it came from decides nothing either.
                 _show_website(find_website(app) if find_website else "", console_print, open_url)
 
             if choice == "1":
                 decisions.ignore(app.name, app.version)
                 ignored += 1
-            elif choice == "4":
+            elif choice == "5":
                 break
     except Stopped:
         console_print()

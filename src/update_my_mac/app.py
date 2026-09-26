@@ -20,26 +20,61 @@ def _exit_code(reports, manager_updates=()):
     return 1 if failed else 0
 
 
-def _website_lookup():
-    """Where an app came from, answered from Homebrew's list of casks.
-
-    The list is only fetched once someone actually asks, so a run where nobody
-    picks that option stays offline.
-    """
+def _website_and_cask():
+    """One lookup of Homebrew's casks, shared by the two things that need it."""
     casks = None
 
-    def find_website(app):
+    def cask_for(app):
         nonlocal casks
         if casks is None:
             casks = cask_index.load()
-        cask = casks.for_app(app.path)
-        return cask.homepage if cask else ""
+        return casks.for_app(app.path)
 
-    return find_website
+    return cask_for
+
+
+def _same_version(app_version, cask_version):
+    """Whether Homebrew would see the installed app as the one in its recipe.
+
+    A cask often carries a build number after a comma, such as "4.92.0,240144",
+    while the app reports only the part in front of it.
+    """
+    return app_version.strip() == cask_version.split(",")[0].strip()
+
+
+def _adopt_into_homebrew(cask_for):
+    """Hand an app to Homebrew. Returns whether it is dealt with, and why."""
+
+    def adopt(app):
+        cask = cask_for(app)
+        if cask is None:
+            return False, "Homebrew has no recipe for this app."
+        if shell.find_executable("brew") is None:
+            return False, "Homebrew is not installed."
+
+        # Adoption only works on an app that already matches the recipe. Trying
+        # anyway would download the whole thing first and then refuse.
+        if not _same_version(app.version, cask.version):
+            return False, (
+                f"Homebrew has {cask.token} {cask.version} and yours is {app.version}. "
+                f"It can only take over a version it already knows, so install over it "
+                f"with: brew install --cask {cask.token}"
+            )
+
+        exit_code = package_managers.adopt_cask(cask.token, shell)
+        if exit_code != 0:
+            return False, f"Homebrew could not take it over, {cask.token} exited with {exit_code}."
+        return True, f"Homebrew looks after it now, as {cask.token}."
+
+    return adopt
 
 
 def _app_walkthrough(decisions):
-    find_website = _website_lookup()
+    cask_for = _website_and_cask()
+
+    def find_website(app):
+        cask = cask_for(app)
+        return cask.homepage if cask else ""
 
     def go_through_apps(apps, ask, out):
         return track_apps.run_untracked_menu(
@@ -49,6 +84,7 @@ def _app_walkthrough(decisions):
             out,
             find_website=find_website,
             open_url=shell.open_in_browser,
+            adopt=_adopt_into_homebrew(cask_for),
         )
 
     return go_through_apps
