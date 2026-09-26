@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from rich.console import Console
 from rich.markup import escape
 
-from update_my_mac import package_managers
+from update_my_mac import package_managers, report
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -18,6 +18,8 @@ class MenuEntry:
     label: str
     keys: list = field(default_factory=list)
     apps: list = field(default_factory=list)
+    # What was outdated when the menu was drawn, to compare against afterwards.
+    outdated: list = field(default_factory=list)
 
 
 def build_menu(reports, untracked_apps=()):
@@ -37,6 +39,7 @@ def build_menu(reports, untracked_apps=()):
                 PACKAGES,
                 f"{report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
                 [report.manager],
+                outdated=list(report.outdated_packages),
             )
         )
 
@@ -193,12 +196,7 @@ def run_upgrade_menu(
 
 
 def say_what_happened(console, done, failed):
-    """A closing word, because the reason sits far above after a long upgrade.
-
-    Upgrades write straight to the terminal so that password prompts and
-    progress bars work, which means their output is not ours to repeat. What
-    we can do is name who failed instead of leaving it scrolled away.
-    """
+    """A closing word for a step that has nothing to count, like a self-update."""
     if not done and not failed:
         return
 
@@ -207,10 +205,36 @@ def say_what_happened(console, done, failed):
         names = ", ".join(package_managers.by_key(key).label for key in done)
         console.print(f"[green]Updated[/]: {escape(names)}")
     for key, why in failed:
-        label = package_managers.by_key(key).label
-        console.print(f"[yellow]{escape(label)}: {why}[/]")
-    if failed:
-        console.print("[dim]What went wrong is in the output above.[/]")
+        console.print(f"[yellow]{escape(package_managers.by_key(key).label)}: {why}[/]")
+
+
+def say_what_changed(console, entries, shell):
+    """Ask each manager again, and report the difference.
+
+    An upgrade writes straight to the terminal, so we never see what it did.
+    Asking again afterwards is the only honest way to say what actually
+    changed, and it is what answers the question a person really has: did the
+    thing I wanted updated get updated?
+    """
+    console.print()
+    for entry in entries:
+        manager = package_managers.by_key(entry.keys[0])
+        again = package_managers.check_for_outdated(manager, shell)
+        if again is None or again.error_message:
+            console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
+            continue
+
+        remaining = again.outdated_packages
+        updated = max(0, len(entry.outdated) - len(remaining))
+        if not remaining:
+            console.print(f"[green]{escape(manager.label)}[/]: {len(entry.outdated)} updated")
+            continue
+
+        console.print(
+            f"[yellow]{escape(manager.label)}[/]: {updated} of {len(entry.outdated)} updated, "
+            f"still outdated:"
+        )
+        report.print_list(console, remaining)
 
 
 def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
@@ -220,7 +244,9 @@ def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
         if entry.kind == UNTRACKED_APPS and go_through_apps is not None:
             go_through_apps(entry.apps, ask, console.print)
 
-    package_keys = [key for entry in entries if entry.kind == PACKAGES for key in entry.keys]
-    done, failed, _ = upgrade_managers(package_keys, shell, console)
-    say_what_happened(console, done, failed)
+    upgraded = [entry for entry in entries if entry.kind == PACKAGES]
+    package_keys = [key for entry in upgraded for key in entry.keys]
+    _, failed, stopped = upgrade_managers(package_keys, shell, console)
+    if not stopped:
+        say_what_changed(console, upgraded, shell)
     return [key for key, _ in failed]
