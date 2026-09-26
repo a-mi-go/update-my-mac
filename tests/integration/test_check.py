@@ -43,7 +43,7 @@ def test_reports_outdated_packages(empty_home):
     assert "ripgrep" in out
     assert "typescript  5.4.2 → 5.4.5" in out
     assert "eslint  9.0.0 → 9.12.0" in out
-    assert "5 outdated in total" in out
+    assert "6 outdated in total" in out
 
 
 def test_nothing_outdated_says_so(empty_home):

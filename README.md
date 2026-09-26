@@ -93,6 +93,12 @@ The commands and the open questions behind each of these are in the [roadmap](do
 uv run pytest
 ```
 
+```bash
+tests/integration/playground.sh
+```
+
+The second one runs the real command against fake package managers, so you can click through the menus without touching anything on your Mac.
+
 Two layers, both run by CI on macOS and Linux. `tests/unit/` is pure logic with no mocking and no subprocesses. `tests/integration/` runs the real CLI against fake package managers that sit alone on `PATH`, with an empty `HOME`, so nothing installed on the machine takes part.
 
 
