@@ -1,5 +1,7 @@
 """Turning check results into something readable."""
 
+from update_my_mac import __version__
+
 from rich.console import Console
 from rich.markup import escape
 from rich.padding import Padding
@@ -41,6 +43,12 @@ def print_list(console, items, indent="    ", names=None):
 
 def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
+
+
+def print_header(console=None):
+    """A line across the terminal, so a run is easy to find when scrolling back."""
+    console = console or Console(highlight=False)
+    console.rule(f"[bold]update-my-mac[/] {__version__}", style="cyan")
 
 
 def print_manager_updates(updates, console=None, any_installed=True):

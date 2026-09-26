@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import app_updaters, report
+from update_my_mac import __version__, app_updaters, report
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
@@ -228,3 +228,18 @@ def test_a_switched_off_updater_is_not_called_unknown(capsys):
     printed = capsys.readouterr().out
     assert "Their updater is switched off: 1" in printed
     assert "They have an updater, nobody answered for it: 1" in printed
+
+
+def test_the_run_starts_with_a_line_across_the_terminal(capsys):
+    report.print_header(Console(width=60, no_color=True))
+
+    printed = capsys.readouterr().out
+    assert "update-my-mac" in printed
+    assert "─" in printed
+
+
+def test_the_version_is_not_taken_apart_by_the_highlighter(capsys):
+    # Left to rich, "0.1.0" came out as two coloured numbers and a full stop.
+    report.print_header(Console(width=60, no_color=True))
+
+    assert __version__ in capsys.readouterr().out

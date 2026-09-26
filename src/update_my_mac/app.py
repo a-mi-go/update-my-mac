@@ -63,6 +63,7 @@ def _untracked_apps(decisions):
 
 
 def run_check_mode():
+    report.print_header()
     # The managers come first: an outdated manager is what everything else
     # below it depends on.
     installed = package_managers.installed_managers(shell)
@@ -78,6 +79,7 @@ def run_check_mode():
 
 
 def run_interactive_mode():
+    report.print_header()
     installed = package_managers.installed_managers(shell)
     manager_updates = package_managers.check_managers_themselves(shell, installed)
     report.print_manager_updates(manager_updates, any_installed=bool(installed))
@@ -99,5 +101,6 @@ def run_interactive_mode():
 
 
 def run_retry_app_mode():
+    report.print_header()
     track_apps.run_revisit_menu(app_decisions.load())
     return 0
