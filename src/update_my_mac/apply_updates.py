@@ -102,12 +102,12 @@ def print_menu(entries, console):
 
 
 def _run_each(keys, shell, console, announce, run_one):
-    """Returns the keys that went badly, and whether Ctrl-C ended the run.
+    """What went through, what went badly, and whether Ctrl-C ended the run.
 
     Ctrl-C reaches us as well as the command, since it runs in the foreground.
     It has to stop everything that was queued, not just the step it landed in.
     """
-    failed = []
+    done, failed = [], []
     for key in keys:
         manager = package_managers.by_key(key)
         console.print(f"\n[bold]{announce} {manager.label}[/]")
@@ -115,12 +115,14 @@ def _run_each(keys, shell, console, announce, run_one):
             exit_code = run_one(manager, shell)
         except KeyboardInterrupt:
             console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
-            return failed + [key], True
+            return done, failed + [(key, "stopped")], True
 
         if exit_code != 0:
             console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
-            failed.append(key)
-    return failed, False
+            failed.append((key, f"exited with {exit_code}"))
+        else:
+            done.append(key)
+    return done, failed, False
 
 
 def upgrade_managers_themselves(keys, shell, console):
@@ -156,10 +158,11 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
             break
         console.print("[yellow]Didn't catch that.[/]")
 
-    failed, _ = upgrade_managers_themselves(
+    done, failed, _ = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
     )
-    return failed
+    say_what_happened(console, done, failed)
+    return [key for key, _ in failed]
 
 
 def run_upgrade_menu(
@@ -189,6 +192,27 @@ def run_upgrade_menu(
         return run_chosen(chosen, shell, console, ask, go_through_apps)
 
 
+def say_what_happened(console, done, failed):
+    """A closing word, because the reason sits far above after a long upgrade.
+
+    Upgrades write straight to the terminal so that password prompts and
+    progress bars work, which means their output is not ours to repeat. What
+    we can do is name who failed instead of leaving it scrolled away.
+    """
+    if not done and not failed:
+        return
+
+    console.print()
+    if done:
+        names = ", ".join(package_managers.by_key(key).label for key in done)
+        console.print(f"[green]Updated[/]: {escape(names)}")
+    for key, why in failed:
+        label = package_managers.by_key(key).label
+        console.print(f"[yellow]{escape(label)}: {why}[/]")
+    if failed:
+        console.print("[dim]What went wrong is in the output above.[/]")
+
+
 def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
     # Questions before updates, so everything that needs an answer is over
     # before the first long-running command starts.
@@ -197,5 +221,6 @@ def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
             go_through_apps(entry.apps, ask, console.print)
 
     package_keys = [key for entry in entries if entry.kind == PACKAGES for key in entry.keys]
-    failed, _ = upgrade_managers(package_keys, shell, console)
-    return failed
+    done, failed, _ = upgrade_managers(package_keys, shell, console)
+    say_what_happened(console, done, failed)
+    return [key for key, _ in failed]

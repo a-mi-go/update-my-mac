@@ -360,3 +360,76 @@ def test_nothing_wins_over_everything_when_both_are_given():
     entries = apply_updates.build_menu(REPORTS)
 
     assert numbers("1,4", entries) == CANCEL
+
+
+def printed_by(action):
+    console = Console(width=100, no_color=True)
+    with console.capture() as captured:
+        action(console)
+    return captured.get()
+
+
+def test_the_run_ends_by_naming_who_failed():
+    # After a long brew upgrade the reason has scrolled away, so the names of
+    # the ones that went badly are worth repeating.
+    shell = RecordingShell(exit_code=1)
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(
+            REPORTS, shell, console, answers("1")
+        )
+    )
+
+    assert "Homebrew: exited with 1" in printed
+    assert "npm (global): exited with 1" in printed
+    assert "What went wrong is in the output above" in printed
+
+
+def test_what_worked_is_named_too():
+    shell = RecordingShell()
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("1"))
+    )
+
+    assert "Updated: Homebrew, npm (global)" in printed
+    assert "What went wrong" not in printed
+
+
+def test_a_partly_successful_run_says_both():
+    class HalfBrokenShell(RecordingShell):
+        def stream_command(self, args, env=None):
+            self.streamed.append(args)
+            return 0 if "brew" in args[0] else 1
+
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(
+            REPORTS, HalfBrokenShell(), console, answers("1")
+        )
+    )
+
+    assert "Updated: Homebrew" in printed
+    assert "npm (global): exited with 1" in printed
+
+
+def test_stopping_is_named_as_such():
+    class InterruptedShell(RecordingShell):
+        def stream_command(self, args, env=None):
+            raise KeyboardInterrupt
+
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(
+            REPORTS, InterruptedShell(), console, answers("1")
+        )
+    )
+
+    assert "Homebrew: stopped" in printed
+
+
+def test_the_manager_step_closes_the_same_way():
+    shell = RecordingShell(exit_code=2)
+    printed = printed_by(
+        lambda console: apply_updates.run_manager_menu(
+            MANAGER_UPDATES, shell, console, answers("y")
+        )
+    )
+
+    assert "Homebrew: exited with 2" in printed
