@@ -25,11 +25,7 @@ class MenuEntry:
 
 
 def build_menu(reports, untracked_apps=(), duplicates=()):
-    """One entry per manager with something outdated, then the apps.
-
-    The managers themselves are not in here. They are dealt with before this
-    menu, so that what it lists comes from tools that are already current.
-    """
+    """One entry per manager with something outdated, then the apps."""
     entries = []
     for report in reports:
         if not report.outdated_packages:
@@ -66,12 +62,7 @@ def build_menu(reports, untracked_apps=(), duplicates=()):
 
 
 def parse_menu_answer(answer, entries):
-    """Turn what was typed into the chosen entries, or CANCEL, or None.
-
-    None means "didn't understand", which the caller turns into another prompt.
-    Everything is always 1, the entries follow it, and Nothing sits last, so
-    its number depends on how many entries there are.
-    """
+    """The chosen entries, or CANCEL, or None when the answer made no sense."""
     answer = answer.strip().lower()
     if answer in ("", "q", "c", "cancel", "exit", "0"):
         return CANCEL
@@ -116,11 +107,7 @@ def print_menu(entries, console):
 
 
 def _run_each(keys, shell, console, announce, run_one):
-    """What went through, what went badly, and whether Ctrl-C ended the run.
-
-    Ctrl-C reaches us as well as the command, since it runs in the foreground.
-    It has to stop everything that was queued, not just the step it landed in.
-    """
+    """What went through, what went badly, and whether Ctrl-C ended the run."""
     done, failed = [], []
     for key in keys:
         manager = package_managers.by_key(key)
@@ -128,6 +115,7 @@ def _run_each(keys, shell, console, announce, run_one):
         try:
             exit_code = run_one(manager, shell)
         except KeyboardInterrupt:
+            # Ctrl-C reaches us too, and has to stop the whole queue.
             console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
             return done, failed + [(key, "stopped")], True
 
@@ -236,10 +224,8 @@ def say_what_happened(console, done, failed):
 def say_what_changed(console, entries, shell):
     """Ask each manager again, and report the difference.
 
-    An upgrade writes straight to the terminal, so we never see what it did.
-    Asking again afterwards is the only honest way to say what actually
-    changed, and it is what answers the question a person really has: did the
-    thing I wanted updated get updated?
+    An upgrade writes straight to the terminal, so asking again is the only
+    way to know what it did.
     """
     console.print()
     for entry in entries:

@@ -1,14 +1,7 @@
 """Apps that are older than the Homebrew recipe for them.
 
-Homebrew only compares the version it wrote down at install time against the
-recipe, and for a cask marked `auto_updates` it does not even do that, on the
-assumption that the app looks after itself. When the app then stops looking
-after itself, nobody notices: Homebrew reports nothing, the app reports
-nothing, and the version on disk quietly falls behind.
-
-Reading the version out of the app bundle and comparing it against the recipe
-is the only way to see it. On the machine this was written on that found
-nineteen apps, and `brew outdated` reported none of them.
+Homebrew compares the version it recorded at install time, and for a cask
+marked `auto_updates` not even that, so it never notices.
 """
 
 import re
@@ -32,13 +25,10 @@ def _numbers_in(version):
 
 
 def is_behind(app_version, cask_version):
-    """Whether the recipe knows a newer version than the app on disk.
-
-    A recipe often carries a build number after a comma, and a version that
-    only differs there is the same version.
-    """
+    """Whether the recipe knows a newer version than the app on disk."""
     if not app_version or app_version == "?" or not cask_version:
         return False
+    # A recipe writes "4.92.0,240144" where the app reports only "4.92.0".
     if app_version.strip() == cask_version.split(",")[0].strip():
         return False
     return _numbers_in(app_version) < _numbers_in(cask_version)

@@ -1,8 +1,7 @@
 """Deciding which copy of a doubly installed command to keep.
 
-Nothing here decides on its own. Both copies work, and which one is right
-depends on what the person wants, so the only thing this does is lay out who
-installed what and run the uninstall that was picked.
+Both copies work, so this only lays out who installed what and runs the
+uninstall that was picked.
 """
 
 from rich.markup import escape

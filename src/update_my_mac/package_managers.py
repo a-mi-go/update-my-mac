@@ -30,9 +30,8 @@ def nonblank_lines(output):
 def parse_npm_outdated(stdout):
     """Read `npm outdated -g --json`.
 
-    npm exits 1 both when it finds updates and when it fails, so the exit code
-    alone cannot tell those apart. The JSON can: a failure carries an "error"
-    key instead of packages.
+    npm exits 1 both when it finds updates and when it fails; only the JSON
+    tells them apart, by carrying an "error" key.
     """
     return _parse_json_packages(stdout)
 
@@ -211,11 +210,10 @@ STALE_AFTER_SECONDS = 24 * 60 * 60
 
 
 def check_homebrew_index(manager, shell):
-    """Homebrew has no way to ask whether it is behind without fetching.
+    """Whether Homebrew's index is old enough to be worth refreshing.
 
-    What it does leave behind is the age of its index, and that is the thing
-    `brew outdated` reads. An index older than a day is worth refreshing, which
-    is also when Homebrew itself would auto-update.
+    Homebrew cannot say whether it is behind without fetching, so the age of
+    the index it answers from has to stand in.
     """
     executable = shell.find_executable(manager.command)
     result = shell.run_command([executable, "--cache"], (0,))
@@ -251,11 +249,7 @@ def check_homebrew_index(manager, shell):
 
 
 def check_self(manager, shell):
-    """Whether the manager has a newer version of itself.
-
-    None means there is nothing to offer: the manager isn't installed, can't
-    update itself, or already is current.
-    """
+    """A newer version of the manager itself, or None when there is none."""
     if not manager.self_upgrade_args:
         return None
 
@@ -285,11 +279,7 @@ def check_self(manager, shell):
 
 
 def describe_own_version(stdout, package):
-    """Read one named package out of `outdated --json`.
-
-    Asking about a single package is not the same as trusting the answer to
-    hold only that package, so the name is looked up rather than assumed.
-    """
+    """Read one named package out of `outdated --json`."""
     if not stdout.strip():
         return ""
 
@@ -320,10 +310,8 @@ def check_managers_themselves(shell, managers=MANAGERS):
 def adopt_cask(token, shell):
     """Hand an app that is already installed over to Homebrew.
 
-    `--adopt` keeps the app where it is instead of downloading and replacing
-    it, but it only works when the installed version matches the cask, so the
-    index must be current. That is why this one does not suppress Homebrew's
-    own update.
+    Adoption needs a current index to match against, so unlike the checks
+    this one lets Homebrew update itself first.
     """
     executable = shell.find_executable("brew")
     if executable is None:

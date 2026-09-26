@@ -1,13 +1,7 @@
 """Commands that more than one package manager has installed.
 
-Two managers can each provide a command of the same name, and then PATH
-decides which one you actually run. Both managers report themselves as up to
-date, because each is right about its own copy, and the version you type is
-whichever directory comes first. That is how a freshly updated tool can sit
-unused while an older one answers.
-
-The copies are found by looking in the directories the managers install into,
-and the package to uninstall is read off the symlink each command points at.
+Each manager is right about its own copy and reports nothing outdated, while
+PATH decides which one you actually run.
 """
 
 import os
@@ -70,9 +64,7 @@ def bin_directories(shell):
 def package_behind(path):
     """The package a command belongs to, and how to get rid of it.
 
-    A command in a manager's bin directory is a symlink into wherever that
-    manager keeps the package, and the path says both which package it is and
-    what kind, which is what the uninstall command needs.
+    Read off the symlink, which points into wherever the manager keeps it.
     """
     try:
         parts = Path(os.path.realpath(path)).parts

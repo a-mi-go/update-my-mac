@@ -1,8 +1,4 @@
-"""Apps that no package manager knows about.
-
-An app dragged out of a `.dmg` is in no manager's list, so nothing reports it
-as outdated. Finding those is the first half of doing something about it.
-"""
+"""Apps in /Applications, and which of them no package manager knows about."""
 
 import json
 import os
@@ -57,11 +53,10 @@ def read_version(app_path, info=None):
 
 
 def belongs_to_macos(app_path):
-    """Apps shipped with the system, which softwareupdate looks after.
+    """Whether macOS ships this app, so softwareupdate looks after it.
 
-    They carry the restricted flag that keeps even root from changing them,
-    which is a surer sign than the path: Safari sits in /Applications like
-    anything else.
+    The restricted flag is a surer sign than the path: Safari sits in
+    /Applications like anything else.
     """
     try:
         return bool(app_path.stat().st_flags & stat.SF_RESTRICTED)
@@ -103,9 +98,7 @@ def apps_installed_by_homebrew(shell):
 def _app_names_in(artifact):
     """App file names an artifact mentions, however it phrases it.
 
-    A cask that ships an app says so with an `app` stanza. One that ships a
-    `pkg` names the app only in what it would remove again, which is why zoom
-    and Safari Technology Preview were counted as untracked.
+    A cask shipping a `pkg` names its app only in what it would remove again.
     """
     found = []
     for app in _as_list(artifact.get("app")):
@@ -129,11 +122,7 @@ def _as_list(value):
 
 
 def find_all(env=None):
-    """Every app in the usual places that is somebody's to update.
-
-    Apps from the App Store and apps macOS ships are left out: mas and
-    softwareupdate look after those, and nothing here should second-guess them.
-    """
+    """Every app in the usual places that is somebody's to update."""
     env = os.environ if env is None else env
 
     found = []
@@ -187,12 +176,8 @@ def find_untracked(shell, env=None):
 def owned_by_someone_else(env=None):
     """Apps in the usual places that belong to another user.
 
-    Homebrew upgrades a cask by replacing the app and then setting its
-    permissions, and setting permissions on something you do not own fails.
-    The upgrade then breaks halfway, which is worth a warning beforehand.
-
-    Apps owned by root are left out: the App Store keeps its own that way, and
-    they are not Homebrew's to touch.
+    A Homebrew upgrade of one of these breaks halfway, when it sets the
+    permissions of an app you do not own.
     """
     env = os.environ if env is None else env
     mine = os.getuid()
@@ -209,6 +194,7 @@ def owned_by_someone_else(env=None):
                 owner = app_path.stat().st_uid
             except OSError:
                 continue
+            # Root owns every App Store app, and those are not Homebrew's.
             if owner not in (mine, 0):
                 found.append(app_path)
     return found

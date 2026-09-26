@@ -1,10 +1,4 @@
-"""Going through the apps no package manager tracks, and revisiting that later.
-
-Leaving an app alone is the only decision on offer so far; the menu can also
-show where an app came from, which is not a decision but the thing you need
-when you have to fetch the update yourself. Handing an app to Homebrew, or
-watching its update feed, comes later and will appear in the same menu.
-"""
+"""Going through the apps no package manager tracks, and revisiting that later."""
 
 from rich.markup import escape
 
@@ -44,9 +38,8 @@ def run_untracked_menu(
 ):
     """Offer a decision about each untracked app. Returns how many were ignored.
 
-    `find_website` is asked where an app came from. It is a function rather
-    than a ready answer so that nothing is looked up before someone is
-    actually standing in front of the menu.
+    `find_website` and `adopt` are functions so that nothing is looked up
+    before someone picks that option.
     """
     console_print = _printer(out)
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]

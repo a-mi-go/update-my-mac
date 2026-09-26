@@ -1,12 +1,7 @@
 """Apps that are still running the version they were started with.
 
-An upgrade replaces the bundle on disk, but a process that was already running
-keeps the old code in memory. Nothing on disk says anything is wrong, so every
-check here reports the app as current while the app itself goes on offering
-its own update, because it compares the version it was started with.
-
-That is how Markdown Preview offered 0.0.62 while 0.0.62 was already installed:
-the process had been running since three days before the upgrade.
+An upgrade replaces the bundle, but a running process keeps the old code in
+memory and goes on offering an update that is already installed.
 """
 
 import os
@@ -43,8 +38,8 @@ class StillRunningOld:
 def _processes(shell):
     """Every running process as (pid, seconds running, executable path).
 
-    `etime` rather than a start date, because ps writes dates in the machine's
-    own language and there is nothing to parse reliably in that.
+    `etime` rather than a start date, which ps writes in the machine's own
+    language.
     """
     executable = shell.find_executable("ps")
     if executable is None:
