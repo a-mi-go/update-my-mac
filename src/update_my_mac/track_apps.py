@@ -1,29 +1,8 @@
-"""Going through the apps no package manager tracks, and revisiting that later.
+"""Going through the apps no package manager tracks, and revisiting that later."""
 
-Leaving an app alone is the only decision on offer so far; the menu can also
-show where an app came from, which is not a decision but the thing you need
-when you have to fetch the update yourself. Handing an app to Homebrew, or
-watching its update feed, comes later and will appear in the same menu.
-"""
-
-from rich.console import Console
 from rich.markup import escape
 
-
-def _printer(out):
-    """The given print function, or one onto a fresh console."""
-    return out or Console(highlight=False, soft_wrap=True).print
-
-
-class Stopped(Exception):
-    """Ctrl-C, or no more input to answer with."""
-
-
-def _answer(ask, question):
-    try:
-        return ask(question).strip()
-    except (EOFError, KeyboardInterrupt):
-        raise Stopped
+from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
 
 
 def _hand_to_homebrew(app, adopt, console_print):
@@ -59,9 +38,8 @@ def run_untracked_menu(
 ):
     """Offer a decision about each untracked app. Returns how many were ignored.
 
-    `find_website` is asked where an app came from. It is a function rather
-    than a ready answer so that nothing is looked up before someone is
-    actually standing in front of the menu.
+    `find_website` and `adopt` are functions so that nothing is looked up
+    before someone picks that option.
     """
     console_print = _printer(out)
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]

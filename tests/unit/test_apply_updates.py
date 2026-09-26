@@ -3,6 +3,7 @@ from rich.console import Console
 from update_my_mac import apply_updates
 from update_my_mac.apply_updates import CANCEL
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
+from update_my_mac.shell import CommandResult
 
 REPORTS = [
     ManagerReport("mas", "Mac App Store", []),
@@ -18,9 +19,16 @@ MANAGER_UPDATES = [
 
 
 class RecordingShell:
-    def __init__(self, exit_code=0):
+    """Records upgrades, and answers the check that follows them.
+
+    `still_outdated` is what each manager reports when asked again after the
+    upgrade, keyed by command name. Empty means it has nothing left.
+    """
+
+    def __init__(self, exit_code=0, still_outdated=None):
         self.streamed = []
         self.exit_code = exit_code
+        self.still_outdated = still_outdated or {}
 
     def find_executable(self, command):
         return f"/fake/{command}"
@@ -28,6 +36,10 @@ class RecordingShell:
     def stream_command(self, args, env=None):
         self.streamed.append(args)
         return self.exit_code
+
+    def run_command(self, args, success_exit_codes=(0,), env=None):
+        command = args[0].rsplit("/", 1)[-1]
+        return CommandResult(True, self.still_outdated.get(command, ""), "")
 
 
 class FakeApp:
@@ -360,3 +372,76 @@ def test_nothing_wins_over_everything_when_both_are_given():
     entries = apply_updates.build_menu(REPORTS)
 
     assert numbers("1,4", entries) == CANCEL
+
+
+def printed_by(action):
+    console = Console(width=100, no_color=True)
+    with console.capture() as captured:
+        action(console)
+    return captured.get()
+
+
+def test_the_run_ends_by_saying_what_actually_changed():
+    # The upgrade writes to the terminal and we never see it, so the managers
+    # are asked again and the answer is the difference.
+    shell = RecordingShell()
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("1"))
+    )
+
+    assert "Homebrew: 1 updated" in printed
+    assert "npm (global): 1 updated" in printed
+
+
+def test_a_package_that_did_not_move_is_named():
+    # This is the case that started it: one app updated, one did not, and the
+    # run only said the manager had exited with 1.
+    shell = RecordingShell(exit_code=1, still_outdated={"brew": "git 2.48.1 -> 2.49.0"})
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("2"))
+    )
+
+    assert "Homebrew: 0 of 1 updated, still outdated" in printed
+    assert "git 2.48.1 -> 2.49.0" in printed
+
+
+def test_a_manager_that_cannot_be_asked_again_says_so():
+    class SilentShell(RecordingShell):
+        def run_command(self, args, success_exit_codes=(0,), env=None):
+            return CommandResult(False, "", "brew: boom")
+
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(
+            REPORTS, SilentShell(), console, answers("2")
+        )
+    )
+
+    assert "Homebrew: could not check again" in printed
+
+
+def test_nothing_is_claimed_after_an_interrupted_run():
+    class InterruptedShell(RecordingShell):
+        def stream_command(self, args, env=None):
+            raise KeyboardInterrupt
+
+    printed = printed_by(
+        lambda console: apply_updates.run_upgrade_menu(
+            REPORTS, InterruptedShell(), console, answers("1")
+        )
+    )
+
+    # The menu itself says "What should be updated?", so look for the closing
+    # lines rather than the word.
+    assert "1 updated" not in printed
+    assert "still outdated" not in printed
+
+
+def test_the_manager_step_closes_the_same_way():
+    shell = RecordingShell(exit_code=2)
+    printed = printed_by(
+        lambda console: apply_updates.run_manager_menu(
+            MANAGER_UPDATES, shell, console, answers("y")
+        )
+    )
+
+    assert "Homebrew: exited with 2" in printed

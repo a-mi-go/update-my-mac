@@ -1,16 +1,34 @@
 #!/bin/bash
 # Stands in for a package manager: prints the fixture for this scenario, and
 # records what it was asked to do so tests can assert on upgrades.
+#
+# An upgrade leaves a mark, and once it has, `outdated` prefers the .after.txt
+# fixture. Without that the fake would report the same thing before and after,
+# and a real manager never does.
 name=$(basename "$0")
 [ -n "${MOCK_LOG:-}" ] && echo "$name $*" >> "$MOCK_LOG"
 
-if [ "$1" != "outdated" ]; then
-  fail="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/upgrade.exit"
-  [ -f "$fail" ] && exit "$(cat "$fail")"
-  exit 0
-fi
-
 base="${MOCK_FIXTURES:?MOCK_FIXTURES not set}/$name"
-[ -f "$base.txt" ] && cat "$base.txt"
-[ -f "$base.exit" ] && exit "$(cat "$base.exit")"
-exit 0
+marker="${MOCK_STATE:-}/$name.upgraded"
+
+case "$1" in
+  outdated)
+    if [ -n "${MOCK_STATE:-}" ] && [ -f "$marker" ] && [ -f "$base.after.txt" ]; then
+      cat "$base.after.txt"
+      exit 0
+    fi
+    [ -f "$base.txt" ] && cat "$base.txt"
+    [ -f "$base.exit" ] && exit "$(cat "$base.exit")"
+    exit 0
+    ;;
+  upgrade | update | install | self-update)
+    [ -n "${MOCK_STATE:-}" ] && mkdir -p "$MOCK_STATE" && touch "$marker"
+    fail="${MOCK_FIXTURES}/upgrade.exit"
+    [ -f "$fail" ] && exit "$(cat "$fail")"
+    exit 0
+    ;;
+  *)
+    # Anything else is a question, such as `brew --cache`, and changes nothing.
+    exit 0
+    ;;
+esac

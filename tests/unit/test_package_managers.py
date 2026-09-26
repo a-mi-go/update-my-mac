@@ -268,3 +268,43 @@ def test_a_homebrew_without_an_api_cache_is_left_alone(tmp_path):
     shell = HomebrewShell(tmp_path)
 
     assert package_managers.check_self(manager("brew"), shell) is None
+
+
+TAP_INFO = """[
+  {"name": "anomalyco/tap", "trusted": false},
+  {"name": "homebrew/core", "trusted": true}
+]"""
+
+
+class TwoAnswerShell(FakeShell):
+    """Answers `outdated` with one result and `tap-info` with another."""
+
+    def __init__(self, outdated, tap_info):
+        super().__init__({"brew"}, outdated)
+        self.tap_info = tap_info
+
+    def run_command(self, args, success_exit_codes=(0,), env=None):
+        self.calls.append((args, env))
+        return self.tap_info if "tap-info" in args else self.result
+
+
+def test_a_tap_homebrew_ignores_is_carried_into_the_report():
+    # Without this the report looks complete while a whole tap is missing.
+    outdated = CommandResult(True, "git (2.48.1) < 2.49.0", "Warning: taps are not trusted:")
+    shell = TwoAnswerShell(outdated, CommandResult(True, TAP_INFO, ""))
+
+    report = package_managers.check_for_outdated(manager("brew"), shell)
+    assert report.ignored_taps == ["anomalyco/tap"]
+
+
+def test_nothing_is_claimed_when_homebrew_did_not_complain():
+    shell = TwoAnswerShell(CommandResult(True, "", ""), CommandResult(True, TAP_INFO, ""))
+
+    assert package_managers.check_for_outdated(manager("brew"), shell).ignored_taps == []
+
+
+def test_an_unreadable_tap_list_is_not_guessed_at():
+    outdated = CommandResult(True, "", "Warning: taps are not trusted:")
+    shell = TwoAnswerShell(outdated, CommandResult(True, "not json", ""))
+
+    assert package_managers.check_for_outdated(manager("brew"), shell).ignored_taps == []

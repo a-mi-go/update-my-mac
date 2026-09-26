@@ -2,12 +2,17 @@
 
 from update_my_mac import (
     adopt_apps,
+    behind_the_recipe,
+    duplicate_commands,
     app_decisions,
     apply_updates,
     cask_index,
     installed_apps,
     package_managers,
     report,
+    resolve_duplicates,
+    restart_apps,
+    running_apps,
     shell,
     track_apps,
 )
@@ -32,6 +37,24 @@ def _website_and_cask():
         return casks.for_app(app.path)
 
     return cask_for
+
+
+def _behind_the_recipe():
+    """Apps older than their cask, which is the one thing Homebrew never says."""
+    return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
+
+
+def _duplicate_walkthrough():
+    def remove(copy):
+        executable = shell.find_executable(copy.remove_with[0])
+        if executable is None:
+            return -1
+        return shell.stream_command([executable, *copy.remove_with[1:]])
+
+    def go_through_duplicates(duplicates, ask, out):
+        return resolve_duplicates.run_duplicate_menu(duplicates, remove, ask, out)
+
+    return go_through_duplicates
 
 
 def _app_walkthrough(decisions):
@@ -63,6 +86,7 @@ def _untracked_apps(decisions):
 
 
 def run_check_mode():
+    report.print_header()
     # The managers come first: an outdated manager is what everything else
     # below it depends on.
     installed = package_managers.installed_managers(shell)
@@ -74,10 +98,15 @@ def run_check_mode():
 
     listed, left_alone = _untracked_apps(app_decisions.load())
     report.print_untracked_apps(listed, left_alone=left_alone)
+    report.print_foreign_owners(installed_apps.owned_by_someone_else())
+    report.print_duplicate_commands(duplicate_commands.find(shell))
+    report.print_behind_the_recipe(_behind_the_recipe())
+    report.print_still_running_old(running_apps.find(shell))
     return _exit_code(reports, manager_updates)
 
 
 def run_interactive_mode():
+    report.print_header()
     installed = package_managers.installed_managers(shell)
     manager_updates = package_managers.check_managers_themselves(shell, installed)
     report.print_manager_updates(manager_updates, any_installed=bool(installed))
@@ -91,13 +120,28 @@ def run_interactive_mode():
     decisions = app_decisions.load()
     listed, left_alone = _untracked_apps(decisions)
     report.print_untracked_apps(listed, left_alone=left_alone)
+    report.print_foreign_owners(installed_apps.owned_by_someone_else())
+    doubled = duplicate_commands.find(shell)
+    report.print_duplicate_commands(doubled)
+    report.print_behind_the_recipe(_behind_the_recipe())
+    stale = running_apps.find(shell)
+    report.print_still_running_old(stale)
+    # Asked before the update menu, not inside it: restarting updates nothing,
+    # the new version is already on disk.
+    restart_apps.run_restart_menu(stale, lambda app: restart_apps.restart(app, shell))
 
     failed += apply_updates.run_upgrade_menu(
-        reports, shell, untracked_apps=listed, go_through_apps=_app_walkthrough(decisions)
+        reports,
+        shell,
+        untracked_apps=listed,
+        go_through_apps=_app_walkthrough(decisions),
+        duplicates=doubled,
+        go_through_duplicates=_duplicate_walkthrough(),
     )
     return 1 if failed else _exit_code(reports, manager_updates)
 
 
 def run_retry_app_mode():
+    report.print_header()
     track_apps.run_revisit_menu(app_decisions.load())
     return 0

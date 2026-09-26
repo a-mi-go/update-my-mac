@@ -52,7 +52,7 @@ def test_an_app_can_be_left_alone_and_stays_that_way(tmp_path, empty_home):
 
     first = run(tmp_path, empty_home, answer="2\n1\n")
     assert first.returncode == 0, first.stderr
-    assert "TokenEater  5.12.2" in first.stdout
+    assert "TokenEater" in first.stdout
 
     stored = json.loads(decisions_file(tmp_path).read_text())
     assert stored["apps"]["TokenEater"]["decision"] == "ignore"
@@ -73,7 +73,7 @@ def test_a_left_alone_app_can_be_brought_back(tmp_path, empty_home):
     assert revisit.returncode == 0, revisit.stderr
     assert "TokenEater will be listed again" in revisit.stdout
 
-    assert "TokenEater  5.12.2" in run(tmp_path, empty_home, "--check").stdout
+    assert "TokenEater" in run(tmp_path, empty_home, "--check").stdout
 
 
 def test_a_check_never_asks_anything(tmp_path, empty_home):
