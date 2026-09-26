@@ -304,6 +304,22 @@ def adopt_cask(token, shell):
     return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
 
 
+def recorded_cask_version(token, shell):
+    """The version Homebrew wrote down for a cask, which it takes on trust."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return ""
+
+    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    result = shell.run_command([executable, "list", "--cask", "--versions", token], (0,), env)
+    if not result.success:
+        return ""
+
+    # "betterdisplay 5.0.6", or nothing at all when it isn't installed.
+    parts = result.stdout.split()
+    return parts[-1] if len(parts) >= 2 else ""
+
+
 def upgrade_self(manager, shell):
     """Update the manager itself, with the terminal attached."""
     if not manager.self_upgrade_args:

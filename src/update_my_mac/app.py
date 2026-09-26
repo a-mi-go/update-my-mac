@@ -1,6 +1,7 @@
 """Sequencing the steps of a run, independent of how the flags were parsed."""
 
 from update_my_mac import (
+    adopt_apps,
     app_decisions,
     apply_updates,
     cask_index,
@@ -33,42 +34,6 @@ def _website_and_cask():
     return cask_for
 
 
-def _same_version(app_version, cask_version):
-    """Whether Homebrew would see the installed app as the one in its recipe.
-
-    A cask often carries a build number after a comma, such as "4.92.0,240144",
-    while the app reports only the part in front of it.
-    """
-    return app_version.strip() == cask_version.split(",")[0].strip()
-
-
-def _adopt_into_homebrew(cask_for):
-    """Hand an app to Homebrew. Returns whether it is dealt with, and why."""
-
-    def adopt(app):
-        cask = cask_for(app)
-        if cask is None:
-            return False, "Homebrew has no recipe for this app."
-        if shell.find_executable("brew") is None:
-            return False, "Homebrew is not installed."
-
-        # Adoption only works on an app that already matches the recipe. Trying
-        # anyway would download the whole thing first and then refuse.
-        if not _same_version(app.version, cask.version):
-            return False, (
-                f"Homebrew has {cask.token} {cask.version} and yours is {app.version}. "
-                f"It can only take over a version it already knows, so install over it "
-                f"with: brew install --cask {cask.token}"
-            )
-
-        exit_code = package_managers.adopt_cask(cask.token, shell)
-        if exit_code != 0:
-            return False, f"Homebrew could not take it over, {cask.token} exited with {exit_code}."
-        return True, f"Homebrew looks after it now, as {cask.token}."
-
-    return adopt
-
-
 def _app_walkthrough(decisions):
     cask_for = _website_and_cask()
 
@@ -84,7 +49,7 @@ def _app_walkthrough(decisions):
             out,
             find_website=find_website,
             open_url=shell.open_in_browser,
-            adopt=_adopt_into_homebrew(cask_for),
+            adopt=lambda app: adopt_apps.hand_to_homebrew(app, cask_for(app), shell),
         )
 
     return go_through_apps
