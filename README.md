@@ -55,6 +55,8 @@ Or any other name you set during the setup! You can also rerun the `setup.sh` to
 
 After a report, you pick what should be updated and what should be left alone. Nothing runs before you answer, and updates run in your terminal, so a password prompt from `brew` or `mas` works as usual.
 
+When the same command has been installed by two managers, the run says which one PATH actually picks and offers to drop the other. Both managers report themselves as up to date in that case, so nothing else would ever mention it.
+
 For an app no package manager tracks you can also ask where it came from. The app is looked up in Homebrew's list of casks by its file name, and its website opens in your browser, which is where you go when the app cannot update itself.
 
 The tool can also be run in a cli mode if you prefer or want to integrate it in you own pipeline:

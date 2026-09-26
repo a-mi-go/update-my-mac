@@ -14,6 +14,10 @@ behind the design is in the commit messages and in the pull requests.
   out of the app bundle and the user's own preferences.
 - Showing where an untracked app came from, matched against Homebrew's list of
   casks by the app's file name, and opening that website.
+- Handing an untracked app to Homebrew, checked before and after, because
+  Homebrew adopts an app without looking inside it.
+- Finding a command two managers have each installed, saying which one PATH
+  picks, and offering to remove the other.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor

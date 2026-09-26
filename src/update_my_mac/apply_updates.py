@@ -10,6 +10,7 @@ from update_my_mac import package_managers, report
 CANCEL = "cancel"
 PACKAGES = "packages"
 UNTRACKED_APPS = "untracked"
+DOUBLED = "doubled"
 
 
 @dataclass
@@ -18,11 +19,12 @@ class MenuEntry:
     label: str
     keys: list = field(default_factory=list)
     apps: list = field(default_factory=list)
+    duplicates: list = field(default_factory=list)
     # What was outdated when the menu was drawn, to compare against afterwards.
     outdated: list = field(default_factory=list)
 
 
-def build_menu(reports, untracked_apps=()):
+def build_menu(reports, untracked_apps=(), duplicates=()):
     """One entry per manager with something outdated, then the apps.
 
     The managers themselves are not in here. They are dealt with before this
@@ -49,6 +51,15 @@ def build_menu(reports, untracked_apps=()):
                 UNTRACKED_APPS,
                 f"untracked apps ({len(untracked_apps)} to go through)",
                 apps=list(untracked_apps),
+            )
+        )
+
+    if duplicates:
+        entries.append(
+            MenuEntry(
+                DOUBLED,
+                f"commands installed twice ({len(duplicates)} to go through)",
+                duplicates=list(duplicates),
             )
         )
     return entries
@@ -169,11 +180,18 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
 
 
 def run_upgrade_menu(
-    reports, shell, console=None, ask=input, untracked_apps=(), go_through_apps=None
+    reports,
+    shell,
+    console=None,
+    ask=input,
+    untracked_apps=(),
+    go_through_apps=None,
+    duplicates=(),
+    go_through_duplicates=None,
 ):
     """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
-    entries = build_menu(reports, untracked_apps)
+    entries = build_menu(reports, untracked_apps, duplicates)
     if not entries:
         return []
 
@@ -192,7 +210,9 @@ def run_upgrade_menu(
             continue
         if chosen == CANCEL:
             return []
-        return run_chosen(chosen, shell, console, ask, go_through_apps)
+        return run_chosen(
+            chosen, shell, console, ask, go_through_apps, go_through_duplicates
+        )
 
 
 def say_what_happened(console, done, failed):
@@ -237,12 +257,16 @@ def say_what_changed(console, entries, shell):
         report.print_list(console, remaining)
 
 
-def run_chosen(entries, shell, console, ask=input, go_through_apps=None):
+def run_chosen(
+    entries, shell, console, ask=input, go_through_apps=None, go_through_duplicates=None
+):
     # Questions before updates, so everything that needs an answer is over
     # before the first long-running command starts.
     for entry in entries:
         if entry.kind == UNTRACKED_APPS and go_through_apps is not None:
             go_through_apps(entry.apps, ask, console.print)
+        elif entry.kind == DOUBLED and go_through_duplicates is not None:
+            go_through_duplicates(entry.duplicates, ask, console.print)
 
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]

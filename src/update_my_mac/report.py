@@ -88,6 +88,21 @@ def _print_group(console, heading, apps, with_updater=True):
     print_list(console, lines, "      ", [app.name for app in apps])
 
 
+def print_duplicate_commands(duplicates, console=None):
+    """Commands two managers installed, where PATH quietly picks the winner."""
+    if not duplicates:
+        return
+
+    console = console or Console(highlight=False, soft_wrap=True)
+    console.print()
+    console.print(f"[yellow]Installed twice[/]: [bold cyan]{len(duplicates)}[/]")
+    for duplicate in duplicates:
+        console.print(f"    {escape(duplicate.command)}")
+        console.print(f"        runs now:   {escape(duplicate.winner.describe())}")
+        for copy in duplicate.shadowed:
+            console.print(f"        never used: {escape(copy.describe())}")
+
+
 def print_foreign_owners(apps, console=None):
     """Apps a Homebrew upgrade would break on, with the way out."""
     if not apps:

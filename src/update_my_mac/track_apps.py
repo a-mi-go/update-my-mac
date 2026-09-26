@@ -6,24 +6,9 @@ when you have to fetch the update yourself. Handing an app to Homebrew, or
 watching its update feed, comes later and will appear in the same menu.
 """
 
-from rich.console import Console
 from rich.markup import escape
 
-
-def _printer(out):
-    """The given print function, or one onto a fresh console."""
-    return out or Console(highlight=False, soft_wrap=True).print
-
-
-class Stopped(Exception):
-    """Ctrl-C, or no more input to answer with."""
-
-
-def _answer(ask, question):
-    try:
-        return ask(question).strip()
-    except (EOFError, KeyboardInterrupt):
-        raise Stopped
+from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
 
 
 def _hand_to_homebrew(app, adopt, console_print):
