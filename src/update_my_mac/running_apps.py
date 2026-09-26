@@ -31,10 +31,13 @@ class StillRunningOld:
     running_since: float
     written: float
 
-    def describe(self):
+    def comment(self):
         started = time.strftime("%d %b %H:%M", time.localtime(self.running_since))
         replaced = time.strftime("%d %b %H:%M", time.localtime(self.written))
-        return f"{self.name}  running since {started}, replaced {replaced}"
+        return f"running since {started}, replaced {replaced}"
+
+    def describe(self):
+        return f"{self.name}:  {self.comment()}"
 
 
 def _processes(shell):

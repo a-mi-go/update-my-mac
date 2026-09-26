@@ -62,9 +62,10 @@ def test_untracked_apps_are_listed_with_their_versions():
     out = captured.get()
 
     assert "Not tracked by any package manager: 2" in out
-    assert "TokenEater  5.12.2" in out
+    assert "TokenEater" in out
+    assert "5.12.2" in out
     # Brackets in a name are text, not colour markup.
-    assert "Some [beta] App  1.0" in out
+    assert "Some [beta] App" in out
 
 
 def test_nothing_is_said_when_every_app_is_tracked():
@@ -129,17 +130,18 @@ def test_untracked_apps_are_split_by_who_looks_after_them(capsys):
 
     printed = capsys.readouterr().out
     assert "Not tracked by any package manager: 3" in printed
-    assert "Nothing looks after these: 1" in printed
+    assert "Possibly don't update at all: 1" in printed
     assert "They have an updater, nobody answered for it: 1" in printed
     assert "These update themselves: 1" in printed
-    assert "Air  262.579.44  (checks by itself, last checked 2026-09-24)" in printed
+    assert "Air" in printed
+    assert "checks by itself, last checked 2026-09-24" in printed
 
 
 def test_a_group_nobody_falls_into_is_not_printed(capsys):
     report.print_untracked_apps([untracked("Docker", "4.91.0")], Console(width=200, no_color=True))
 
     printed = capsys.readouterr().out
-    assert "Nothing looks after these: 1" in printed
+    assert "Possibly don't update at all: 1" in printed
     assert "update themselves" not in printed
 
 
@@ -151,7 +153,6 @@ def test_a_short_list_stays_one_per_line(capsys):
     report.print_outdated_summary(outdated(5), Console(width=120, no_color=True))
 
     printed = capsys.readouterr().out
-    assert "    package-0\n" in printed
     assert "package-0" in printed.splitlines()[1]
     assert len([line for line in printed.splitlines() if "package-" in line]) == 5
 
@@ -179,7 +180,9 @@ def test_a_short_list_of_apps_keeps_its_versions(capsys):
         [untracked("Docker", "4.91.0")], Console(width=120, no_color=True)
     )
 
-    assert "Docker  4.91.0" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "Docker" in printed
+    assert "4.91.0" in printed
 
 
 BRACKETS = ["oops[/]", "[bold]weird[/bold]"]
@@ -269,3 +272,57 @@ def test_a_manager_says_when_it_left_something_out(capsys):
 
     printed = capsys.readouterr().out
     assert "Nothing from anomalyco/tap, clerk/stable was checked" in printed
+
+
+def printed_list(items, width=100):
+    console = Console(width=width, no_color=True)
+    with console.capture() as captured:
+        report.print_as_list_or_grid(console, "    ", items)
+    return [line.rstrip() for line in captured.get().splitlines()]
+
+
+def test_names_alone_take_one_column():
+    lines = printed_list([report.Item("aom"), report.Item("cairo")])
+
+    assert lines == ["    aom", "    cairo"]
+
+
+def test_versions_line_up_under_each_other():
+    lines = printed_list([report.Item("aom", "1.0"), report.Item("ca-certificates", "2026")])
+
+    assert lines[0].index("1.0") == lines[1].index("2026")
+
+
+def test_a_comment_gets_a_column_of_its_own():
+    lines = printed_list([
+        report.Item("Air", "262.5", "checks by itself"),
+        report.Item("Dockish", "1.1", "never answered"),
+    ])
+
+    assert lines[0].index("checks by itself") == lines[1].index("never answered")
+
+
+def test_a_column_nobody_fills_is_left_out():
+    # Without a version there is no reason to leave a gap where one would be.
+    lines = printed_list([
+        report.Item("Google Drive", comment="running since 15 Sep"),
+        report.Item("TickTick", comment="running since 16 Sep"),
+    ])
+
+    # The comments start where the second column starts, with no gap for a
+    # version that none of these has.
+    assert lines[0].index("running") == lines[1].index("running")
+    assert lines[0].index("running") == len("    Google Drive") + 3
+
+
+def test_a_long_list_keeps_the_names_and_drops_the_rest():
+    items = [report.Item(f"app-{n}", f"1.{n}", "something") for n in range(6)]
+    lines = printed_list(items)
+
+    assert len(lines) == 2
+    assert "1.0" not in "".join(lines)
+    assert lines[0].split() == ["app-0", "app-1", "app-2", "app-3"]
+
+
+def test_an_empty_list_prints_nothing():
+    assert printed_list([]) == []

@@ -90,4 +90,4 @@ def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
 
     assert result.returncode == 0, result.stderr
     assert "Not tracked by any package manager: 1" in result.stdout
-    assert "TokenEater  5.12.2" in result.stdout
+    assert "TokenEater" in result.stdout

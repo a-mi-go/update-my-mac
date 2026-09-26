@@ -259,7 +259,9 @@ def say_what_changed(console, entries, shell):
             f"[yellow]{escape(manager.label)}[/]: {updated} of {len(entry.outdated)} updated, "
             f"still outdated:"
         )
-        report.print_list(console, remaining)
+        report.print_as_list_or_grid(
+            console, "    ", [report.Item(package) for package in remaining]
+        )
 
 
 def run_chosen(

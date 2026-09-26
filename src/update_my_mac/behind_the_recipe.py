@@ -20,8 +20,11 @@ class Behind:
     app: object
     cask: object
 
+    def version_change(self):
+        return f"{self.app.version} → {self.cask.version}"
+
     def describe(self):
-        return f"{self.app.name}  {self.app.version} → {self.cask.version}"
+        return f"{self.app.name}  {self.version_change()}"
 
 
 def _numbers_in(version):

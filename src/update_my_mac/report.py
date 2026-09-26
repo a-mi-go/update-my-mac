@@ -2,6 +2,8 @@
 
 from update_my_mac import __version__
 
+from dataclasses import dataclass
+
 from rich.console import Console
 from rich.markup import escape
 from rich.padding import Padding
@@ -11,30 +13,50 @@ from rich.text import Text
 from update_my_mac import app_updaters
 
 
-# A handful reads fine one per line. Beyond that the list pushes everything
-# else off the screen, so it goes into columns instead.
-LIST_FITS_ON_LINES = 5
-COLUMNS = 4
+# Beyond this items count a list is printed as a grid for better readability
+PRINT_MAX_LIST_ITEMS = 5
+PRINT_GRID_COLUMNS = 4
 
 
-def print_list(console, items, indent="    ", names=None):
-    """One per line while the list is short, four columns once it isn't.
+@dataclass
+class Item:
+    """One line of a list: what it is, which version, and anything to add."""
+    name: str
+    version: str = ""
+    comment: str = ""
 
-    The columns hold names alone. Versions belong to a list you read line by
-    line, and in a grid they push the names apart until nothing lines up.
+    def fields(self):
+        return (self.name, self.version, self.comment)
+
+
+def print_as_list_or_grid(console, indent, items):
+    """A short set of items is printed line by line with versions and comments (if supplied).
+    A long one as a grid with names only.
     """
-    if len(items) <= LIST_FITS_ON_LINES:
-        for item in items:
-            console.print(f"{indent}{item}", markup=False, highlight=False)
+    if not items:
         return
 
-    cells = list(names or items)
+    if len(items) > PRINT_MAX_LIST_ITEMS:
+        rows = [
+            [item.name for item in items[start : start + PRINT_GRID_COLUMNS]]
+            for start in range(0, len(items), PRINT_GRID_COLUMNS)
+        ]
+        width = PRINT_GRID_COLUMNS
+    else:
+        # A column nobody fills would only be empty space between the others.
+        used = [
+            place
+            for place in range(3)
+            if any(item.fields()[place] for item in items)
+        ]
+        rows = [[item.fields()[place] for place in used] for item in items]
+        width = len(used)
+
     table = Table.grid(padding=(0, 3))
-    for _ in range(COLUMNS):
+    for _ in range(width):
         table.add_column(overflow="fold")
-    for start in range(0, len(cells), COLUMNS):
-        row = cells[start : start + COLUMNS]
-        row += [""] * (COLUMNS - len(row))
+    for row in rows:
+        row = list(row) + [""] * (width - len(row))
         # Text rather than str: a cell is a name, and a name with brackets in
         # it would otherwise be read as markup and silently disappear.
         table.add_row(*(Text(cell) for cell in row))
@@ -79,13 +101,14 @@ def _print_group(console, heading, apps, with_updater=True):
     if not apps:
         return
     console.print(f"  {heading}: [bold cyan]{len(apps)}[/]")
-    lines = []
-    for app in apps:
-        line = app.describe()
-        if with_updater:
-            line = f"{line}  ({app.updater.describe()})"
-        lines.append(line)
-    print_list(console, lines, "      ", [app.name for app in apps])
+    print_as_list_or_grid(
+        console,
+        "      ",
+        [
+            Item(app.name, app.version, app.updater.describe() if with_updater else "")
+            for app in apps
+        ],
+    )
 
 
 def print_still_running_old(apps, console=None):
@@ -96,9 +119,11 @@ def print_still_running_old(apps, console=None):
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
     console.print(f"[yellow]Running an old version[/]: [bold cyan]{len(apps)}[/]")
-    print_list(console, [app.describe() for app in apps], names=[app.name for app in apps])
+    print_as_list_or_grid(
+        console, "    ", [Item(app.name, comment=app.comment()) for app in apps]
+    )
     console.print(
-        "    [dim]The new version is already on disk. These only need restarting.[/]"
+        "    [dim]The new versions are already installed. These only need restarting.[/]"
     )
 
 
@@ -110,8 +135,11 @@ def print_behind_the_recipe(behind, console=None):
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
     console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(behind)}[/]")
-    print_list(console, [item.describe() for item in behind],
-               names=[item.app.name for item in behind])
+    print_as_list_or_grid(
+        console,
+        "    ",
+        [Item(item.app.name, item.version_change()) for item in behind],
+    )
     console.print(
         "    [dim]Homebrew reports none of these, because it trusts each app to "
         "update itself:[/]"
@@ -142,7 +170,7 @@ def print_foreign_owners(apps, console=None):
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
     console.print(f"[yellow]Owned by another user[/]: [bold cyan]{len(apps)}[/]")
-    print_list(console, [path.name for path in apps])
+    print_as_list_or_grid(console, "    ", [Item(path.name) for path in apps])
     console.print(
         "    [dim]Homebrew cannot upgrade these until they are yours. "
         "Take them over with:[/]"
@@ -152,7 +180,7 @@ def print_foreign_owners(apps, console=None):
 
 
 def print_untracked_apps(apps, console=None, left_alone=0):
-    """Apps no package manager accounts for, so nothing else will mention them."""
+    """Apps not tracked by any of the supported package managers."""
     console = console or Console(highlight=False, soft_wrap=True)
     if not apps and not left_alone:
         return
@@ -163,7 +191,7 @@ def print_untracked_apps(apps, console=None, left_alone=0):
             f"[bold]Not tracked by any package manager[/]: [bold cyan]{len(apps)}[/]"
         )
         unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(apps)
-        _print_group(console, "Nothing looks after these", unattended, with_updater=False)
+        _print_group(console, "Possibly don't update at all", unattended, with_updater=False)
         _print_group(console, "Their updater is switched off", switched_off)
         _print_group(console, "They have an updater, nobody answered for it", unclear)
         _print_group(console, "These update themselves", self_updating)
@@ -204,7 +232,9 @@ def print_outdated_summary(reports, console=None):
         elif report.outdated_packages:
             count = len(report.outdated_packages)
             console.print(f"[bold]{report.label}[/]: {count} outdated")
-            print_list(console, report.outdated_packages)
+            print_as_list_or_grid(
+                console, "    ", [Item(package) for package in report.outdated_packages]
+            )
         else:
             console.print(f"[green]{report.label}[/]: up to date")
         _say_what_was_left_out(console, report)
