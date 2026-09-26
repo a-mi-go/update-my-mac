@@ -128,6 +128,29 @@ def _as_list(value):
     return value if isinstance(value, list) else [value]
 
 
+def find_all(env=None):
+    """Every app in the usual places that is somebody's to update.
+
+    Apps from the App Store and apps macOS ships are left out: mas and
+    softwareupdate look after those, and nothing here should second-guess them.
+    """
+    env = os.environ if env is None else env
+
+    found = []
+    visited = set()
+    for directory in app_directories(env):
+        resolved = directory.resolve()
+        if resolved in visited or not resolved.is_dir():
+            continue
+        visited.add(resolved)
+        for app_path in sorted(resolved.glob("*.app")):
+            if comes_from_the_app_store(app_path) or belongs_to_macos(app_path):
+                continue
+            info = app_updaters.read_bundle_info(app_path)
+            found.append(InstalledApp(app_path.stem, read_version(app_path, info), app_path))
+    return found
+
+
 def find_untracked(shell, env=None):
     """Apps in the usual places that neither mas nor Homebrew accounts for."""
     env = os.environ if env is None else env

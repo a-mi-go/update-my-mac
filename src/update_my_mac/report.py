@@ -88,6 +88,23 @@ def _print_group(console, heading, apps, with_updater=True):
     print_list(console, lines, "      ", [app.name for app in apps])
 
 
+def print_behind_the_recipe(behind, console=None):
+    """Apps older than Homebrew's recipe, which Homebrew itself never says."""
+    if not behind:
+        return
+
+    console = console or Console(highlight=False, soft_wrap=True)
+    console.print()
+    console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(behind)}[/]")
+    print_list(console, [item.describe() for item in behind],
+               names=[item.app.name for item in behind])
+    console.print(
+        "    [dim]Homebrew reports none of these, because it trusts each app to "
+        "update itself:[/]"
+    )
+    console.print("    brew upgrade --cask --greedy", markup=False, highlight=False)
+
+
 def print_duplicate_commands(duplicates, console=None):
     """Commands two managers installed, where PATH quietly picks the winner."""
     if not duplicates:

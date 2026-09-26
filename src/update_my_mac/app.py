@@ -2,6 +2,7 @@
 
 from update_my_mac import (
     adopt_apps,
+    behind_the_recipe,
     duplicate_commands,
     app_decisions,
     apply_updates,
@@ -34,6 +35,11 @@ def _website_and_cask():
         return casks.for_app(app.path)
 
     return cask_for
+
+
+def _behind_the_recipe():
+    """Apps older than their cask, which is the one thing Homebrew never says."""
+    return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
 
 
 def _duplicate_walkthrough():
@@ -92,6 +98,7 @@ def run_check_mode():
     report.print_untracked_apps(listed, left_alone=left_alone)
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     report.print_duplicate_commands(duplicate_commands.find(shell))
+    report.print_behind_the_recipe(_behind_the_recipe())
     return _exit_code(reports, manager_updates)
 
 
@@ -113,6 +120,7 @@ def run_interactive_mode():
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     doubled = duplicate_commands.find(shell)
     report.print_duplicate_commands(doubled)
+    report.print_behind_the_recipe(_behind_the_recipe())
 
     failed += apply_updates.run_upgrade_menu(
         reports,

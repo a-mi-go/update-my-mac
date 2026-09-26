@@ -18,6 +18,10 @@ behind the design is in the commit messages and in the pull requests.
   Homebrew adopts an app without looking inside it.
 - Finding a command two managers have each installed, saying which one PATH
   picks, and offering to remove the other.
+- Comparing the version in each app bundle against Homebrew's recipe. Homebrew
+  itself never does this for a cask marked `auto_updates`, and on the machine
+  this was written on it found sixteen apps that `brew outdated` reported none
+  of.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor
