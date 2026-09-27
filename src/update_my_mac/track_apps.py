@@ -2,11 +2,12 @@
 
 from rich.markup import escape
 
-from update_my_mac import adopt_apps, app_updaters
+from update_my_mac import adopt_apps, app_updaters, appcast, versions
 from update_my_mac.prompting import Step, Stopped
 
 ADOPT_ALL, DECIDE_FOR_EACH, NOTHING = "adopt all", "decide for each", "nothing"
-ADOPT, IGNORE, LATER, CANCEL = "adopt", "ignore", "later", "cancel"
+ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"
+IGNORE, LATER, CANCEL = "ignore", "later", "cancel"
 
 
 def run_untracked_menu(
@@ -16,6 +17,9 @@ def run_untracked_menu(
     interactive=True,
     find_cask=None,
     adopt=None,
+    open_url=None,
+    open_app=None,
+    offered=None,
 ):
     """Ask what to do about the untracked apps. Returns how many were dealt with.
 
@@ -29,7 +33,9 @@ def run_untracked_menu(
 
     found = [(app, find_cask(app) if find_cask else None) for app in waiting]
     choices = _choices(found, adopt)
-    walk = lambda: _walk_through(found, decisions, adopt, step.inside())
+    walk = lambda: _walk_through(
+        found, decisions, adopt, open_url, open_app, offered or {}, step.inside()
+    )
 
     ignored, adopted = 0, 0
     step.say()
@@ -53,14 +59,22 @@ def run_untracked_menu(
     return ignored + adopted
 
 
-def worth_sorting_out(app, cask):
+def worth_sorting_out(app, cask, answer=None):
     """Whether this app is a problem at all.
 
-    An app that keeps itself up to date and has run ahead of its recipe is
-    doing exactly what it should. Offering to hand it over would only put an
-    older build back, so it is not mentioned.
+    An app that looks after itself is doing the job, and saying otherwise is
+    how a list of twenty apps becomes worth ignoring. It only counts once
+    something says it has stopped: its own feed offering a version it never
+    installed, a feed that no longer answers, or a recipe that has gone past
+    it. Codex running ahead of its recipe is none of those.
     """
-    return not (app.updater.looks_after_itself and adopt_apps.would_downgrade(app, cask))
+    if not app.updater.looks_after_itself:
+        return True
+
+    answer = answer or appcast.FeedAnswer()
+    if answer.error or appcast.offers_newer(app, answer):
+        return True
+    return cask is not None and versions.is_newer(cask.version, than=app.version)
 
 
 def known_to_homebrew(found):
@@ -118,7 +132,7 @@ def adopt_all(found, adopt, step):
     return adopted
 
 
-def _walk_through(found, decisions, adopt, step):
+def _walk_through(found, decisions, adopt, open_url, open_app, offered, step):
     """Ask about each app in turn. Returns how many were ignored and adopted.
 
     Ctrl-C ends the walk here rather than further out, so what was decided
@@ -130,7 +144,7 @@ def _walk_through(found, decisions, adopt, step):
             step.say()
             step.say(f"[bold]{escape(app.name)}[/]  {escape(app.version)}")
 
-            chosen = _ask_about(app, cask, adopt, step)
+            chosen = _ask_about(app, cask, adopt, open_url, open_app, offered, step)
             if chosen == CANCEL:
                 break
             if chosen == IGNORE:
@@ -143,20 +157,40 @@ def _walk_through(found, decisions, adopt, step):
     return ignored, adopted
 
 
-def _ask_about(app, cask, adopt, step):
+def _ask_about(app, cask, adopt, open_url, open_app, offered, step):
     """Ask about one app until the answer decides something. Returns that answer."""
     said = step.inside()
-    _say_what_is_known(app, cask, said)
+    answer = appcast.answer_for(app, offered)
+    site = app_updaters.site_behind(app.updater.feed_url)
+    can_ask_the_app = open_app is not None and app.updater.kind != app_updaters.NONE
+    _say_what_is_known(app, cask, answer, said)
 
     while True:
-        chosen = step.choose(_app_choices(app, cask, adopt))
-        # A handover that came to nothing leaves the app undecided, so it is
-        # asked about again.
-        if chosen != ADOPT or _hand_to_homebrew(app, adopt, said):
+        chosen = step.choose(_app_choices(app, cask, adopt, site, can_ask_the_app and not answer.error))
+        # Only a handover settles anything. Looking at a website or starting
+        # the app leaves it exactly as undecided as it was.
+        if chosen == WEBSITE:
+            said.say(escape(site))
+            if open_url is not None and not open_url(site):
+                said.say("[yellow]Could not open that in a browser.[/]")
+        elif chosen == LAUNCH:
+            _ask_the_app_itself(app, open_app, said)
+        elif chosen != ADOPT or _hand_to_homebrew(app, adopt, said):
             return chosen
 
 
-def _say_what_is_known(app, cask, step):
+def _ask_the_app_itself(app, open_app, step):
+    """Start the app, which is when an updater like Sparkle looks for a new version."""
+    if not open_app(app.path):
+        step.say("[yellow]That app would not start.[/]")
+        return
+    step.say(
+        "[green]Started it. It looks for its update on startup, and anything it "
+        "does not offer there is under its own menu.[/]"
+    )
+
+
+def _say_what_is_known(app, cask, answer, step):
     """Everything this Mac has to say about an app, before the options."""
     told = []
     standing = adopt_apps.homebrew_note(app, cask)
@@ -168,14 +202,22 @@ def _say_what_is_known(app, cask, step):
     else:
         told.append(f"It {app.updater.describe()}.")
 
+    if answer.error:
+        told.append(f"But {answer.error}.")
+    elif appcast.offers_newer(app, answer):
+        told.append(f"Its own feed offers {answer.version}.")
     step.say(f"[dim]{escape(' '.join(told))}[/]")
 
 
-def _app_choices(app, cask, adopt):
+def _app_choices(app, cask, adopt, site, can_ask_the_app):
     choices = []
     handover = adopt_apps.handover_label(app, cask) if adopt is not None else ""
     if handover:
         choices.append((ADOPT, handover))
+    if can_ask_the_app:
+        choices.append((LAUNCH, f"open {app.name} and let it update itself"))
+    if site:
+        choices.append((WEBSITE, f"download and install manually from {site}"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
     choices.append((LATER, "leave it for now"))
     choices.append((CANCEL, "cancel the walk-through and move on to the next step"))

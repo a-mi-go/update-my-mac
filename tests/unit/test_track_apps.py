@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rich.text import Text
 
-from update_my_mac import app_decisions, app_updaters, track_apps
+from update_my_mac import app_decisions, app_updaters, appcast, track_apps
 from update_my_mac.cask_index import Cask
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
@@ -407,6 +407,81 @@ def test_an_app_with_no_recipe_counts_as_neither():
     assert track_apps.ready_for_homebrew(found) == 0
 
 
+# An app with an updater and a feed is offered both, so its own options sit
+# two places further down than an app with neither.
+START_IT, LATER_AFTER_START = "1", "4"
+LATER_AFTER_SITE = "3"
+
+
+def sparkle_app(name="Dockish", version="1.1", feed="https://appish.app/appcast.xml"):
+    return InstalledApp(
+        name, version, Path(f"/Applications/{name}.app"),
+        UpdaterStatus(app_updaters.SPARKLE, True, False, "2026-08-16", feed),
+    )
+
+
+def test_an_app_with_an_updater_can_be_asked_to_update_itself(tmp_path):
+    started = []
+    terminal = Terminal(START_IT, LATER_AFTER_START)
+
+    track_apps.run_untracked_menu(
+        [sparkle_app()], decisions_in(tmp_path), terminal.step,
+        open_app=lambda path: started.append(path) or True,
+    )
+
+    assert "1) open Dockish and let it update itself" in terminal.text
+    assert started == [Path("/Applications/Dockish.app")]
+    # Starting it settles nothing, so the same app is asked about again.
+    assert "2) download and install manually" in terminal.text
+
+
+def test_an_app_that_will_not_start_says_so(tmp_path):
+    terminal = Terminal(START_IT, LATER_AFTER_START)
+
+    track_apps.run_untracked_menu(
+        [sparkle_app()], decisions_in(tmp_path), terminal.step, open_app=lambda path: False,
+    )
+
+    assert "would not start" in terminal.text
+
+
+def test_an_app_with_no_updater_is_not_offered_to_be_started(tmp_path):
+    terminal = Terminal(LATER)
+
+    track_apps.run_untracked_menu(
+        [app("Evoto")], decisions_in(tmp_path), terminal.step, open_app=lambda path: True,
+    )
+
+    assert "let it update itself" not in terminal.text
+
+
+def test_an_app_whose_feed_is_gone_is_not_told_to_ask_it(tmp_path):
+    # Starting it only makes it check a feed that is not there any more.
+    feed = "https://appish.app/appcast.xml"
+    terminal = Terminal(LATER_AFTER_SITE)
+
+    track_apps.run_untracked_menu(
+        [sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step,
+        open_app=lambda path: True,
+        offered={feed: appcast.FeedAnswer(error="its feed answers 403")},
+    )
+
+    assert "let it update itself" not in terminal.text
+    assert "But its feed answers 403." in terminal.text
+
+
+def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
+    feed = "https://appish.app/appcast.xml"
+    terminal = Terminal(LATER_AFTER_SITE)
+
+    track_apps.run_untracked_menu(
+        [sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step,
+        offered={feed: appcast.FeedAnswer(version="1.2.5")},
+    )
+
+    assert "Its own feed offers 1.2.5." in terminal.text
+
+
 def self_updating(name="Codex", version="26.831.21537"):
     return InstalledApp(
         name, version, Path(f"/Applications/{name}.app"),
@@ -420,6 +495,27 @@ def test_an_app_that_keeps_itself_ahead_of_its_recipe_is_no_problem():
     behind_it = cask(token="codex-app", version="26.623.141536")
 
     assert not track_apps.worth_sorting_out(self_updating(), behind_it)
+
+
+def test_an_app_that_looks_after_itself_and_has_nothing_pending_is_no_problem():
+    assert not track_apps.worth_sorting_out(self_updating("uTorrent Web", "1.6.0"), None)
+    assert not track_apps.worth_sorting_out(
+        self_updating("uTorrent Web", "1.6.0"), None, appcast.FeedAnswer(version="1.6.0")
+    )
+
+
+def test_an_app_whose_own_feed_offers_more_than_it_installed_is_a_problem():
+    # Dockish says it checks by itself, sits on 1.1, and its feed has 1.2.5.
+    # Whatever it is doing, it is not updating itself.
+    pending = appcast.FeedAnswer(version="1.2.5")
+
+    assert track_apps.worth_sorting_out(self_updating("Dockish", "1.1"), None, pending)
+
+
+def test_an_app_whose_feed_stopped_answering_is_a_problem():
+    broken = appcast.FeedAnswer(error="its feed answers 403")
+
+    assert track_apps.worth_sorting_out(self_updating("Air", "262.579.44"), None, broken)
 
 
 def test_an_app_that_does_not_update_itself_is_still_worth_asking_about():

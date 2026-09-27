@@ -2,6 +2,7 @@
 
 from update_my_mac import (
     adopt_apps,
+    appcast,
     fix_things,
     behind_the_recipe,
     duplicate_commands,
@@ -45,14 +46,18 @@ def _behind_the_recipe():
     return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
 
 
-def _problems(untracked, doubled, stale, decisions):
+def _problems(untracked, doubled, stale, decisions, offered):
     """The kinds of trouble that turned up, as choices the person can pick."""
     cask_for = _website_and_cask()
     found = []
 
     # An app that keeps itself up to date and has run ahead of its recipe is
     # not a problem, so it is not one of the things to sort out.
-    troubled = [app for app in untracked if track_apps.worth_sorting_out(app, cask_for(app))]
+    troubled = [
+        app
+        for app in untracked
+        if track_apps.worth_sorting_out(app, cask_for(app), appcast.answer_for(app, offered))
+    ]
     if troubled:
         # Counted by what Homebrew has a recipe for, not by what the step can
         # sweep up in one go: an app it would have to put back a version is
@@ -70,7 +75,7 @@ def _problems(untracked, doubled, stale, decisions):
             _problem(
                 label,
                 troubled,
-                _app_walkthrough(decisions),
+                _app_walkthrough(decisions, offered),
                 lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
             )
         )
@@ -161,7 +166,7 @@ def _duplicate_walkthrough():
     return go_through_duplicates
 
 
-def _app_walkthrough(decisions):
+def _app_walkthrough(decisions, offered):
     cask_for = _website_and_cask()
 
     def go_through_apps(apps, step):
@@ -171,6 +176,9 @@ def _app_walkthrough(decisions):
             step,
             find_cask=cask_for,
             adopt=_adoption(cask_for),
+            open_url=shell.open_in_browser,
+            open_app=shell.open_application,
+            offered=offered,
         )
 
     return go_through_apps
@@ -195,7 +203,12 @@ def run_check_mode():
     report.print_outdated_summary(reports)
 
     listed, left_alone = _untracked_apps(app_decisions.load())
-    report.print_untracked_apps(listed, left_alone=left_alone)
+    report.print_untracked_apps(
+        listed,
+        left_alone=left_alone,
+        offered=appcast.check(listed),
+        find_cask=_website_and_cask(),
+    )
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     report.print_duplicate_commands(duplicate_commands.find(shell))
     report.print_behind_the_recipe(_behind_the_recipe())
@@ -217,7 +230,10 @@ def run_interactive_mode():
 
     decisions = app_decisions.load()
     listed, left_alone = _untracked_apps(decisions)
-    report.print_untracked_apps(listed, left_alone=left_alone)
+    offered = appcast.check(listed)
+    report.print_untracked_apps(
+        listed, left_alone=left_alone, offered=offered, find_cask=_website_and_cask()
+    )
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     doubled = duplicate_commands.find(shell)
     report.print_duplicate_commands(doubled)
@@ -227,7 +243,9 @@ def run_interactive_mode():
 
     # Sorting things out comes before the updates, so the menu below lists
     # what is still outdated after it.
-    sorted_out = fix_things.run_fix_menu(_problems(listed, doubled, stale, decisions))
+    sorted_out = fix_things.run_fix_menu(
+        _problems(listed, doubled, stale, decisions, offered)
+    )
     if sorted_out:
         # Handing an app to Homebrew or pulling a cask up to its recipe changes
         # what is outdated, and the menu numbers below would otherwise stand
