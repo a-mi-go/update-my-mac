@@ -2,7 +2,7 @@
 
 import plistlib
 
-from update_my_mac import adopt_apps
+from update_my_mac import adopt_apps, versions
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.cask_index import Cask
 from update_my_mac.installed_apps import InstalledApp
@@ -129,6 +129,7 @@ def test_a_recipe_that_lags_the_app_does_not_suggest_going_back(tmp_path):
 
 
 def test_which_way_round_the_versions_are():
-    assert adopt_apps.cask_is_behind("26.831.21537", "26.623.141536")
-    assert not adopt_apps.cask_is_behind("5.0.5", "5.0.6")
-    assert not adopt_apps.cask_is_behind("5.0.6", "5.0.6,1234")
+    assert versions.is_newer("26.831.21537", than="26.623.141536")
+    assert versions.is_newer("5.0.6", than="5.0.5")
+    # A recipe carries a build number the app never mentions.
+    assert not versions.is_newer("5.0.6,1234", than="5.0.6")

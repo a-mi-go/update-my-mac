@@ -9,31 +9,7 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
-import re
-
-from update_my_mac import installed_apps, package_managers
-
-
-def same_version(app_version, cask_version):
-    """Whether Homebrew would see the installed app as the one in its recipe.
-
-    A recipe often carries a build number after a comma, such as
-    "4.92.0,240144", where the app itself reports only "4.92.0".
-    """
-    return app_version.strip() == cask_version.split(",")[0].strip()
-
-
-def _numbers_in(version):
-    return [int(part) for part in re.findall(r"\d+", version)]
-
-
-def cask_is_behind(app_version, cask_version):
-    """Whether Homebrew's recipe is older than the app already installed.
-
-    It happens often enough to matter: a recipe can lag the app by weeks, and
-    then installing it would be a step backwards rather than an update.
-    """
-    return _numbers_in(cask_version) < _numbers_in(app_version)
+from update_my_mac import installed_apps, package_managers, versions
 
 
 def hand_to_homebrew(app, cask, shell):
@@ -44,8 +20,8 @@ def hand_to_homebrew(app, cask, shell):
         return False, "Homebrew is not installed."
 
     # Trying anyway would download the whole thing and then refuse.
-    if not same_version(app.version, cask.version):
-        if cask_is_behind(app.version, cask.version):
+    if not versions.same(app.version, cask.version):
+        if not versions.is_newer(cask.version, than=app.version):
             return False, (
                 f"Your app is {app.version} and Homebrew's recipe is still "
                 f"{cask.version}. Taking it over would mean going back a version, "
@@ -63,7 +39,7 @@ def hand_to_homebrew(app, cask, shell):
 
     recorded = package_managers.recorded_cask_version(cask.token, shell)
     on_disk = installed_apps.read_version(app.path)
-    if recorded and not same_version(on_disk, recorded):
+    if recorded and not versions.same(on_disk, recorded):
         return False, (
             f"Homebrew wrote down {cask.token} {recorded}, but the app is still {on_disk}. "
             f"It would report the app as current from now on, so put it right with: "

@@ -6,7 +6,7 @@ import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from update_my_mac import app_updaters
+from update_my_mac import app_updaters, versions
 
 APP_DIRECTORIES = ("/Applications", "~/Applications")
 
@@ -46,10 +46,18 @@ def app_directories(env):
     return found
 
 
+# What an app that says nothing about its version is listed as.
+UNKNOWN_VERSION = versions.UNKNOWN
+
+
 def read_version(app_path, info=None):
     """The version a person would recognise, from the app's own Info.plist."""
     info = app_updaters.read_bundle_info(app_path) if info is None else info
-    return info.get("CFBundleShortVersionString") or info.get("CFBundleVersion") or "?"
+    return (
+        info.get("CFBundleShortVersionString")
+        or info.get("CFBundleVersion")
+        or UNKNOWN_VERSION
+    )
 
 
 def belongs_to_macos(app_path):
