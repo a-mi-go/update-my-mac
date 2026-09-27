@@ -160,16 +160,13 @@ def print_behind_the_recipe(behind, console=None):
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
     console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(behind)}[/]")
-    print_as_list_or_grid(
-        console,
-        "    ",
-        [Item(item.app.name, item.version_change()) for item in behind],
-    )
     console.print(
         "    [dim]Homebrew reports none of these, because it trusts each app to "
-        "update itself:[/]"
+        "update itself.[/]"
     )
-    console.print("    brew upgrade --cask --greedy", markup=False, highlight=False)
+    print_as_list_or_grid(
+        console, "    ", [Item(item.app.name, item.version_change()) for item in behind]
+    )
 
 
 def print_duplicate_commands(duplicates, console=None):

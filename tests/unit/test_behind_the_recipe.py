@@ -20,10 +20,22 @@ def index(**by_app):
 
 def test_an_app_older_than_its_recipe_is_found():
     found = behind_the_recipe.find(
-        [app("BetterDisplay", "5.0.5")], index(BetterDisplay=("betterdisplay", "5.0.6"))
+        [app("BetterDisplay", "5.0.5")],
+        index(BetterDisplay=("betterdisplay", "5.0.6")),
+        {"betterdisplay": "5.0.6"},
     )
 
     assert [item.describe() for item in found] == ["BetterDisplay  5.0.5 → 5.0.6"]
+
+
+def test_an_app_homebrew_never_installed_is_not_one_of_these():
+    # It has a recipe but is somebody else's app. The way in is the handover,
+    # and an upgrade has nothing to work with.
+    found = behind_the_recipe.find(
+        [app("BetterDisplay", "5.0.5")], index(BetterDisplay=("betterdisplay", "5.0.6")), {}
+    )
+
+    assert found == []
 
 
 def test_an_app_newer_than_its_recipe_is_left_alone():
@@ -60,3 +72,41 @@ def test_the_comparison_reads_numbers_and_not_text():
     assert behind_the_recipe.is_behind("2.9", "2.10")
     assert not behind_the_recipe.is_behind("2.10", "2.9")
     assert not behind_the_recipe.is_behind("", "5.0.6")
+
+
+def behind_item(name="BetterDisplay", app_version="5.0.5", cask_version="5.0.6",
+                recorded="5.0.6"):
+    app = InstalledApp(name, app_version, Path(f"/Applications/{name}.app"))
+    return behind_the_recipe.Behind(app, Cask(name.lower(), "https://x.test/", cask_version),
+                                    recorded)
+
+
+def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
+    # --adopt registered 5.0.6 while the app on disk stayed 5.0.5, so both
+    # brew outdated and --greedy have nothing to say about it ever again.
+    item = behind_item(recorded="5.0.6")
+
+    assert item.wrongly_recorded
+    assert behind_the_recipe.to_reinstall([item]) == ["betterdisplay"]
+    assert behind_the_recipe.to_upgrade([item]) == []
+
+
+def test_a_cask_homebrew_knows_is_old_only_needs_a_greedy_upgrade():
+    item = behind_item(recorded="5.0.5")
+
+    assert not item.wrongly_recorded
+    assert behind_the_recipe.to_upgrade([item]) == ["betterdisplay"]
+    assert behind_the_recipe.to_reinstall([item]) == []
+
+
+def test_what_homebrew_wrote_down_is_carried_into_the_finding():
+    apps = [InstalledApp("BetterDisplay", "5.0.5", Path("/Applications/BetterDisplay.app"))]
+
+    class Casks:
+        def for_app(self, path):
+            return Cask("betterdisplay", "https://x.test/", "5.0.6")
+
+    found = behind_the_recipe.find(apps, Casks(), {"betterdisplay": "5.0.6"})
+
+    assert found[0].recorded == "5.0.6"
+    assert found[0].wrongly_recorded

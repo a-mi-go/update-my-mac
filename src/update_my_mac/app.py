@@ -1,10 +1,13 @@
 """Sequencing the steps of a run, independent of how the flags were parsed."""
 
+import functools
+
 from update_my_mac import (
     adopt_apps,
     appcast,
     fix_things,
     behind_the_recipe,
+    catch_up_casks,
     duplicate_commands,
     app_decisions,
     apply_updates,
@@ -28,25 +31,31 @@ def _exit_code(reports, manager_updates=()):
     return 1 if failed else 0
 
 
+@functools.lru_cache(maxsize=1)
+def _casks():
+    """Homebrew's list of casks, read once however many steps ask for it.
+
+    It is 400K of JSON on disk and four steps of a run want to look something
+    up in it.
+    """
+    return cask_index.load()
+
+
 def _website_and_cask():
-    """One lookup of Homebrew's casks, shared by the steps that need it."""
-    casks = None
-
-    def cask_for(app):
-        nonlocal casks
-        if casks is None:
-            casks = cask_index.load()
-        return casks.for_app(app.path)
-
-    return cask_for
+    """How to find the cask that installs a given app, if there is one."""
+    return lambda app: _casks().for_app(app.path)
 
 
 def _behind_the_recipe():
     """Apps older than their cask, which is the one thing Homebrew never says."""
-    return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
+    return behind_the_recipe.find(
+        installed_apps.find_all(),
+        _casks(),
+        package_managers.recorded_cask_versions(shell),
+    )
 
 
-def _problems(untracked, doubled, stale, decisions, offered):
+def _problems(untracked, doubled, stale, behind, decisions, offered):
     """The kinds of trouble that turned up, as choices the person can pick."""
     cask_for = _website_and_cask()
     found = []
@@ -100,6 +109,15 @@ def _problems(untracked, doubled, stale, decisions, offered):
             )
         )
 
+    if behind:
+        found.append(
+            _problem(
+                f"yes, update the apps Homebrew stopped noticing ({len(behind)})",
+                behind,
+                _catch_up_walkthrough(),
+                _catch_every_app_up,
+            )
+        )
     return found
 
 
@@ -119,6 +137,27 @@ def _adopt_every_app_we_can(apps, cask_for, step):
 
 def _remove_every_shadowed_copy(duplicates, step):
     return resolve_duplicates.remove_shadowed(duplicates, _removal(), step)
+
+
+def _catch_every_app_up(behind, step):
+    return catch_up_casks.catch_up_all(behind, _brewing(), step)
+
+
+def _catch_up_walkthrough():
+    def go_through_casks(behind, step):
+        return catch_up_casks.run_catch_up_menu(behind, _brewing(), step)
+
+    return go_through_casks
+
+
+def _brewing():
+    def run(command):
+        executable = shell.find_executable("brew")
+        if executable is None:
+            return -1
+        return shell.stream_command([executable, *command])
+
+    return run
 
 
 def _restart_every_app(apps, step):
@@ -237,14 +276,15 @@ def run_interactive_mode():
     report.print_foreign_owners(installed_apps.owned_by_someone_else())
     doubled = duplicate_commands.find(shell)
     report.print_duplicate_commands(doubled)
-    report.print_behind_the_recipe(_behind_the_recipe())
+    behind = _behind_the_recipe()
+    report.print_behind_the_recipe(behind)
     stale = running_apps.find(shell)
     report.print_still_running_old(stale)
 
     # Sorting things out comes before the updates, so the menu below lists
     # what is still outdated after it.
     sorted_out = fix_things.run_fix_menu(
-        _problems(listed, doubled, stale, decisions, offered)
+        _problems(listed, doubled, stale, behind, decisions, offered)
     )
     if sorted_out:
         # Handing an app to Homebrew or pulling a cask up to its recipe changes
