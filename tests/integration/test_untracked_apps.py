@@ -41,6 +41,10 @@ def run(tmp_path, home, *args, answer=""):
     )
 
 
+# Sort things out, go through the untracked apps, and leave the one app alone.
+LEAVE_IT_ALONE = "1\n1\n"
+
+
 def decisions_file(tmp_path):
     return tmp_path / "state" / "update-my-mac" / "apps.json"
 
@@ -50,7 +54,7 @@ def test_an_app_can_be_left_alone_and_stays_that_way(tmp_path, empty_home):
     apps.mkdir()
     make_app(apps, "TokenEater", "5.12.2")
 
-    first = run(tmp_path, empty_home, answer="2\n1\n")
+    first = run(tmp_path, empty_home, answer=LEAVE_IT_ALONE)
     assert first.returncode == 0, first.stderr
     assert "TokenEater" in first.stdout
 
@@ -67,7 +71,7 @@ def test_a_left_alone_app_can_be_brought_back(tmp_path, empty_home):
     apps = tmp_path / "Applications"
     apps.mkdir()
     make_app(apps, "TokenEater", "5.12.2")
-    run(tmp_path, empty_home, answer="2\n1\n")
+    run(tmp_path, empty_home, answer=LEAVE_IT_ALONE)
 
     revisit = run(tmp_path, empty_home, "--retry-app", answer="1\n")
     assert revisit.returncode == 0, revisit.stderr

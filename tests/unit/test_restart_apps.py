@@ -2,32 +2,20 @@
 
 import plistlib
 
+from rich.console import Console
+from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac import restart_apps
+from update_my_mac import prompting, restart_apps
 from update_my_mac.running_apps import StillRunningOld
+from fake_terminal import Terminal
 
-
-class Terminal:
-    def __init__(self, *answers):
-        self.answers = list(answers)
-        self.lines = []
-
-    def ask(self, prompt):
-        self.lines.append(prompt)
-        return self.answers.pop(0)
-
-    def out(self, *parts, **_):
-        self.lines.append(Text.from_markup(" ".join(str(part) for part in parts)).plain)
-
-    @property
-    def text(self):
-        return "\n".join(self.lines)
+WIDTH = 60
 
 
 def app_at(tmp_path, bundle_id="com.example.thing", name="Thing"):
     app = tmp_path / f"{name}.app"
-    (app / "Contents").mkdir(parents=True)
+    (app / "Contents").mkdir(parents=True, exist_ok=True)
     if bundle_id:
         with open(app / "Contents" / "Info.plist", "wb") as plist:
             plistlib.dump({"CFBundleIdentifier": bundle_id}, plist)
@@ -128,22 +116,23 @@ def two_apps(tmp_path):
 def test_the_menu_asks_what_to_do_with_them(tmp_path):
     terminal = Terminal("3")
 
-    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.ask, terminal.out)
+    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.step)
 
-    assert "2 apps running an old version" in terminal.text
-    assert "1) quit all of them and start them again" in terminal.text
-    assert "2) go through them one at a time" in terminal.text
-    assert "3) leave them all running" in terminal.text
+    assert "What should we do with them?" in terminal.text
+    assert "1) restart all" in terminal.text
+    assert "2) decide for each" in terminal.text
+    assert "3) nothing" in terminal.text
     # The old walk-through wording is what this question replaced.
     assert "Going through" not in terminal.text
 
 
-def test_one_app_is_asked_about_in_the_singular(tmp_path):
+def test_the_menu_does_not_repeat_the_count(tmp_path):
+    # The heading above it has already said how many, and how they are running.
     terminal = Terminal("3")
 
-    restart_apps.run_restart_menu([app_at(tmp_path)], restarting(True), terminal.ask, terminal.out)
+    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.step)
 
-    assert "1 app running an old version" in terminal.text
+    assert "apps running an old version" not in terminal.text
 
 
 def test_restarting_everyone_at_once_takes_a_single_answer(tmp_path):
@@ -151,7 +140,7 @@ def test_restarting_everyone_at_once_takes_a_single_answer(tmp_path):
     restarted = []
 
     count = restart_apps.run_restart_menu(
-        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+        two_apps(tmp_path), recording(restarted), terminal.step
     )
 
     assert count == 2
@@ -164,7 +153,7 @@ def test_leaving_them_all_running_restarts_nothing(tmp_path):
     restarted = []
 
     count = restart_apps.run_restart_menu(
-        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+        two_apps(tmp_path), recording(restarted), terminal.step
     )
 
     assert count == 0
@@ -178,12 +167,38 @@ def test_going_through_them_one_at_a_time(tmp_path):
     restarted = []
 
     count = restart_apps.run_restart_menu(
-        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+        two_apps(tmp_path), recording(restarted), terminal.step
     )
 
     assert count == 1
     assert restarted == ["Thing"]
-    assert "1) quit it and start it again" in terminal.text
+    assert "1) restart" in terminal.text
+    assert "2) leave it running" in terminal.text
+    assert "3) cancel the walk-through" in terminal.text
+
+
+def test_a_restart_that_worked_is_green_and_one_that_did_not_is_red(tmp_path):
+    # The colour is the fastest way to see which apps still need attention.
+    console = Console(force_terminal=True, color_system="standard", width=200)
+
+    def printed(answer, done, message):
+        with console.capture() as captured:
+            restart_apps.run_restart_menu(
+                [app_at(tmp_path)], restarting(done, message),
+                prompting.Step(console.print, Terminal(answer).ask),
+            )
+        return captured.get()
+
+    assert "\x1b[32mQuit and started again." in printed("1", True, "Quit and started again.")
+    assert "\x1b[31mIt is still running." in printed("1", False, "It is still running.")
+
+
+def test_nothing_to_restart_means_nothing_is_asked():
+    terminal = Terminal("3")
+
+    restart_apps.run_restart_menu([], restarting(True), terminal.step)
+
+    assert terminal.text == ""
 
 
 def test_stopping_partway_leaves_the_rest(tmp_path):
@@ -191,7 +206,7 @@ def test_stopping_partway_leaves_the_rest(tmp_path):
     restarted = []
 
     count = restart_apps.run_restart_menu(
-        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+        two_apps(tmp_path), recording(restarted), terminal.step
     )
 
     assert count == 1
@@ -203,7 +218,7 @@ def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
     restarted = []
 
     count = restart_apps.run_restart_menu(
-        two_apps(tmp_path), recording(restarted), terminal.ask, terminal.out
+        two_apps(tmp_path), recording(restarted), terminal.step
     )
 
     # An empty line must not be taken for a decision, least of all to quit apps.
@@ -212,23 +227,20 @@ def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
 
 
 def test_nothing_to_answer_with_stops_the_question(tmp_path):
-    asked = []
-
-    def ask(prompt):
-        asked.append(prompt)
-        raise EOFError
+    terminal = Terminal(then=EOFError)
 
     assert restart_apps.run_restart_menu(
-        two_apps(tmp_path), restarting(True), ask, Terminal().out
+        two_apps(tmp_path), restarting(True), terminal.step
     ) == 0
-    assert len(asked) == 1
+    # Asked once, then left alone rather than asked again about every app.
+    assert len([line for line in terminal.lines if line.endswith("> ")]) == 1
 
 
 def test_a_restart_that_failed_is_not_counted(tmp_path):
     terminal = Terminal("1")
 
     restarted = restart_apps.run_restart_menu(
-        [app_at(tmp_path)], restarting(False, "it would not quit"), terminal.ask, terminal.out
+        [app_at(tmp_path)], restarting(False, "it would not quit"), terminal.step
     )
 
     assert restarted == 0
@@ -242,7 +254,7 @@ def test_one_refusing_does_not_stop_the_others(tmp_path):
         return app.name != "Other", "done" if app.name != "Other" else "it would not quit"
 
     restarted = restart_apps.run_restart_menu(
-        two_apps(tmp_path), restart, terminal.ask, terminal.out
+        two_apps(tmp_path), restart, terminal.step
     )
 
     assert restarted == 1
@@ -252,6 +264,45 @@ def test_no_terminal_means_nothing_is_asked(tmp_path):
     terminal = Terminal()
 
     assert restart_apps.run_restart_menu(
-        [app_at(tmp_path)], restarting(True), terminal.ask, terminal.out, interactive=False
+        [app_at(tmp_path)], restarting(True), terminal.step, interactive=False
     ) == 0
     assert terminal.text == ""
+
+
+def printed_lines(terminal, apps, restart_one=None):
+    """Run the menu on these apps, and hand back the printed lines."""
+    restart_apps.run_restart_menu(apps, restart_one or restarting(True, "restarted"),
+                                  terminal.step)
+    return terminal.lines
+
+
+def indent_of(line):
+    return len(line) - len(line.lstrip())
+
+
+def test_a_result_is_printed_in_line_with_the_question_it_answers(tmp_path):
+    # It used to be written at its own hardcoded indent, so in the walk-through
+    # the result sat left of the question it belonged to.
+    terminal = Terminal("2", "1")
+    lines = printed_lines(terminal, [app_at(tmp_path)])
+
+    # "1) restart" on its own is the walk-through's, the top menu says
+    # "1) restart all", so the options are not confused for one another.
+    option = next(line for line in lines if line.rstrip().endswith("1) restart"))
+    result = next(line for line in lines if "restarted" in line)
+    heading = next(line for line in lines if "Thing" in line)
+
+    # The result stands where the options stood, and the app's name one step
+    # out from both, which is where the question that opened them stands.
+    assert indent_of(result) == indent_of(option)
+    assert indent_of(heading) == indent_of(option) - 2
+
+
+def test_restarting_them_all_prints_results_under_their_names(tmp_path):
+    terminal = Terminal("1")
+    lines = printed_lines(terminal, [app_at(tmp_path)])
+
+    name = next(line for line in lines if "Thing" in line)
+    result = next(line for line in lines if "restarted" in line)
+
+    assert indent_of(result) == indent_of(name) + 2

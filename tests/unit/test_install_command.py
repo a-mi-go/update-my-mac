@@ -5,27 +5,7 @@ import pytest
 from rich.text import Text
 
 from update_my_mac import install_command, shell_configs
-
-
-class Terminal:
-    """Scripted answers in, everything printed collected."""
-
-    def __init__(self, *answers):
-        self.answers = list(answers)
-        self.lines = []
-
-    def ask(self, prompt):
-        self.lines.append(prompt)
-        return self.answers.pop(0)
-
-    def out(self, *parts, **_):
-        # What a person would read, without the colour markup. Parsing it also
-        # catches a line whose markup rich can't render.
-        self.lines.append(Text.from_markup(" ".join(str(part) for part in parts)).plain)
-
-    @property
-    def text(self):
-        return "\n".join(self.lines)
+from fake_terminal import Terminal
 
 
 class FakeUv:

@@ -3,6 +3,7 @@
 from update_my_mac import (
     adopt_apps,
     behind_the_recipe,
+    fix_things,
     duplicate_commands,
     app_decisions,
     apply_updates,
@@ -44,15 +45,103 @@ def _behind_the_recipe():
     return behind_the_recipe.find(installed_apps.find_all(), cask_index.load())
 
 
-def _duplicate_walkthrough():
+def _problems(untracked, doubled, stale, decisions):
+    """The kinds of trouble that turned up, as choices the person can pick."""
+    cask_for = _website_and_cask()
+    found = []
+
+    if untracked:
+        found.append(
+            _problem(
+                f"yes, get those apps back on track ({len(untracked)})",
+                untracked,
+                _app_walkthrough(decisions),
+                lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
+            )
+        )
+
+    if doubled:
+        found.append(
+            _problem(
+                f"yes, I don't need apps installed twice ({len(doubled)})",
+                doubled,
+                _duplicate_walkthrough(),
+                _remove_every_shadowed_copy,
+            )
+        )
+
+    if stale:
+        found.append(
+            _problem(
+                f"yes, restart updated apps ({len(stale)})",
+                stale,
+                _restart_walkthrough(),
+                _restart_every_app,
+            )
+        )
+    return found
+
+
+def _problem(label, things, walk_through, fix_all):
+    """One entry in the menu, with the things it is about tied to it."""
+    return fix_things.Problem(
+        label,
+        lambda step: walk_through(things, step),
+        lambda step: fix_all(things, step),
+    )
+
+
+def _adopt_every_app_we_can(apps, cask_for, step):
+    each = step.inside()
+    done = 0
+    for app in apps:
+        cask = cask_for(app)
+        if cask is None:
+            continue
+        taken, message = adopt_apps.hand_to_homebrew(app, cask, shell)
+        each.say(f"{app.name}: {message}")
+        done += 1 if taken else 0
+    return done
+
+
+def _remove_every_shadowed_copy(duplicates, step):
+    return resolve_duplicates.remove_shadowed(duplicates, _removal(), step)
+
+
+def _restart_every_app(apps, step):
+    each = step.inside()
+    done = 0
+    for app in apps:
+        taken, message = restart_apps.restart(app, shell)
+        each.say(f"{app.name}: {message}")
+        done += 1 if taken else 0
+    return done
+
+
+def _removal():
     def remove(copy):
         executable = shell.find_executable(copy.remove_with[0])
         if executable is None:
             return -1
         return shell.stream_command([executable, *copy.remove_with[1:]])
 
-    def go_through_duplicates(duplicates, ask, out):
-        return resolve_duplicates.run_duplicate_menu(duplicates, remove, ask, out)
+    return remove
+
+
+def _restart_walkthrough():
+    def go_through_restarts(apps, step):
+        return restart_apps.run_restart_menu(
+            apps, lambda app: restart_apps.restart(app, shell), step
+        )
+
+    return go_through_restarts
+
+
+def _duplicate_walkthrough():
+    remove = _removal()
+
+    def go_through_duplicates(duplicates, step):
+        return resolve_duplicates.run_duplicate_menu(duplicates, remove, step)
 
     return go_through_duplicates
 
@@ -64,12 +153,13 @@ def _app_walkthrough(decisions):
         cask = cask_for(app)
         return cask.homepage if cask else ""
 
-    def go_through_apps(apps, ask, out):
+    def go_through_apps(apps, step):
+        # This one still asks its own way, one question per app.
         return track_apps.run_untracked_menu(
             apps,
             decisions,
-            ask,
-            out,
+            step.ask,
+            step.out,
             find_website=find_website,
             open_url=shell.open_in_browser,
             adopt=lambda app: adopt_apps.hand_to_homebrew(app, cask_for(app), shell),
@@ -126,18 +216,12 @@ def run_interactive_mode():
     report.print_behind_the_recipe(_behind_the_recipe())
     stale = running_apps.find(shell)
     report.print_still_running_old(stale)
-    # Asked before the update menu, not inside it: restarting updates nothing,
-    # the new version is already on disk.
-    restart_apps.run_restart_menu(stale, lambda app: restart_apps.restart(app, shell))
 
-    failed += apply_updates.run_upgrade_menu(
-        reports,
-        shell,
-        untracked_apps=listed,
-        go_through_apps=_app_walkthrough(decisions),
-        duplicates=doubled,
-        go_through_duplicates=_duplicate_walkthrough(),
-    )
+    # Everything that is not an update is offered together, before the menu
+    # that is only about updates.
+    fix_things.run_fix_menu(_problems(listed, doubled, stale, decisions))
+
+    failed += apply_updates.run_upgrade_menu(reports, shell)
     return 1 if failed else _exit_code(reports, manager_updates)
 
 

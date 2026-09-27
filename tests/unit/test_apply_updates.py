@@ -69,10 +69,8 @@ def quiet_console():
     return Console(file=open("/dev/null", "w"), width=200)
 
 
-def run(shell, *replies, reports=REPORTS, untracked_apps=(), go_through_apps=None):
-    return apply_updates.run_upgrade_menu(
-        reports, shell, quiet_console(), answers(*replies), untracked_apps, go_through_apps
-    )
+def run(shell, *replies, reports=REPORTS):
+    return apply_updates.run_upgrade_menu(reports, shell, quiet_console(), answers(*replies))
 
 
 def test_only_managers_with_something_outdated_get_an_entry():
@@ -228,50 +226,6 @@ def test_ctrl_c_during_an_upgrade_stops_the_rest():
 
     assert run(shell, "1") == ["brew"]
     assert shell.streamed == [["/fake/brew", "upgrade"]]
-
-
-def test_the_untracked_apps_come_last_in_the_menu():
-    entries = apply_updates.build_menu(REPORTS, [FakeApp("Docker")])
-
-    assert entries[-1].kind == apply_updates.UNTRACKED_APPS
-    assert entries[-1].label == "untracked apps (1 to go through)"
-
-
-def test_without_untracked_apps_there_is_no_such_entry():
-    entries = apply_updates.build_menu(REPORTS, [])
-
-    assert not any(entry.kind == apply_updates.UNTRACKED_APPS for entry in entries)
-
-
-def test_going_through_the_apps_is_one_of_the_choices():
-    shell = RecordingShell()
-    walkthrough = RecordingWalkthrough()
-    # Entry 4 is the apps, and nothing else is chosen, so nothing is upgraded.
-    run(shell, "4", "1", untracked_apps=[FakeApp("Docker")], go_through_apps=walkthrough)
-
-    assert walkthrough.seen == ["Docker"]
-    assert shell.streamed == []
-
-
-def test_the_apps_are_asked_about_before_anything_is_upgraded():
-    order = []
-
-    class WatchingShell(RecordingShell):
-        def stream_command(self, args, env=None):
-            order.append("upgrade")
-            return 0
-
-    def ask(prompt):
-        if prompt == "> " and not order:
-            order.append("ask")
-            return "1"
-        return "2"
-
-    apply_updates.run_upgrade_menu(
-        REPORTS, WatchingShell(), quiet_console(), ask, [FakeApp("Docker")], RecordingWalkthrough()
-    )
-
-    assert order[0] == "ask"
 
 
 def test_only_the_menu_numbers_are_coloured():
