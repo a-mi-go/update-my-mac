@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import __version__, app_updaters, report
+from update_my_mac import __version__, app_updaters, appcast, report
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
@@ -336,3 +336,25 @@ def test_a_long_list_with_versions_stays_one_per_line():
 
 def test_an_empty_list_prints_nothing():
     assert printed_list([]) == []
+
+
+def with_feed(name, version, url="https://x.test/appcast.xml"):
+    return InstalledApp(
+        name, version, Path(f"/Applications/{name}.app"),
+        UpdaterStatus(app_updaters.SPARKLE, True, False, "2026-08-16", url),
+    )
+
+
+def test_an_app_whose_feed_went_quiet_is_listed_once(capsys):
+    # By what it does now, not by what its settings still claim it does.
+    url = "https://x.test/appcast.xml"
+    report.print_untracked_apps(
+        [with_feed("Air", "262.579.44", url)],
+        Console(width=200, no_color=True),
+        offered={url: appcast.FeedAnswer(error="its feed answers 403")},
+    )
+
+    printed = capsys.readouterr().out
+    assert "Cannot update themselves any more: 1" in printed
+    assert "its feed answers 403" in printed
+    assert "These update themselves" not in printed

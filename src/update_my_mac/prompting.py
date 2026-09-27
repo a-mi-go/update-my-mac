@@ -57,6 +57,9 @@ class Step:
 
     def choose(self, options):
         """Offer the (key, label) options and return the key that was picked."""
+        if not options:
+            # Asking would loop forever, because no answer could be right.
+            raise ValueError("a menu has to offer something")
         self._list(options)
         while True:
             # Asked again rather than guessed at, because guessing wrong here

@@ -214,8 +214,10 @@ def print_untracked_apps(apps, console=None, left_alone=0, offered=None, find_ca
         )
         # An app whose feed has gone quiet is listed by what it does now, not
         # by what its settings still claim it does.
-        quiet = [app for app in apps if appcast.answer_for(app, offered or {}).error]
-        rest = [app for app in apps if app not in quiet]
+        quiet, rest = [], []
+        for app in apps:
+            side = quiet if appcast.answer_for(app, offered or {}).error else rest
+            side.append(app)
 
         unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(rest)
         _print_group(console, "Possibly don't update at all", unattended,

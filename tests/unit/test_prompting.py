@@ -75,3 +75,14 @@ def test_going_inside_leaves_the_step_it_came_from_alone():
     step.say("still here")
 
     assert terminal.lines == ["still here"]
+
+
+def test_a_menu_with_nothing_in_it_is_a_mistake():
+    # Asking would loop forever, because no answer could ever be right.
+    terminal = Terminal()
+
+    try:
+        Step(terminal.out, terminal.ask).choose([])
+    except ValueError:
+        return
+    raise AssertionError("an empty menu should not be offered")

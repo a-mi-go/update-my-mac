@@ -60,34 +60,9 @@ def _problems(untracked, doubled, stale, behind, decisions, offered):
     cask_for = _website_and_cask()
     found = []
 
-    # An app that keeps itself up to date and has run ahead of its recipe is
-    # not a problem, so it is not one of the things to sort out.
-    troubled = [
-        app
-        for app in untracked
-        if track_apps.worth_sorting_out(app, cask_for(app), appcast.answer_for(app, offered))
-    ]
-    if troubled:
-        # Counted by what Homebrew has a recipe for, not by what the step can
-        # sweep up in one go: an app it would have to put back a version is
-        # still one you can hand over. Without a single one, all the step can
-        # do is stop listing an app, and it says so instead of promising a
-        # handover it cannot make.
-        known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in troubled])
-        label = (
-            f"yes, get those apps back on track "
-            f"({known} of {len(troubled)} can go to Homebrew)" if known
-            else f"yes, go through the {len(troubled)} apps nobody tracks "
-                 f"(none of them can go to Homebrew)"
-        )
-        found.append(
-            _problem(
-                label,
-                troubled,
-                _app_walkthrough(decisions, offered),
-                lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
-            )
-        )
+    untracked_problem = _untracked_problem(untracked, cask_for, decisions, offered)
+    if untracked_problem:
+        found.append(untracked_problem)
 
     if doubled:
         found.append(
@@ -119,6 +94,40 @@ def _problems(untracked, doubled, stale, behind, decisions, offered):
             )
         )
     return found
+
+
+def _untracked_problem(untracked, cask_for, decisions, offered):
+    """The entry for the apps no manager tracks, or None when none is a problem.
+
+    An app that keeps itself up to date and has run ahead of its recipe is
+    doing the job, so it is not one of the things to sort out.
+    """
+    troubled = [
+        app
+        for app in untracked
+        if track_apps.worth_sorting_out(app, cask_for(app), appcast.answer_for(app, offered))
+    ]
+    if not troubled:
+        return None
+
+    # Counted by what Homebrew has a recipe for, not by what the step can
+    # sweep up in one go: an app it would have to put back a version is still
+    # one you can hand over. Without a single one, all the step can do is stop
+    # listing an app, and it says so instead of promising a handover it
+    # cannot make.
+    known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in troubled])
+    label = (
+        f"yes, get those apps back on track "
+        f"({known} of {len(troubled)} can go to Homebrew)" if known
+        else f"yes, go through the {len(troubled)} apps nobody tracks "
+             f"(none of them can go to Homebrew)"
+    )
+    return _problem(
+        label,
+        troubled,
+        _app_walkthrough(decisions, offered),
+        lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
+    )
 
 
 def _problem(label, things, walk_through, fix_all):
