@@ -110,3 +110,27 @@ def test_what_homebrew_wrote_down_is_carried_into_the_finding():
 
     assert found[0].recorded == "5.0.6"
     assert found[0].wrongly_recorded
+
+
+def test_an_app_counted_differently_from_its_recipe_is_not_called_behind():
+    # Foxit reports 2026.1.1.70276 where its recipe says 14.0.8.69494. Listing
+    # it as older would send someone off to install a version that is not
+    # newer, and nothing in either string says which scheme it belongs to.
+    found = behind_the_recipe.find(
+        [app("Foxit PDF Editor", "2026.1.1.70276")],
+        index(**{"Foxit PDF Editor": ("foxit-pdf-editor", "14.0.8.69494")}),
+        {"foxit-pdf-editor": "14.0.8.69494"},
+    )
+
+    assert found == []
+
+
+def test_a_recipe_dated_where_the_app_counts_is_not_called_ahead():
+    # Juice was reported as 1.0.1 → 2017.06.08170217, which meant nothing.
+    found = behind_the_recipe.find(
+        [app("Juice", "1.0.1")],
+        index(Juice=("juice", "2017.06.08170217")),
+        {"juice": "2017.06.08170217"},
+    )
+
+    assert found == []

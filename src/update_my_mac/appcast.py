@@ -18,14 +18,32 @@ from pathlib import Path
 from update_my_mac import versions
 
 SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+# How long an answer is reused, and how long the asking may take.
+#
+# Reusing an answer is a trade against being wrong about an app, and being
+# wrong here matters more than it looks: whether an app counts as one that
+# still looks after itself is decided by what came back from its feed. So
+# the two directions are not kept for the same length of time.
+#
+# An answer that came back is kept for hours, because a Sparkle feed changes
+# when the vendor ships, not by the minute, and the cost of being a few hours
+# behind is a version number that is one release old.
+#
+# A failure is asked about again far sooner, because the state it describes
+# is the one that gets acted on: an app whose feed has gone quiet is taken
+# out of "these update themselves" and offered as something to sort out. A
+# host that was briefly down should not carry that verdict for a whole day.
+#
+# A failure never erases a version that once came back. Both are kept, so
+# the report can show the last version it named and still say the feed is
+# not answering.
 STALE_AFTER_SECONDS = 6 * 60 * 60
-# A feed that answered is worth keeping longer than one that did not, so a
-# failure is asked about again sooner.
 STALE_AFTER_A_FAILURE = 30 * 60
+
+# One feed may take this long, and all of them together only a little longer.
+# `--check` runs unattended, and a Mac with twenty Sparkle apps behind slow
+# hosts would otherwise sit here one timeout at a time.
 TIMEOUT_SECONDS = 15
-# The whole step is worth a few seconds, not a few minutes. `--check` runs
-# unattended, and a Mac with twenty Sparkle apps behind slow hosts would
-# otherwise sit here one timeout at a time.
 BUDGET_SECONDS = 30
 
 

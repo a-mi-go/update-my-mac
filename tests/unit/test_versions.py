@@ -59,3 +59,25 @@ def test_the_same_scheme_is_compared():
 
 def test_a_version_with_no_numbers_in_it_is_not_compared():
     assert not versions.comparable("beta", "1.0")
+
+
+# Every pair below turned up on a real Mac. The verdict matters because it
+# decides whether an app is called outdated, and whether a handover is called
+# an update or a downgrade.
+SEEN_IN_THE_WILD = [
+    ("Docker", "4.91.0", "4.92.0,240144", True),
+    ("Codex", "26.831.21537", "26.623.141536", True),
+    ("BetterDisplay", "5.0.5", "5.0.6", True),
+    ("Telegram", "12.9", "12.10,282985", True),
+    ("Sourcetree", "4.2.6", "4.2.19,317", True),
+    ("Paintbrush", "2.6", "2.6.0,20210402", True),
+    ("Opera", "136.0", "136.0.6008.52", True),
+    ("Token Monitor", "0.62.0", "0.63.0", True),
+    ("Foxit PDF Editor", "2026.1.1.70276", "14.0.8.69494", False),
+    ("Juice", "1.0.1", "2017.06.08170217", False),
+]
+
+
+def test_the_versions_seen_so_far_are_judged_the_way_they_were():
+    for name, installed, recipe, expected in SEEN_IN_THE_WILD:
+        assert versions.comparable(installed, recipe) is expected, name
