@@ -86,6 +86,16 @@ notification when something is outdated, and an example launchd agent.
 
 ## Later
 
+**Apps nobody opens any more.** An app that has not been launched in months is
+still checked, still listed, and still updated. Spotlight records
+`kMDItemLastUsedDate` for every app bundle, which on the machine this was
+written on was set for all of them, the oldest four months back. Offer to
+uninstall the ones past some age, the way the doubled commands are offered:
+`brew uninstall --cask` where Homebrew installed it, and otherwise say what
+would have to be moved to the trash by hand. Removing an app is the one thing
+here that cannot be undone by running the tool again, so it is never part of
+"fix everything" and never happens without being asked about that app by name.
+
 - `--dry-run` for `setup.sh`: show the name and config changes it would make.
 - Check that the files setup is about to change are writable before installing,
   so nothing can fail halfway.
