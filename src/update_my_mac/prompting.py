@@ -26,13 +26,6 @@ def printer(out):
     return out or Console(highlight=False, soft_wrap=True).print
 
 
-def answer(ask, question):
-    try:
-        return ask(question).strip()
-    except (EOFError, KeyboardInterrupt):
-        raise Stopped
-
-
 class Step:
     """One level of the conversation, and the only way to reach the next.
 

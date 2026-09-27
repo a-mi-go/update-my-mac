@@ -2,128 +2,236 @@
 
 from rich.markup import escape
 
-from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
+from update_my_mac import adopt_apps, app_updaters
+from update_my_mac.prompting import Step, Stopped
 
-
-def _hand_to_homebrew(app, adopt, console_print):
-    """Returns whether the app is dealt with and the walk can move on."""
-    if adopt is None:
-        console_print("  [dim]Homebrew is not installed, so it cannot take anything over.[/]")
-        return False
-
-    taken, message = adopt(app)
-    console_print(f"  {'' if taken else '[yellow]'}{escape(message)}{'' if taken else '[/]'}")
-    return taken
-
-
-def _show_website(website, console_print, open_url):
-    if not website:
-        console_print("  [dim]Nothing on this Mac says where that app came from.[/]")
-        return
-
-    console_print(f"  {escape(website)}")
-    if open_url is not None and not open_url(website):
-        console_print("  [yellow]Could not open that in a browser.[/]")
+ADOPT_ALL, DECIDE_FOR_EACH, NOTHING = "adopt all", "decide for each", "nothing"
+ADOPT, IGNORE, LATER, CANCEL = "adopt", "ignore", "later", "cancel"
 
 
 def run_untracked_menu(
     apps,
     decisions,
-    ask=input,
-    out=None,
+    step=None,
     interactive=True,
-    find_website=None,
-    open_url=None,
+    find_cask=None,
     adopt=None,
 ):
-    """Offer a decision about each untracked app. Returns how many were ignored.
+    """Ask what to do about the untracked apps. Returns how many were dealt with.
 
-    `find_website` and `adopt` are functions so that nothing is looked up
-    before someone picks that option.
+    Dealt with means Homebrew took it over or it was left alone on purpose;
+    either way the app is not asked about again.
     """
-    console_print = _printer(out)
+    step = step or Step()
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]
     if not waiting or not interactive:
         return 0
 
-    console_print()
-    console_print(f"Going through {len(waiting)} untracked apps.")
+    found = [(app, find_cask(app) if find_cask else None) for app in waiting]
+    choices = _choices(found, adopt)
+    walk = lambda: _walk_through(found, decisions, adopt, step.inside())
 
-    ignored = 0
+    ignored, adopted = 0, 0
+    step.say()
     try:
-        for app in waiting:
-            console_print()
-            console_print(f"[bold]{escape(app.name)}[/] {escape(app.version)}")
-            console_print("  [bold cyan]1)[/] leave it alone, and stop listing it")
-            console_print("  [bold cyan]2)[/] keep listing it")
-            console_print("  [bold cyan]3)[/] let Homebrew take it over")
-            console_print("  [bold cyan]4)[/] show me where it came from")
-            console_print("  [bold cyan]5)[/] stop going through them")
-
-            while True:
-                choice = _answer(ask, "> ")
-                if choice == "3" and not _hand_to_homebrew(app, adopt, console_print):
-                    # Nothing came of it, so the app is still undecided.
-                    continue
-                if choice != "4":
-                    break
-                # Showing where it came from decides nothing either.
-                _show_website(find_website(app) if find_website else "", console_print, open_url)
-
-            if choice == "1":
-                decisions.ignore(app.name, app.version)
-                ignored += 1
-            elif choice == "5":
-                break
+        if not _worth_asking(choices):
+            # Going one at a time is the only thing left to offer, and the
+            # walk-through has its own way out.
+            ignored, adopted = walk()
+        else:
+            step.say("[bold]What should we do with them?[/]")
+            chosen = step.choose(choices)
+            if chosen == ADOPT_ALL:
+                adopted = adopt_all(found, adopt, step)
+            elif chosen == DECIDE_FOR_EACH:
+                ignored, adopted = walk()
     except Stopped:
-        console_print()
+        step.say()
 
     if ignored and not decisions.save():
-        _say_it_was_not_written(decisions, console_print)
-    return ignored
+        _say_it_was_not_written(decisions, step)
+    return ignored + adopted
 
 
-def run_revisit_menu(decisions, ask=input, out=None, interactive=True):
+def worth_sorting_out(app, cask):
+    """Whether this app is a problem at all.
+
+    An app that keeps itself up to date and has run ahead of its recipe is
+    doing exactly what it should. Offering to hand it over would only put an
+    older build back, so it is not mentioned.
+    """
+    return not (app.updater.looks_after_itself and adopt_apps.would_downgrade(app, cask))
+
+
+def known_to_homebrew(found):
+    """How many of the (app, cask) pairs Homebrew has a recipe for at all.
+
+    Going back a version is a way in too, so an app counts here even when it
+    is left out of the step that hands over several at once.
+    """
+    return sum(1 for app, cask in found if adopt_apps.can_take_over(app, cask))
+
+
+def ready_for_homebrew(found):
+    """How many of the (app, cask) pairs Homebrew could take over without loss.
+
+    An app whose recipe is behind it can still be handed over, but only by
+    putting an older version in its place, which nobody should be counted
+    into without saying so.
+    """
+    return sum(
+        1 for app, cask in found
+        if adopt_apps.can_take_over(app, cask) and not adopt_apps.would_downgrade(app, cask)
+    )
+
+
+def _worth_asking(choices):
+    """Whether the menu offers more than going through them one at a time."""
+    return len(choices) > 2
+
+
+def _choices(found, adopt):
+    ready = ready_for_homebrew(found)
+    choices = []
+    if adopt is not None and ready:
+        choices.append((ADOPT_ALL, f"add all to Homebrew ({ready} of {len(found)})"))
+    choices.append((DECIDE_FOR_EACH, "decide for each"))
+    choices.append((NOTHING, "nothing (move on to the next step)"))
+    return choices
+
+
+def adopt_all(found, adopt, step):
+    """Hand every app Homebrew has a recipe for over to it. Returns how many went.
+
+    """
+    each = step.inside()
+    adopted = 0
+    for app, cask in found:
+        # A downgrade is never done in bulk. It is a deliberate answer about
+        # one app, not something to sweep up with the rest.
+        if not adopt_apps.can_take_over(app, cask) or adopt_apps.would_downgrade(app, cask):
+            continue
+        each.say()
+        each.say(f"[bold]{escape(app.name)}[/]")
+        if _hand_to_homebrew(app, adopt, each.inside()):
+            adopted += 1
+    return adopted
+
+
+def _walk_through(found, decisions, adopt, step):
+    """Ask about each app in turn. Returns how many were ignored and adopted.
+
+    Ctrl-C ends the walk here rather than further out, so what was decided
+    before it still counts and still gets written.
+    """
+    ignored, adopted = 0, 0
+    try:
+        for app, cask in found:
+            step.say()
+            step.say(f"[bold]{escape(app.name)}[/]  {escape(app.version)}")
+
+            chosen = _ask_about(app, cask, adopt, step)
+            if chosen == CANCEL:
+                break
+            if chosen == IGNORE:
+                decisions.ignore(app.name, app.version)
+                ignored += 1
+            elif chosen == ADOPT:
+                adopted += 1
+    except Stopped:
+        step.say()
+    return ignored, adopted
+
+
+def _ask_about(app, cask, adopt, step):
+    """Ask about one app until the answer decides something. Returns that answer."""
+    said = step.inside()
+    _say_what_is_known(app, cask, said)
+
+    while True:
+        chosen = step.choose(_app_choices(app, cask, adopt))
+        # A handover that came to nothing leaves the app undecided, so it is
+        # asked about again.
+        if chosen != ADOPT or _hand_to_homebrew(app, adopt, said):
+            return chosen
+
+
+def _say_what_is_known(app, cask, step):
+    """Everything this Mac has to say about an app, before the options."""
+    told = []
+    standing = adopt_apps.homebrew_note(app, cask)
+    if standing:
+        told.append(standing)
+
+    if app.updater.kind == app_updaters.NONE:
+        told.append("Nothing in it says how it updates.")
+    else:
+        told.append(f"It {app.updater.describe()}.")
+
+    step.say(f"[dim]{escape(' '.join(told))}[/]")
+
+
+def _app_choices(app, cask, adopt):
+    choices = []
+    handover = adopt_apps.handover_label(app, cask) if adopt is not None else ""
+    if handover:
+        choices.append((ADOPT, handover))
+    choices.append((IGNORE, "keep it untracked (don't ask again)"))
+    choices.append((LATER, "leave it for now"))
+    choices.append((CANCEL, "cancel the walk-through and move on to the next step"))
+    return choices
+
+
+def _hand_to_homebrew(app, adopt, step):
+    """Returns whether Homebrew took the app over."""
+    taken, message = adopt(app)
+    colour = "green" if taken else "red"
+    step.say(f"[{colour}]{escape(message)}[/{colour}]")
+    return taken
+
+
+def run_revisit_menu(decisions, step=None, interactive=True):
     """Bring an app back into the list. Returns how many came back."""
-    console_print = _printer(out)
+    step = step or Step()
     names = decisions.ignored_names()
 
     if not names:
-        console_print("No apps are being left alone.")
-        return 0
-    if not interactive:
-        console_print("Apps being left alone:")
-        for name in names:
-            console_print(f"  {escape(name)}")
+        step.say("No apps are being left alone.")
         return 0
 
-    console_print("Apps being left alone:")
+    step.say("Apps being left alone:")
+    listed = step.inside()
+    if not interactive:
+        for name in names:
+            listed.say(escape(name))
+        return 0
+
     for number, name in enumerate(names, start=1):
-        console_print(f"  [bold cyan]{number})[/] {escape(name)}")
-    console_print("  [bold cyan]0)[/] none of them")
+        listed.say(f"[bold cyan]{number})[/] {escape(name)}")
+    listed.say("[bold cyan]0)[/] none of them")
 
     try:
-        answer = _answer(ask, "List one of them again? ")
+        answer = step.read("List one of them again? ")
     except Stopped:
         return 0
 
     if answer in ("0", ""):
         return 0
     if not answer.isdigit() or not 1 <= int(answer) <= len(names):
-        console_print(f"[yellow]Answer a number from 1 to {len(names)}, or 0 for none.[/]")
+        step.say(f"[yellow]Answer a number from 1 to {len(names)}, or 0 for none.[/]")
         return 0
 
     name = names[int(answer) - 1]
     decisions.forget(name)
     if not decisions.save():
-        _say_it_was_not_written(decisions, console_print)
+        _say_it_was_not_written(decisions, step)
         return 0
-    console_print(f"[bold]{escape(name)}[/] will be listed again.")
+    step.say(f"[bold]{escape(name)}[/] will be listed again.")
     return 1
 
 
-def _say_it_was_not_written(decisions, console_print):
-    console_print(
+def _say_it_was_not_written(decisions, step):
+    step.say(
         f"[yellow]Could not write {escape(str(decisions.path))}, "
         f"so this won't be remembered.[/]"
     )

@@ -2,8 +2,8 @@
 
 from update_my_mac import (
     adopt_apps,
-    behind_the_recipe,
     fix_things,
+    behind_the_recipe,
     duplicate_commands,
     app_decisions,
     apply_updates,
@@ -28,7 +28,7 @@ def _exit_code(reports, manager_updates=()):
 
 
 def _website_and_cask():
-    """One lookup of Homebrew's casks, shared by the two things that need it."""
+    """One lookup of Homebrew's casks, shared by the steps that need it."""
     casks = None
 
     def cask_for(app):
@@ -50,11 +50,26 @@ def _problems(untracked, doubled, stale, decisions):
     cask_for = _website_and_cask()
     found = []
 
-    if untracked:
+    # An app that keeps itself up to date and has run ahead of its recipe is
+    # not a problem, so it is not one of the things to sort out.
+    troubled = [app for app in untracked if track_apps.worth_sorting_out(app, cask_for(app))]
+    if troubled:
+        # Counted by what Homebrew has a recipe for, not by what the step can
+        # sweep up in one go: an app it would have to put back a version is
+        # still one you can hand over. Without a single one, all the step can
+        # do is stop listing an app, and it says so instead of promising a
+        # handover it cannot make.
+        known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in troubled])
+        label = (
+            f"yes, get those apps back on track "
+            f"({known} of {len(troubled)} can go to Homebrew)" if known
+            else f"yes, go through the {len(troubled)} apps nobody tracks "
+                 f"(none of them can go to Homebrew)"
+        )
         found.append(
             _problem(
-                f"yes, get those apps back on track ({len(untracked)})",
-                untracked,
+                label,
+                troubled,
                 _app_walkthrough(decisions),
                 lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
             )
@@ -79,6 +94,7 @@ def _problems(untracked, doubled, stale, decisions):
                 _restart_every_app,
             )
         )
+
     return found
 
 
@@ -92,16 +108,8 @@ def _problem(label, things, walk_through, fix_all):
 
 
 def _adopt_every_app_we_can(apps, cask_for, step):
-    each = step.inside()
-    done = 0
-    for app in apps:
-        cask = cask_for(app)
-        if cask is None:
-            continue
-        taken, message = adopt_apps.hand_to_homebrew(app, cask, shell)
-        each.say(f"{app.name}: {message}")
-        done += 1 if taken else 0
-    return done
+    found = [(app, cask_for(app)) for app in apps]
+    return track_apps.adopt_all(found, _adoption(cask_for), step)
 
 
 def _remove_every_shadowed_copy(duplicates, step):
@@ -128,6 +136,13 @@ def _removal():
     return remove
 
 
+def _adoption(cask_for):
+    def adopt(app):
+        return adopt_apps.hand_to_homebrew(app, cask_for(app), shell)
+
+    return adopt
+
+
 def _restart_walkthrough():
     def go_through_restarts(apps, step):
         return restart_apps.run_restart_menu(
@@ -149,20 +164,13 @@ def _duplicate_walkthrough():
 def _app_walkthrough(decisions):
     cask_for = _website_and_cask()
 
-    def find_website(app):
-        cask = cask_for(app)
-        return cask.homepage if cask else ""
-
     def go_through_apps(apps, step):
-        # This one still asks its own way, one question per app.
         return track_apps.run_untracked_menu(
             apps,
             decisions,
-            step.ask,
-            step.out,
-            find_website=find_website,
-            open_url=shell.open_in_browser,
-            adopt=lambda app: adopt_apps.hand_to_homebrew(app, cask_for(app), shell),
+            step,
+            find_cask=cask_for,
+            adopt=_adoption(cask_for),
         )
 
     return go_through_apps
@@ -217,9 +225,15 @@ def run_interactive_mode():
     stale = running_apps.find(shell)
     report.print_still_running_old(stale)
 
-    # Everything that is not an update is offered together, before the menu
-    # that is only about updates.
-    fix_things.run_fix_menu(_problems(listed, doubled, stale, decisions))
+    # Sorting things out comes before the updates, so the menu below lists
+    # what is still outdated after it.
+    sorted_out = fix_things.run_fix_menu(_problems(listed, doubled, stale, decisions))
+    if sorted_out:
+        # Handing an app to Homebrew or pulling a cask up to its recipe changes
+        # what is outdated, and the menu numbers below would otherwise stand
+        # for what was true before any of that.
+        reports = package_managers.check_installed(shell)
+        report.print_outdated_summary(reports)
 
     failed += apply_updates.run_upgrade_menu(reports, shell)
     return 1 if failed else _exit_code(reports, manager_updates)
