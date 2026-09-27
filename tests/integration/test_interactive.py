@@ -15,7 +15,7 @@ MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"
 
 
-def run_interactively(answer, home, scenario="outdated", log=None):
+def run_interactively(answer, home, scenario="outdated", log=None, state=None):
     env = {
         "PATH": f"{MOCKS}:/usr/bin:/bin",
         "MOCK_FIXTURES": str(FIXTURES / scenario),
@@ -28,6 +28,9 @@ def run_interactively(answer, home, scenario="outdated", log=None):
     }
     if log is not None:
         env["MOCK_LOG"] = str(log)
+    if state is not None:
+        # Lets the fakes answer differently once they have been upgraded.
+        env["MOCK_STATE"] = str(state)
 
     return subprocess.run(
         [sys.executable, "-m", "update_my_mac"],
@@ -106,3 +109,14 @@ def test_a_failed_upgrade_exits_non_zero(tmp_path, empty_home):
 
     assert result.returncode == 1
     assert "exited with 7" in result.stdout
+
+
+def test_the_run_says_what_the_upgrade_actually_changed(tmp_path, empty_home):
+    # The App Store fixture keeps one app outdated after the upgrade, the way
+    # a real one does when a download will not start for it.
+    log = tmp_path / "calls.log"
+    result = run_interactively("1\n", empty_home, log=log, state=tmp_path / "state")
+
+    assert "Mac App Store: 1 of 2 updated, still outdated" in result.stdout
+    assert "PDFgear" in result.stdout
+    assert "Homebrew: 2 updated" in result.stdout

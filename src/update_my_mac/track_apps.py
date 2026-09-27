@@ -1,32 +1,46 @@
-"""Going through the apps no package manager tracks, and revisiting that later.
+"""Going through the apps no package manager tracks, and revisiting that later."""
 
-Deciding to leave an app alone is the only decision on offer so far. Adopting
-one into Homebrew Cask, or watching its update feed, comes later; the menu is
-where those will appear.
-"""
-
-from rich.console import Console
 from rich.markup import escape
 
-
-def _printer(out):
-    """The given print function, or one onto a fresh console."""
-    return out or Console(highlight=False, soft_wrap=True).print
+from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
 
 
-class Stopped(Exception):
-    """Ctrl-C, or no more input to answer with."""
+def _hand_to_homebrew(app, adopt, console_print):
+    """Returns whether the app is dealt with and the walk can move on."""
+    if adopt is None:
+        console_print("  [dim]Homebrew is not installed, so it cannot take anything over.[/]")
+        return False
+
+    taken, message = adopt(app)
+    console_print(f"  {'' if taken else '[yellow]'}{escape(message)}{'' if taken else '[/]'}")
+    return taken
 
 
-def _answer(ask, question):
-    try:
-        return ask(question).strip()
-    except (EOFError, KeyboardInterrupt):
-        raise Stopped
+def _show_website(website, console_print, open_url):
+    if not website:
+        console_print("  [dim]Nothing on this Mac says where that app came from.[/]")
+        return
+
+    console_print(f"  {escape(website)}")
+    if open_url is not None and not open_url(website):
+        console_print("  [yellow]Could not open that in a browser.[/]")
 
 
-def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
-    """Offer to leave each untracked app alone. Returns how many were ignored."""
+def run_untracked_menu(
+    apps,
+    decisions,
+    ask=input,
+    out=None,
+    interactive=True,
+    find_website=None,
+    open_url=None,
+    adopt=None,
+):
+    """Offer a decision about each untracked app. Returns how many were ignored.
+
+    `find_website` and `adopt` are functions so that nothing is looked up
+    before someone picks that option.
+    """
     console_print = _printer(out)
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]
     if not waiting or not interactive:
@@ -42,13 +56,24 @@ def run_untracked_menu(apps, decisions, ask=input, out=None, interactive=True):
             console_print(f"[bold]{escape(app.name)}[/] {escape(app.version)}")
             console_print("  [bold cyan]1)[/] leave it alone, and stop listing it")
             console_print("  [bold cyan]2)[/] keep listing it")
-            console_print("  [bold cyan]3)[/] stop going through them")
-            choice = _answer(ask, "> ")
+            console_print("  [bold cyan]3)[/] let Homebrew take it over")
+            console_print("  [bold cyan]4)[/] show me where it came from")
+            console_print("  [bold cyan]5)[/] stop going through them")
+
+            while True:
+                choice = _answer(ask, "> ")
+                if choice == "3" and not _hand_to_homebrew(app, adopt, console_print):
+                    # Nothing came of it, so the app is still undecided.
+                    continue
+                if choice != "4":
+                    break
+                # Showing where it came from decides nothing either.
+                _show_website(find_website(app) if find_website else "", console_print, open_url)
 
             if choice == "1":
                 decisions.ignore(app.name, app.version)
                 ignored += 1
-            elif choice == "3":
+            elif choice == "5":
                 break
     except Stopped:
         console_print()

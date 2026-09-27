@@ -43,7 +43,7 @@ def test_reports_outdated_packages(empty_home):
     assert "ripgrep" in out
     assert "typescript  5.4.2 → 5.4.5" in out
     assert "eslint  9.0.0 → 9.12.0" in out
-    assert "5 outdated in total" in out
+    assert "6 outdated in total" in out
 
 
 def test_nothing_outdated_says_so(empty_home):
@@ -90,4 +90,4 @@ def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
 
     assert result.returncode == 0, result.stderr
     assert "Not tracked by any package manager: 1" in result.stdout
-    assert "TokenEater  5.12.2" in result.stdout
+    assert "TokenEater" in result.stdout

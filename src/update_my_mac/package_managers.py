@@ -19,6 +19,8 @@ class ManagerReport:
     label: str
     outdated_packages: list
     error_message: str = ""
+    # Taps Homebrew is leaving out of the answer it just gave.
+    ignored_taps: list = field(default_factory=list)
 
 
 def nonblank_lines(output):
@@ -28,9 +30,8 @@ def nonblank_lines(output):
 def parse_npm_outdated(stdout):
     """Read `npm outdated -g --json`.
 
-    npm exits 1 both when it finds updates and when it fails, so the exit code
-    alone cannot tell those apart. The JSON can: a failure carries an "error"
-    key instead of packages.
+    npm exits 1 both when it finds updates and when it fails; only the JSON
+    tells them apart, by carrying an "error" key.
     """
     return _parse_json_packages(stdout)
 
@@ -164,7 +165,32 @@ def check_for_outdated(manager, shell):
         packages = manager.parse_output(result.stdout)
     except CheckFailed as failure:
         return ManagerReport(manager.key, manager.label, [], str(failure))
-    return ManagerReport(manager.key, manager.label, packages)
+
+    # Homebrew says on stderr when it is ignoring a tap, and an ignored tap is
+    # left out of the answer silently. Without this the report looks complete.
+    ignored = untrusted_taps(shell) if "not trusted" in result.stderr else []
+    return ManagerReport(manager.key, manager.label, packages, ignored_taps=ignored)
+
+
+def untrusted_taps(shell):
+    """The taps Homebrew will not read from until they are trusted."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return []
+
+    result = shell.run_command([executable, "tap-info", "--json", "--installed"], (0,))
+    if not result.success:
+        return []
+
+    try:
+        taps = json.loads(result.stdout)
+    except ValueError:
+        return []
+    return [
+        tap["name"]
+        for tap in taps
+        if isinstance(tap, dict) and tap.get("trusted") is False and tap.get("name")
+    ]
 
 
 def check_installed(shell, managers=MANAGERS):
@@ -184,11 +210,10 @@ STALE_AFTER_SECONDS = 24 * 60 * 60
 
 
 def check_homebrew_index(manager, shell):
-    """Homebrew has no way to ask whether it is behind without fetching.
+    """Whether Homebrew's index is old enough to be worth refreshing.
 
-    What it does leave behind is the age of its index, and that is the thing
-    `brew outdated` reads. An index older than a day is worth refreshing, which
-    is also when Homebrew itself would auto-update.
+    Homebrew cannot say whether it is behind without fetching, so the age of
+    the index it answers from has to stand in.
     """
     executable = shell.find_executable(manager.command)
     result = shell.run_command([executable, "--cache"], (0,))
@@ -224,11 +249,7 @@ def check_homebrew_index(manager, shell):
 
 
 def check_self(manager, shell):
-    """Whether the manager has a newer version of itself.
-
-    None means there is nothing to offer: the manager isn't installed, can't
-    update itself, or already is current.
-    """
+    """A newer version of the manager itself, or None when there is none."""
     if not manager.self_upgrade_args:
         return None
 
@@ -258,11 +279,7 @@ def check_self(manager, shell):
 
 
 def describe_own_version(stdout, package):
-    """Read one named package out of `outdated --json`.
-
-    Asking about a single package is not the same as trusting the answer to
-    hold only that package, so the name is looked up rather than assumed.
-    """
+    """Read one named package out of `outdated --json`."""
     if not stdout.strip():
         return ""
 
@@ -288,6 +305,34 @@ def installed_managers(shell, managers=MANAGERS):
 def check_managers_themselves(shell, managers=MANAGERS):
     updates = (check_self(manager, shell) for manager in managers)
     return [update for update in updates if update is not None]
+
+
+def adopt_cask(token, shell):
+    """Hand an app that is already installed over to Homebrew.
+
+    Adoption needs a current index to match against, so unlike the checks
+    this one lets Homebrew update itself first.
+    """
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return -1
+    return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+
+
+def recorded_cask_version(token, shell):
+    """The version Homebrew wrote down for a cask, which it takes on trust."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return ""
+
+    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    result = shell.run_command([executable, "list", "--cask", "--versions", token], (0,), env)
+    if not result.success:
+        return ""
+
+    # "betterdisplay 5.0.6", or nothing at all when it isn't installed.
+    parts = result.stdout.split()
+    return parts[-1] if len(parts) >= 2 else ""
 
 
 def upgrade_self(manager, shell):

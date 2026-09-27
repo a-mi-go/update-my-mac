@@ -12,6 +12,19 @@ behind the design is in the commit messages and in the pull requests.
   or several separated by commas, with the untracked apps as an entry in it.
 - Telling which untracked apps update themselves, by reading Sparkle's settings
   out of the app bundle and the user's own preferences.
+- Showing where an untracked app came from, matched against Homebrew's list of
+  casks by the app's file name, and opening that website.
+- Handing an untracked app to Homebrew, checked before and after, because
+  Homebrew adopts an app without looking inside it.
+- Finding a command two managers have each installed, saying which one PATH
+  picks, and offering to remove the other.
+- Finding apps that are still running the version they were started with,
+  after an upgrade replaced the bundle underneath them, and offering to quit
+  and start them again.
+- Comparing the version in each app bundle against Homebrew's recipe. Homebrew
+  itself never does this for a cask marked `auto_updates`, and on the machine
+  this was written on it found sixteen apps that `brew outdated` reported none
+  of.
 - `setup.sh`: installs the command under a name you choose, and deals with an
   alias, function or fish abbreviation of that name in zsh, bash or fish.
 - Listing apps in `/Applications` that neither the App Store, nor Homebrew, nor
