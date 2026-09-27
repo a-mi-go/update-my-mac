@@ -48,8 +48,9 @@ def run_catch_up_menu(behind, run, step=None, interactive=True):
             return catch_up_all(behind, run, step)
         if chosen == DECIDE_FOR_EACH:
             return _walk_through(behind, run, step.inside())
-    except Stopped:
+    except Stopped as stopped:
         step.say()
+        return stopped.done
     return 0
 
 
@@ -62,16 +63,29 @@ def _choices(behind):
 
 
 def catch_up_all(behind, run, step):
-    """Run the grouped commands. Returns how many apps they covered."""
+    """Run the grouped commands. Returns how many apps they covered.
+
+    A command that fails does not stop the rest, because one group failing
+    says nothing about the other. Ctrl-C does stop it, and takes the count so
+    far with it rather than losing the group that already went through.
+    """
     each = step.inside()
     done = 0
     for command in commands_for(behind):
         each.say()
         each.say(f"[bold]brew {escape(' '.join(command))}[/]")
-        if _run_one(command, run, each.inside()):
-            # Everything after the flags is an app, and they go together.
-            done += len([part for part in command if not part.startswith("-")]) - 1
+        try:
+            ran = _run_one(command, run, each.inside())
+        except Stopped:
+            raise Stopped(done)
+        if ran:
+            done += _how_many_apps(command)
     return done
+
+
+def _how_many_apps(command):
+    """How many apps one grouped command covers, which is all but its flags."""
+    return len([part for part in command if not part.startswith("-")]) - 1
 
 
 def _walk_through(behind, run, step):

@@ -18,7 +18,16 @@ CLOSING_WIDTH = 84
 
 
 class Stopped(Exception):
-    """Ctrl-C, or no more input to answer with."""
+    """Ctrl-C, or no more input to answer with.
+
+    It carries what the step had already done when it was interrupted. That
+    part still happened, and a step that swallowed its own count would leave
+    the run believing nothing changed.
+    """
+
+    def __init__(self, done=0):
+        super().__init__(done)
+        self.done = done
 
 
 def printer(out):

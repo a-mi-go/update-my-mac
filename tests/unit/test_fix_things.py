@@ -158,3 +158,16 @@ def test_an_interruption_keeps_what_fixing_everything_already_did():
         )
 
         assert dealt_with == 2
+
+
+def test_an_interrupted_step_still_reports_what_it_managed():
+    # The count is what decides whether the run looks at the managers again,
+    # so a step that was stopped halfway must not report nothing.
+    def stopped_after_two(_step):
+        raise prompting.Stopped(2)
+
+    terminal = Terminal("2")
+
+    assert fix_things.run_fix_menu(
+        [fix_things.Problem("apps", None, stopped_after_two)], terminal.step
+    ) == 2

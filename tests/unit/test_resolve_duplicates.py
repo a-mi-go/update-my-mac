@@ -143,3 +143,22 @@ def test_doing_nothing_asks_about_no_command_at_all():
         [doubled()], remover, terminal.step
     ) == 0
     assert "runs now" not in terminal.text
+
+
+def test_a_copy_removed_before_ctrl_c_still_counts():
+    class Interrupting(Remover):
+        def __call__(self, copy):
+            super().__call__(copy)
+            if len(self.removed) == 2:
+                raise KeyboardInterrupt
+            return 0
+
+    remover = Interrupting()
+    terminal = Terminal(DROP_SHADOWED)
+
+    removed = resolve_duplicates.run_duplicate_menu(
+        [doubled(), doubled()], remover, terminal.step
+    )
+
+    assert len(remover.removed) == 2
+    assert removed == 1

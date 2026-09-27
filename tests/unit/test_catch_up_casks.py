@@ -120,3 +120,23 @@ def test_ctrl_c_stops_without_crashing():
     terminal = Terminal(then=KeyboardInterrupt)
 
     assert catch_up_casks.run_catch_up_menu([item()], Brew(), terminal.step) == 0
+
+
+def test_a_group_that_went_through_before_ctrl_c_still_counts():
+    # The reinstall group finished, the greedy upgrade was interrupted. What
+    # already ran decides whether the run checks the managers again.
+    ran = []
+
+    def brew(command):
+        ran.append(command[0])
+        if len(ran) == 2:
+            raise KeyboardInterrupt
+        return 0
+
+    terminal = Terminal(ALL)
+    done = catch_up_casks.run_catch_up_menu(
+        [item("BetterDisplay"), item("ChatGPT", recorded="1.0")], brew, terminal.step
+    )
+
+    assert ran == ["reinstall", "upgrade"]
+    assert done == 1

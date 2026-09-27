@@ -46,9 +46,12 @@ def run_fix_menu(problems, step=None, interactive=True):
                     dealt_with += problem.fix_all(step.inside())
                 break
             dealt_with += chosen.walk_through(step.inside())
-    except (Stopped, KeyboardInterrupt):
-        # A walk-through turns Ctrl-C into Stopped, but a bulk step spends
-        # most of its time inside brew, where it arrives as itself.
+    except Stopped as stopped:
+        step.say()
+        dealt_with += stopped.done
+    except KeyboardInterrupt:
+        # A step that knows what it had done turns Ctrl-C into Stopped. One
+        # that does not lets it through as itself.
         step.say()
 
     # However it ended, a line closes the phase so the update menu below is
