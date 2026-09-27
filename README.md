@@ -107,10 +107,11 @@ Two layers, both run by CI on macOS and Linux. `tests/unit/` is pure logic with 
 
 
 <div>
-  Or alternatively just  
+  Or just  
   <a href="https://buymeacoffee.com/a.mi.go">
      buy me a coffee ☕️
   </a>
+   😉
 </div>
 
 ## More
