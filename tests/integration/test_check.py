@@ -41,8 +41,10 @@ def test_reports_outdated_packages(empty_home):
     out = result.stdout
     assert "Xcode" in out
     assert "ripgrep" in out
-    assert "typescript  5.4.2 → 5.4.5" in out
-    assert "eslint  9.0.0 → 9.12.0" in out
+    typescript = next(line for line in out.splitlines() if "typescript" in line)
+    assert "5.4.2 → 5.4.5" in typescript
+    eslint = next(line for line in out.splitlines() if "eslint" in line)
+    assert "9.0.0 → 9.12.0" in eslint
     assert "6 outdated in total" in out
 
 

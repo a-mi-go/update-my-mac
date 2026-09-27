@@ -4,6 +4,7 @@ to read the answer. Adding a manager means adding an entry here.
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +26,37 @@ class ManagerReport:
 
 def nonblank_lines(output):
     return [line for line in output.splitlines() if line.strip()]
+
+
+def parse_brew_outdated(stdout):
+    """Read `brew outdated --verbose`.
+
+    Without --verbose Homebrew prints bare names as soon as its output is not
+    a terminal, and ours never is. It writes "name (1.2.3) < 1.2.4" for a
+    formula and "!=" for a cask, where the versions merely differ.
+    """
+    packages = []
+    for line in nonblank_lines(stdout):
+        match = re.match(r"(\S+) \((.+?)\) (?:<|!=) (\S+)", line.strip())
+        if match:
+            name, current, latest = match.groups()
+            packages.append(f"{name}  {current} → {latest}")
+        else:
+            packages.append(line.strip())
+    return packages
+
+
+def parse_mas_outdated(stdout):
+    """Read `mas outdated`, which writes "497799835  Xcode  (14.0 -> 14.1)"."""
+    apps = []
+    for line in nonblank_lines(stdout):
+        match = re.match(r"\d+\s+(.+?)\s+\((.+?)\s*->\s*(.+?)\)", line.strip())
+        if match:
+            name, current, latest = match.groups()
+            apps.append(f"{name}  {current} → {latest}")
+        else:
+            apps.append(line.strip())
+    return apps
 
 
 def parse_npm_outdated(stdout):
@@ -98,14 +130,16 @@ MANAGERS = (
         "mas",
         ("outdated",),
         ("upgrade",),
+        parse_output=parse_mas_outdated,
         counted_as="apps",
     ),
     PackageManager(
         "brew",
         "Homebrew",
         "brew",
-        ("outdated",),
+        ("outdated", "--verbose"),
         ("upgrade",),
+        parse_output=parse_brew_outdated,
         # A scheduled run should report against what Homebrew already knows
         # rather than pulling a new index first.
         extra_env={"HOMEBREW_NO_AUTO_UPDATE": "1"},
@@ -317,6 +351,41 @@ def adopt_cask(token, shell):
     if executable is None:
         return -1
     return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+
+
+def install_cask_over(token, shell):
+    """Download the cask's version and put it over the app already in place.
+
+    --force rather than --adopt, which Homebrew refuses for anything but an
+    identical copy, and the two flags cannot be combined.
+    """
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return -1
+    return shell.stream_command([executable, "install", "--cask", token, "--force"])
+
+
+def recorded_cask_versions(shell):
+    """What Homebrew has written down for every cask it installed.
+
+    One question rather than one per app, and the answer is what Homebrew
+    believes rather than what is on disk.
+    """
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return {}
+
+    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    result = shell.run_command([executable, "list", "--cask", "--versions"], (0,), env)
+    if not result.success:
+        return {}
+
+    recorded = {}
+    for line in nonblank_lines(result.stdout):
+        parts = line.split()
+        if len(parts) >= 2:
+            recorded[parts[0]] = parts[-1]
+    return recorded
 
 
 def recorded_cask_version(token, shell):

@@ -4,6 +4,7 @@ Each manager is right about its own copy and reports nothing outdated, while
 PATH decides which one you actually run.
 """
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,9 +16,13 @@ class Copy:
     path: Path
     package: str
     remove_with: tuple = ()
+    version: str = ""
 
     def describe(self):
-        return f"{self.manager}, {self.package or self.path}"
+        named = f"{self.manager}, {self.package or self.path}"
+        # Which copy is newer is the whole question, so the version goes in
+        # the line rather than into a footnote under it.
+        return f"{named} {self.version}" if self.version else named
 
 
 @dataclass
@@ -62,34 +67,49 @@ def bin_directories(shell):
 
 
 def package_behind(path):
-    """The package a command belongs to, and how to get rid of it.
+    """The package a command belongs to, its version, and how to get rid of it.
 
     Read off the symlink, which points into wherever the manager keeps it.
     """
     try:
-        parts = Path(os.path.realpath(path)).parts
+        real = Path(os.path.realpath(path))
     except OSError:
-        return "", ()
+        return "", "", ()
+    parts = real.parts
 
-    if "Caskroom" in parts:
-        name = parts[parts.index("Caskroom") + 1]
-        return name, ("brew", "uninstall", "--cask", name)
-    if "Cellar" in parts:
-        name = parts[parts.index("Cellar") + 1]
-        return name, ("brew", "uninstall", name)
+    for keep in ("Caskroom", "Cellar"):
+        if keep in parts:
+            at = parts.index(keep) + 1
+            name = parts[at]
+            # Homebrew keeps each version in a directory of its own.
+            version = parts[at + 1] if len(parts) > at + 1 else ""
+            if keep == "Caskroom":
+                return name, version, ("brew", "uninstall", "--cask", name)
+            return name, version, ("brew", "uninstall", name)
 
     if "node_modules" in parts:
         at = parts.index("node_modules") + 1
         name = parts[at]
         # A scoped package is two path segments, @openai/codex.
         if name.startswith("@") and len(parts) > at + 1:
-            name = f"{name}/{parts[at + 1]}"
+            at += 1
+            name = f"{name}/{parts[at]}"
+        installed = Path(*parts[: at + 1])
+        version = _version_in(installed / "package.json")
         remover = "pnpm" if ".pnpm" in parts or "pnpm" in parts else "npm"
         if remover == "pnpm":
-            return name, ("pnpm", "remove", "-g", name)
-        return name, ("npm", "uninstall", "-g", name)
+            return name, version, ("pnpm", "remove", "-g", name)
+        return name, version, ("npm", "uninstall", "-g", name)
 
-    return "", ()
+    return "", "", ()
+
+
+def _version_in(manifest):
+    """The version a node package writes down about itself."""
+    try:
+        return str(json.loads(manifest.read_text()).get("version", ""))
+    except (OSError, ValueError):
+        return ""
 
 
 def _in_path_order(directories, env):
@@ -112,9 +132,9 @@ def find(shell, env=None):
         except OSError:
             continue
         for entry in entries:
-            package, remove_with = package_behind(entry)
+            package, version, remove_with = package_behind(entry)
             seen.setdefault(entry.name, []).append(
-                Copy(manager, entry, package, remove_with)
+                Copy(manager, entry, package, remove_with, version)
             )
 
     return [

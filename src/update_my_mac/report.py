@@ -30,25 +30,25 @@ class Item:
 
 
 def print_as_list_or_grid(console, indent, items):
-    """A short set of items is printed line by line with versions and comments (if supplied).
-    A long one as a grid with names only.
+    """One item per line, or a grid when there is nothing but names to print.
+
+    A version belongs next to the thing it belongs to, so a list that carries
+    one stays a list however long it is. Bare names are worth packing into a
+    grid, because a column of them wastes most of the terminal.
     """
     if not items:
         return
 
-    if len(items) > PRINT_MAX_LIST_ITEMS:
+    # A column nobody fills would only be empty space between the others.
+    used = [place for place in range(3) if any(item.fields()[place] for item in items)]
+
+    if used == [0] and len(items) > PRINT_MAX_LIST_ITEMS:
         rows = [
             [item.name for item in items[start : start + PRINT_GRID_COLUMNS]]
             for start in range(0, len(items), PRINT_GRID_COLUMNS)
         ]
         width = PRINT_GRID_COLUMNS
     else:
-        # A column nobody fills would only be empty space between the others.
-        used = [
-            place
-            for place in range(3)
-            if any(item.fields()[place] for item in items)
-        ]
         rows = [[item.fields()[place] for place in used] for item in items]
         width = len(used)
 
@@ -61,6 +61,12 @@ def print_as_list_or_grid(console, indent, items):
         # it would otherwise be read as markup and silently disappear.
         table.add_row(*(Text(cell) for cell in row))
     console.print(Padding(table, (0, 0, 0, len(indent))))
+
+
+def _as_item(package):
+    """A manager's "name  1.2.3 → 1.2.4" line, split so the arrows line up."""
+    name, _, versions = package.partition("  ")
+    return Item(name, versions.strip())
 
 
 def count_outdated_packages(reports):
@@ -120,7 +126,9 @@ def print_still_running_old(apps, console=None):
     console.print()
     console.print(f"[yellow]Running an old version[/]: [bold cyan]{len(apps)}[/]")
     print_as_list_or_grid(
-        console, "    ", [Item(app.name, comment=app.comment()) for app in apps]
+        console,
+        "    ",
+        [Item(app.name, app.version, app.comment()) for app in apps],
     )
     console.print(
         "    [dim]The new versions are already installed. These only need restarting.[/]"
@@ -233,7 +241,7 @@ def print_outdated_summary(reports, console=None):
             count = len(report.outdated_packages)
             console.print(f"[bold]{report.label}[/]: {count} outdated")
             print_as_list_or_grid(
-                console, "    ", [Item(package) for package in report.outdated_packages]
+                console, "    ", [_as_item(package) for package in report.outdated_packages]
             )
         else:
             console.print(f"[green]{report.label}[/]: up to date")
