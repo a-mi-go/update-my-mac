@@ -1,15 +1,19 @@
 """Apps still running the version they were started with."""
 
 import os
+import plistlib
 import time
 
 from update_my_mac import running_apps
 from update_my_mac.shell import CommandResult
 
 
-def bundle(directory, name, written_ago_seconds):
+def bundle(directory, name, written_ago_seconds, version=""):
     app = directory / f"{name}.app"
     (app / "Contents" / "MacOS").mkdir(parents=True)
+    if version:
+        with open(app / "Contents" / "Info.plist", "wb") as plist:
+            plistlib.dump({"CFBundleShortVersionString": version}, plist)
     when = time.time() - written_ago_seconds
     os.utime(app, (when, when))
     return app
@@ -102,3 +106,24 @@ def test_each_app_is_named_once_however_many_processes_it_has(tmp_path):
 
 def test_without_ps_nothing_is_claimed(tmp_path):
     assert running_apps.find(PsShell([], has_ps=False), {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+
+
+def test_the_version_waiting_on_disk_is_read(tmp_path):
+    # The one the process is running cannot be read from anywhere, so this is
+    # what a restart would get you.
+    app = bundle(tmp_path, "Markdown Preview", written_ago_seconds=60, version="1.7.2")
+    shell = PsShell([running(app, "02:00:00")])
+
+    found = running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+
+    assert found[0].version == "1.7.2"
+    assert found[0].describe().startswith("Markdown Preview  1.7.2:")
+
+
+def test_an_app_that_says_nothing_about_its_version_is_still_named(tmp_path):
+    app = bundle(tmp_path, "Quiet", written_ago_seconds=60)
+    shell = PsShell([running(app, "02:00:00")])
+
+    found = running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+
+    assert found[0].describe().startswith("Quiet:")

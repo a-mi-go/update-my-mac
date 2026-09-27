@@ -9,6 +9,7 @@ neither is the one that really goes stale unnoticed.
 import plistlib
 import time
 from dataclasses import dataclass
+import urllib.parse
 
 SPARKLE = "sparkle"
 NONE = "none"
@@ -51,6 +52,18 @@ class UpdaterStatus:
         else:
             answer = "checking is off"
         return f"{answer}, last checked {self.last_checked}" if self.last_checked else answer
+
+
+def site_behind(feed_url):
+    """The vendor's site, from the feed the app checks for its own updates.
+
+    The feed itself is XML nobody wants to read. Its host is as close to a
+    download page as an app that no manager tracks ever gets.
+    """
+    if not feed_url:
+        return ""
+    parsed = urllib.parse.urlparse(feed_url)
+    return f"https://{parsed.netloc}/" if parsed.netloc else ""
 
 
 def read_bundle_info(app_path):

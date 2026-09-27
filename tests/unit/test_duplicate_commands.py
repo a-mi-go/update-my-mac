@@ -104,7 +104,7 @@ def test_a_formula_is_removed_differently_from_a_cask(tmp_path):
     (root / "bin").mkdir(parents=True)
     (root / "bin" / "wget").symlink_to(real)
 
-    package, remove_with = duplicate_commands.package_behind(root / "bin" / "wget")
+    package, version, remove_with = duplicate_commands.package_behind(root / "bin" / "wget")
     assert package == "wget"
     assert remove_with == ("brew", "uninstall", "wget")
 
@@ -118,3 +118,42 @@ def test_a_directory_that_cannot_be_read_does_not_stop_the_run(tmp_path):
     shell = ManagerShell(brew=brew)
 
     assert duplicate_commands.find(shell, {"PATH": ""}) == []
+
+
+def test_a_homebrew_copy_says_which_version_is_installed(tmp_path):
+    # Homebrew keeps each version in a directory named after it.
+    root = tmp_path / "brew"
+    real = root / "Caskroom" / "codex" / "0.157.0" / "bin" / "codex"
+    real.parent.mkdir(parents=True)
+    real.write_text("")
+    (root / "bin").mkdir(parents=True)
+    (root / "bin" / "codex").symlink_to(real)
+
+    package, version, _ = duplicate_commands.package_behind(root / "bin" / "codex")
+
+    assert (package, version) == ("codex", "0.157.0")
+
+
+def test_a_node_copy_says_the_version_it_wrote_down(tmp_path):
+    installed = tmp_path / "lib" / "node_modules" / "@openai" / "codex"
+    (installed / "bin").mkdir(parents=True)
+    (installed / "bin" / "codex.js").write_text("")
+    (installed / "package.json").write_text('{"name": "@openai/codex", "version": "0.157.1"}')
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "codex").symlink_to(installed / "bin" / "codex.js")
+
+    package, version, _ = duplicate_commands.package_behind(tmp_path / "bin" / "codex")
+
+    assert (package, version) == ("@openai/codex", "0.157.1")
+
+
+def test_a_node_copy_with_no_manifest_says_nothing_about_its_version(tmp_path):
+    installed = tmp_path / "lib" / "node_modules" / "leftpad"
+    installed.mkdir(parents=True)
+    (installed / "index.js").write_text("")
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "leftpad").symlink_to(installed / "index.js")
+
+    _, version, _ = duplicate_commands.package_behind(tmp_path / "bin" / "leftpad")
+
+    assert version == ""

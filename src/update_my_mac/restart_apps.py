@@ -10,18 +10,31 @@ import time
 from rich.markup import escape
 
 from update_my_mac import app_updaters
-from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
+from update_my_mac.prompting import Step, Stopped
 
 WAIT_SECONDS = 20
 LOOK_AGAIN_EVERY = 0.5
+
+RESTART_ALL, DECIDE_FOR_EACH, NOTHING = "restart all", "decide for each", "nothing"
+RESTART_THIS_ONE, LEAVE_IT_RUNNING, CANCEL_WALK = "restart", "leave it", "cancel"
+
+CHOICES = (
+    (RESTART_ALL, "restart all (WARNING: unsaved work can be lost)"),
+    (DECIDE_FOR_EACH, "decide for each"),
+    (NOTHING, "nothing (move on to the next step)"),
+)
+WALK_CHOICES = (
+    (RESTART_THIS_ONE, "restart"),
+    (LEAVE_IT_RUNNING, "leave it running"),
+    (CANCEL_WALK, "cancel the walk-through and move on to the next step"),
+)
 
 
 def restart(app, shell, pause=time.sleep):
     """Ask the app to quit, wait for it to go, then start it again.
 
-    Returns a sentence saying what happened. An app that does not quit is
-    left alone: it is either asking about unsaved work or ignoring us, and
-    neither is a reason to take the decision away from the person.
+    Returns whether it worked and a sentence saying what happened. An app
+    that does not quit is left alone, because it is asking about unsaved work.
     """
     info = app_updaters.read_bundle_info(app.bundle)
     bundle_id = info.get("CFBundleIdentifier", "")
@@ -44,74 +57,62 @@ def restart(app, shell, pause=time.sleep):
     return True, "Quit and started again, now running the version on disk."
 
 
-def run_restart_menu(apps, restart_one, ask=input, out=None, interactive=True):
+def run_restart_menu(apps, restart_one, step=None, interactive=True):
     """Ask what to do about the apps running an old version. Returns how many went.
 
     The answer is usually the same for all of them, so it is asked once. Going
     one at a time is there for the app that has something unsaved in it.
     """
-    console_print = _printer(out)
+    step = step or Step()
     if not apps or not interactive:
         return 0
 
-    console_print()
+    step.say()
     try:
-        choice = _ask_how_to_deal(apps, ask, console_print)
-        if choice == "1":
-            return _restart_all(apps, restart_one, console_print)
-        if choice == "2":
-            return _walk_through(apps, restart_one, ask, console_print)
+        step.say("[bold]What should we do with them?[/]")
+        chosen = step.choose(CHOICES)
+        if chosen == RESTART_ALL:
+            return _restart_all(apps, restart_one, step)
+        if chosen == DECIDE_FOR_EACH:
+            return _walk_through(apps, restart_one, step.inside())
     except Stopped:
-        console_print()
-
+        step.say()
     return 0
 
 
-def _ask_how_to_deal(apps, ask, console_print):
-    counted = "app" if len(apps) == 1 else "apps"
-    console_print(f"{len(apps)} {counted} running an old version. What now?")
-    console_print("  [bold cyan]1)[/] quit all of them and start them again")
-    console_print("  [bold cyan]2)[/] go through them one at a time")
-    console_print("  [bold cyan]3)[/] leave them all running")
-
-    while True:
-        # Asked again rather than guessed at, because guessing wrong here quits
-        # an app that was about to ask about unsaved work.
-        choice = _answer(ask, "> ")
-        if choice in ("1", "2", "3"):
-            return choice
-
-
-def _restart_all(apps, restart_one, console_print):
+def _restart_all(apps, restart_one, step):
+    each = step.inside()
     restarted = 0
     for app in apps:
-        console_print()
-        console_print(f"[bold]{escape(app.name)}[/]")
-        if _restart_one(app, restart_one, console_print):
+        each.say()
+        each.say(f"[bold]{escape(app.name)}[/]")
+        if _restart_one(app, restart_one, each.inside()):
             restarted += 1
     return restarted
 
 
-def _walk_through(apps, restart_one, ask, console_print):
-    """One question per app, for when the answer is not the same for all."""
+def _walk_through(apps, restart_one, step):
+    """Let the user decide how to deal with each app. Returns how many were restarted."""
+    said = step.inside()
     restarted = 0
-    for app in apps:
-        console_print()
-        console_print(f"[bold]{escape(app.name)}[/]")
-        console_print(f"  {escape(app.describe())}")
-        console_print("  [bold cyan]1)[/] quit it and start it again")
-        console_print("  [bold cyan]2)[/] leave it running")
-        console_print("  [bold cyan]3)[/] stop going through them")
-
-        choice = _answer(ask, "> ")
-        if choice == "3":
-            break
-        if choice == "1" and _restart_one(app, restart_one, console_print):
-            restarted += 1
+    try:
+        for app in apps:
+            step.say()
+            step.say(f"[bold]{escape(app.describe())}[/]")
+            chosen = step.choose(WALK_CHOICES)
+            if chosen == CANCEL_WALK:
+                break
+            if chosen == RESTART_THIS_ONE and _restart_one(app, restart_one, said):
+                restarted += 1
+    except Stopped:
+        step.say()
     return restarted
 
 
-def _restart_one(app, restart_one, console_print):
+def _restart_one(app, restart_one, step):
     done, message = restart_one(app)
-    console_print(f"  {'' if done else '[yellow]'}{escape(message)}{'' if done else '[/]'}")
+    # Which of the two it is, is the whole point of the line: green for an app
+    # that is back on the version on disk, red for one still running the old one.
+    colour = "green" if done else "red"
+    step.say(f"[{colour}]{escape(message)}[/{colour}]")
     return done

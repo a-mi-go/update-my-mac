@@ -10,7 +10,7 @@ from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
-from update_my_mac import app_updaters
+from update_my_mac import app_updaters, appcast, versions
 
 
 # Beyond this items count a list is printed as a grid for better readability
@@ -30,25 +30,25 @@ class Item:
 
 
 def print_as_list_or_grid(console, indent, items):
-    """A short set of items is printed line by line with versions and comments (if supplied).
-    A long one as a grid with names only.
+    """One item per line, or a grid when there is nothing but names to print.
+
+    A version belongs next to the thing it belongs to, so a list that carries
+    one stays a list however long it is. Bare names are worth packing into a
+    grid, because a column of them wastes most of the terminal.
     """
     if not items:
         return
 
-    if len(items) > PRINT_MAX_LIST_ITEMS:
+    # A column nobody fills would only be empty space between the others.
+    used = [place for place in range(3) if any(item.fields()[place] for item in items)]
+
+    if used == [0] and len(items) > PRINT_MAX_LIST_ITEMS:
         rows = [
             [item.name for item in items[start : start + PRINT_GRID_COLUMNS]]
             for start in range(0, len(items), PRINT_GRID_COLUMNS)
         ]
         width = PRINT_GRID_COLUMNS
     else:
-        # A column nobody fills would only be empty space between the others.
-        used = [
-            place
-            for place in range(3)
-            if any(item.fields()[place] for item in items)
-        ]
         rows = [[item.fields()[place] for place in used] for item in items]
         width = len(used)
 
@@ -61,6 +61,12 @@ def print_as_list_or_grid(console, indent, items):
         # it would otherwise be read as markup and silently disappear.
         table.add_row(*(Text(cell) for cell in row))
     console.print(Padding(table, (0, 0, 0, len(indent))))
+
+
+def _as_item(package):
+    """A manager's "name  1.2.3 → 1.2.4" line, split so the arrows line up."""
+    name, _, versions = package.partition("  ")
+    return Item(name, versions.strip())
 
 
 def count_outdated_packages(reports):
@@ -97,7 +103,7 @@ def print_manager_updates(updates, console=None, any_installed=True):
     console.print()
 
 
-def _print_group(console, heading, apps, with_updater=True):
+def _print_group(console, heading, apps, with_updater=True, offered=None, find_cask=None):
     if not apps:
         return
     console.print(f"  {heading}: [bold cyan]{len(apps)}[/]")
@@ -105,10 +111,30 @@ def _print_group(console, heading, apps, with_updater=True):
         console,
         "      ",
         [
-            Item(app.name, app.version, app.updater.describe() if with_updater else "")
+            Item(
+                app.name,
+                _version_column(app, offered, find_cask),
+                app.updater.describe() if with_updater else "",
+            )
             for app in apps
         ],
     )
+
+
+def _version_column(app, offered, find_cask=None):
+    """The installed version, and the newer one on offer for it.
+
+    An app that no manager tracks has two places that could know of one: its
+    own update feed, and a Homebrew recipe that could take it over.
+    """
+    answer = appcast.answer_for(app, offered or {})
+    if appcast.offers_newer(app, answer):
+        return f"{app.version} → {answer.version}"
+
+    cask = find_cask(app) if find_cask else None
+    if cask and versions.is_newer(cask.version, than=app.version):
+        return f"{app.version} → {cask.version}"
+    return app.version
 
 
 def print_still_running_old(apps, console=None):
@@ -118,12 +144,11 @@ def print_still_running_old(apps, console=None):
 
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
-    console.print(f"[yellow]Running an old version[/]: [bold cyan]{len(apps)}[/]")
+    console.print(f"[yellow]Updated but not restarted (running an old version)[/]: [bold cyan]{len(apps)}[/]")
     print_as_list_or_grid(
-        console, "    ", [Item(app.name, comment=app.comment()) for app in apps]
-    )
-    console.print(
-        "    [dim]The new versions are already installed. These only need restarting.[/]"
+        console,
+        "    ",
+        [Item(app.name, app.version, app.comment()) for app in apps],
     )
 
 
@@ -135,16 +160,13 @@ def print_behind_the_recipe(behind, console=None):
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
     console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(behind)}[/]")
-    print_as_list_or_grid(
-        console,
-        "    ",
-        [Item(item.app.name, item.version_change()) for item in behind],
-    )
     console.print(
         "    [dim]Homebrew reports none of these, because it trusts each app to "
-        "update itself:[/]"
+        "update itself.[/]"
     )
-    console.print("    brew upgrade --cask --greedy", markup=False, highlight=False)
+    print_as_list_or_grid(
+        console, "    ", [Item(item.app.name, item.version_change()) for item in behind]
+    )
 
 
 def print_duplicate_commands(duplicates, console=None):
@@ -179,7 +201,7 @@ def print_foreign_owners(apps, console=None):
     console.print(f"    sudo chown -R $(id -un) {quoted}", markup=False, highlight=False)
 
 
-def print_untracked_apps(apps, console=None, left_alone=0):
+def print_untracked_apps(apps, console=None, left_alone=0, offered=None, find_cask=None):
     """Apps not tracked by any of the supported package managers."""
     console = console or Console(highlight=False, soft_wrap=True)
     if not apps and not left_alone:
@@ -190,16 +212,48 @@ def print_untracked_apps(apps, console=None, left_alone=0):
         console.print(
             f"[bold]Not tracked by any package manager[/]: [bold cyan]{len(apps)}[/]"
         )
-        unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(apps)
-        _print_group(console, "Possibly don't update at all", unattended, with_updater=False)
-        _print_group(console, "Their updater is switched off", switched_off)
-        _print_group(console, "They have an updater, nobody answered for it", unclear)
-        _print_group(console, "These update themselves", self_updating)
+        # An app whose feed has gone quiet is listed by what it does now, not
+        # by what its settings still claim it does.
+        quiet, rest = [], []
+        for app in apps:
+            side = quiet if appcast.answer_for(app, offered or {}).error else rest
+            side.append(app)
+
+        unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(rest)
+        _print_group(console, "Possibly don't update at all", unattended,
+                     with_updater=False, offered=offered, find_cask=find_cask)
+        _print_group(console, "Their updater is switched off", switched_off,
+                     offered=offered, find_cask=find_cask)
+        _print_group(console, "They have an updater, nobody answered for it", unclear,
+                     offered=offered, find_cask=find_cask)
+        _print_group(console, "These update themselves", self_updating,
+                     offered=offered, find_cask=find_cask)
+        _say_which_feeds_went_quiet(console, quiet, offered)
     if left_alone:
         console.print(
             f"[dim]{left_alone} more left alone on purpose. "
             f"Run with --retry-app to list one again.[/]"
         )
+
+
+def _say_which_feeds_went_quiet(console, quiet, offered):
+    """Apps whose update feed stopped answering, so they update no more.
+
+    Sparkle reports this as an improperly signed update, because a host that
+    dropped the feed serves its own error page in its place.
+    """
+    if not quiet:
+        return
+
+    console.print(f"  [yellow]Cannot update themselves any more[/]: [bold cyan]{len(quiet)}[/]")
+    print_as_list_or_grid(
+        console,
+        "      ",
+        [
+            Item(app.name, app.version, appcast.answer_for(app, offered).error)
+            for app in quiet
+        ],
+    )
 
 
 def _say_what_was_left_out(console, report):
@@ -233,7 +287,7 @@ def print_outdated_summary(reports, console=None):
             count = len(report.outdated_packages)
             console.print(f"[bold]{report.label}[/]: {count} outdated")
             print_as_list_or_grid(
-                console, "    ", [Item(package) for package in report.outdated_packages]
+                console, "    ", [_as_item(package) for package in report.outdated_packages]
             )
         else:
             console.print(f"[green]{report.label}[/]: up to date")

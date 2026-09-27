@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import __version__, app_updaters, report
+from update_my_mac import __version__, app_updaters, appcast, report
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
@@ -47,7 +47,10 @@ def test_brackets_in_an_error_are_text_not_markup():
 
 def test_brackets_in_a_package_name_are_text_not_markup():
     out = rendered([ManagerReport("npm", "npm (global)", ["pkg [beta]  1.0 → 2.0"])])
-    assert "pkg [beta]  1.0 → 2.0" in out
+    # The name and the versions become two columns, so they line up with the
+    # rows above and below.
+    assert "pkg [beta]" in out
+    assert "1.0 → 2.0" in out
 
 
 def test_untracked_apps_are_listed_with_their_versions():
@@ -166,13 +169,14 @@ def test_a_longer_list_goes_into_four_columns(capsys):
     assert rows[1].split() == ["package-4", "package-5"]
 
 
-def test_the_columns_hold_names_without_versions(capsys):
+def test_a_long_list_of_apps_keeps_its_versions(capsys):
+    # A version belongs next to the app it belongs to, however long the list.
     apps = [untracked(f"App{n}", "1.2.3") for n in range(6)]
     report.print_untracked_apps(apps, Console(width=120, no_color=True))
 
     printed = capsys.readouterr().out
     assert "App0" in printed
-    assert "1.2.3" not in printed
+    assert printed.count("1.2.3") == 6
 
 
 def test_a_short_list_of_apps_keeps_its_versions(capsys):
@@ -315,14 +319,42 @@ def test_a_column_nobody_fills_is_left_out():
     assert lines[0].index("running") == len("    Google Drive") + 3
 
 
-def test_a_long_list_keeps_the_names_and_drops_the_rest():
-    items = [report.Item(f"app-{n}", f"1.{n}", "something") for n in range(6)]
-    lines = printed_list(items)
+def test_a_long_list_of_bare_names_goes_into_four_columns():
+    lines = printed_list([report.Item(f"app-{n}") for n in range(6)])
 
     assert len(lines) == 2
-    assert "1.0" not in "".join(lines)
     assert lines[0].split() == ["app-0", "app-1", "app-2", "app-3"]
+
+
+def test_a_long_list_with_versions_stays_one_per_line():
+    items = [report.Item(f"app-{n}", f"1.{n}") for n in range(6)]
+    lines = printed_list(items)
+
+    assert len(lines) == 6
+    assert lines[0].split() == ["app-0", "1.0"]
 
 
 def test_an_empty_list_prints_nothing():
     assert printed_list([]) == []
+
+
+def with_feed(name, version, url="https://x.test/appcast.xml"):
+    return InstalledApp(
+        name, version, Path(f"/Applications/{name}.app"),
+        UpdaterStatus(app_updaters.SPARKLE, True, False, "2026-08-16", url),
+    )
+
+
+def test_an_app_whose_feed_went_quiet_is_listed_once(capsys):
+    # By what it does now, not by what its settings still claim it does.
+    url = "https://x.test/appcast.xml"
+    report.print_untracked_apps(
+        [with_feed("Air", "262.579.44", url)],
+        Console(width=200, no_color=True),
+        offered={url: appcast.FeedAnswer(error="its feed answers 403")},
+    )
+
+    printed = capsys.readouterr().out
+    assert "Cannot update themselves any more: 1" in printed
+    assert "its feed answers 403" in printed
+    assert "These update themselves" not in printed

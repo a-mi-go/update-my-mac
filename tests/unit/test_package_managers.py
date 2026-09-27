@@ -139,7 +139,9 @@ def test_each_manager_is_asked_the_right_question():
         args, env = shell.calls[0]
         asked[entry.key] = (args, env)
 
-    assert asked["brew"][0] == ["/fake/brew", "outdated"]
+    # --verbose, because Homebrew prints bare names once its output is not a
+    # terminal, and ours never is.
+    assert asked["brew"][0] == ["/fake/brew", "outdated", "--verbose"]
     assert asked["mas"][0] == ["/fake/mas", "outdated"]
     assert asked["npm"][0] == ["/fake/npm", "outdated", "-g", "--json"]
     assert asked["pnpm"][0] == ["/fake/pnpm", "outdated", "-g", "--json"]
@@ -308,3 +310,22 @@ def test_an_unreadable_tap_list_is_not_guessed_at():
     shell = TwoAnswerShell(outdated, CommandResult(True, "not json", ""))
 
     assert package_managers.check_for_outdated(manager("brew"), shell).ignored_taps == []
+
+
+def test_homebrew_versions_are_read_off_its_verbose_output():
+    # A formula is "name (old) < new", a cask "name (old) != new".
+    packages = package_managers.parse_brew_outdated(
+        "tcl-tk (9.0.4) < 9.0.4_1\nchatgpt (26.917.71314) != 26.924.22138\n"
+    )
+
+    assert packages == ["tcl-tk  9.0.4 → 9.0.4_1", "chatgpt  26.917.71314 → 26.924.22138"]
+
+
+def test_a_homebrew_line_in_no_known_shape_is_kept_as_it_is():
+    assert package_managers.parse_brew_outdated("something odd\n") == ["something odd"]
+
+
+def test_the_app_store_says_both_versions_without_its_id():
+    packages = package_managers.parse_mas_outdated("6469021132  PDFgear  (2.27 -> 2.28)\n")
+
+    assert packages == ["PDFgear  2.27 → 2.28"]

@@ -25,6 +25,9 @@ class StillRunningOld:
     pid: int
     running_since: float
     written: float
+    # The version waiting on disk. What the running process holds is gone
+    # from everywhere but its own memory, so nothing can report that one.
+    version: str = ""
 
     def comment(self):
         started = time.strftime("%d %b %H:%M", time.localtime(self.running_since))
@@ -32,7 +35,9 @@ class StillRunningOld:
         return f"running since {started}, replaced {replaced}"
 
     def describe(self):
-        return f"{self.name}:  {self.comment()}"
+        known = self.version and self.version != installed_apps.UNKNOWN_VERSION
+        named = f"{self.name}  {self.version}" if known else self.name
+        return f"{named}:  {self.comment()}"
 
 
 def _processes(shell):
@@ -109,6 +114,10 @@ def find(shell, env=None):
         running_since = now - seconds
         if written > running_since + TOLERANCE_SECONDS:
             found.setdefault(
-                bundle, StillRunningOld(bundle.stem, bundle, pid, running_since, written)
+                bundle,
+                StillRunningOld(
+                    bundle.stem, bundle, pid, running_since, written,
+                    installed_apps.read_version(bundle),
+                ),
             )
     return sorted(found.values(), key=lambda app: app.name)

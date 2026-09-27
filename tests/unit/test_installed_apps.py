@@ -1,7 +1,9 @@
 import json
 import plistlib
+from pathlib import Path
 
 from update_my_mac import installed_apps
+from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.shell import CommandResult
 
 
@@ -226,3 +228,46 @@ def test_a_directory_that_is_not_there_is_skipped(monkeypatch):
     monkeypatch.setattr(installed_apps.os, "getuid", lambda: 999999)
 
     assert installed_apps.owned_by_someone_else({"UPDATE_MY_MAC_APP_DIRS": "/nowhere"}) == []
+
+
+def test_a_launcher_another_app_installed_is_left_out():
+    # Google Drive drops "Google Docs" next to itself. It opens a web page and
+    # is replaced whenever Drive updates, so it is nobody's to update.
+    apps = [
+        InstalledApp("Google Drive", "131.0", Path("/Applications/Google Drive.app"),
+                     bundle_id="com.google.drivefs"),
+        InstalledApp("Google Docs", "131.0", Path("/Applications/Google Docs.app"),
+                     bundle_id="com.google.drivefs.shortcuts.docs"),
+    ]
+
+    kept = installed_apps.without_shortcuts(apps)
+
+    assert [app.name for app in kept] == ["Google Drive"]
+
+
+def test_an_app_whose_maker_is_not_installed_stays():
+    apps = [
+        InstalledApp("Google Docs", "131.0", Path("/Applications/Google Docs.app"),
+                     bundle_id="com.google.drivefs.shortcuts.docs"),
+    ]
+
+    assert len(installed_apps.without_shortcuts(apps)) == 1
+
+
+def test_an_app_that_says_nothing_about_its_identifier_stays():
+    apps = [
+        InstalledApp("Quiet", "1.0", Path("/Applications/Quiet.app")),
+        InstalledApp("Loud", "1.0", Path("/Applications/Loud.app"), bundle_id="com.x.loud"),
+    ]
+
+    assert len(installed_apps.without_shortcuts(apps)) == 2
+
+
+def test_two_apps_from_one_maker_are_both_kept():
+    # A shared prefix is not the same as one sitting under the other.
+    apps = [
+        InstalledApp("Word", "1.0", Path("/Applications/Word.app"), bundle_id="com.ms.word"),
+        InstalledApp("Excel", "1.0", Path("/Applications/Excel.app"), bundle_id="com.ms.excel"),
+    ]
+
+    assert len(installed_apps.without_shortcuts(apps)) == 2

@@ -6,62 +6,110 @@ uninstall that was picked.
 
 from rich.markup import escape
 
-from update_my_mac.prompting import Stopped, answer as _answer, printer as _printer
+from update_my_mac.prompting import Step, Stopped
+
+REMOVE_SHADOWED, DECIDE_FOR_EACH, NOTHING = "shadowed", "decide for each", "nothing"
+KEEP_BOTH, CANCEL = "keep both", "cancel"
+
+CHOICES = (
+    (REMOVE_SHADOWED, "remove every copy that never runs"),
+    (DECIDE_FOR_EACH, "decide for each"),
+    (NOTHING, "nothing (move on to the next step)"),
+)
 
 
-def run_duplicate_menu(duplicates, remove, ask=input, out=None, interactive=True):
+def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
     """Offer to drop one copy of each doubled command. Returns how many went."""
-    console_print = _printer(out)
+    step = step or Step()
     if not duplicates or not interactive:
         return 0
 
-    console_print()
-    counted = "command" if len(duplicates) == 1 else "commands"
-    console_print(f"Going through {len(duplicates)} {counted} that exist twice.")
-
-    removed = 0
+    step.say()
     try:
-        for duplicate in duplicates:
-            console_print()
-            console_print(f"[bold]{escape(duplicate.command)}[/]")
-            console_print(f"  runs now:   {escape(duplicate.winner.describe())}")
-            for copy in duplicate.shadowed:
-                console_print(f"  never used: {escape(copy.describe())}")
+        step.say("[bold]What should we do with them?[/]")
+        chosen = step.choose(CHOICES)
+        if chosen == REMOVE_SHADOWED:
+            return remove_shadowed(duplicates, remove, step)
+        if chosen == DECIDE_FOR_EACH:
+            return _walk_through(duplicates, remove, step.inside())
+    except Stopped as stopped:
+        step.say()
+        return stopped.done
+    return 0
 
-            for number, copy in enumerate(duplicate.copies, start=1):
-                console_print(
-                    f"  [bold cyan]{number})[/] remove the {escape(copy.manager)} one"
-                )
-            console_print(f"  [bold cyan]{len(duplicate.copies) + 1})[/] leave both")
-            console_print(f"  [bold cyan]{len(duplicate.copies) + 2})[/] stop going through them")
 
-            choice = _answer(ask, "> ")
-            if choice == str(len(duplicate.copies) + 2):
-                break
-            if not choice.isdigit() or not 1 <= int(choice) <= len(duplicate.copies):
-                continue
+def remove_shadowed(duplicates, remove, step):
+    """Remove the copies PATH never reaches. Returns how many went.
 
-            if _remove_one(duplicate.copies[int(choice) - 1], remove, console_print):
+    Ctrl-C takes the count so far with it, because a copy already removed
+    stays removed.
+    """
+    each = step.inside()
+    removed = 0
+    for duplicate in duplicates:
+        for copy in duplicate.shadowed:
+            each.say()
+            each.say(f"[bold]{escape(duplicate.command)}[/]")
+            try:
+                gone = _remove_one(copy, remove, each.inside())
+            except Stopped:
+                raise Stopped(removed)
+            if gone:
                 removed += 1
-    except Stopped:
-        console_print()
-
     return removed
 
 
-def _remove_one(copy, remove, console_print):
+def _walk_through(duplicates, remove, step):
+    """Ask about each doubled command in turn. Returns how many copies went.
+
+    Ctrl-C ends the walk here, so a removal that already ran still counts.
+    """
+    said = step.inside()
+    removed = 0
+    try:
+        for duplicate in duplicates:
+            step.say()
+            step.say(f"[bold]{escape(duplicate.command)}[/]")
+            said.say(f"runs now:   {escape(duplicate.winner.describe())}")
+            for copy in duplicate.shadowed:
+                said.say(f"never used: {escape(copy.describe())}")
+
+            chosen = step.choose(_copy_choices(duplicate))
+            if chosen == CANCEL:
+                break
+            if chosen == KEEP_BOTH:
+                continue
+            if _remove_one(chosen, remove, said):
+                removed += 1
+    except Stopped:
+        step.say()
+    return removed
+
+
+def _copy_choices(duplicate):
+    """The copies as options, so what is picked is a copy and not a number."""
+    return [
+        (copy, f"remove the {copy.manager} one")
+        for copy in duplicate.copies
+    ] + [
+        (KEEP_BOTH, "leave both"),
+        (CANCEL, "cancel the walk-through and move on to the next step"),
+    ]
+
+
+def _remove_one(copy, remove, step):
     if not copy.remove_with:
-        console_print("  [yellow]Nothing here says how that one was installed.[/]")
+        step.say("[yellow]Nothing here says how that one was installed.[/]")
         return False
 
-    console_print(f"\n[bold]Removing {escape(copy.package)}[/]")
+    step.say(f"Removing {escape(copy.package)}")
     try:
         exit_code = remove(copy)
     except KeyboardInterrupt:
-        console_print("\n[yellow]Stopped.[/]")
+        step.say("[yellow]Stopped.[/]")
         raise Stopped
 
     if exit_code != 0:
-        console_print(f"  [yellow]That exited with {exit_code}.[/]")
+        step.say(f"[yellow]That exited with {exit_code}.[/]")
         return False
     return True

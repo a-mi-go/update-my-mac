@@ -9,61 +9,104 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
-import re
-
-from update_my_mac import installed_apps, package_managers
+from update_my_mac import installed_apps, package_managers, versions
 
 
-def same_version(app_version, cask_version):
-    """Whether Homebrew would see the installed app as the one in its recipe.
+SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 
-    A recipe often carries a build number after a comma, such as
-    "4.92.0,240144", where the app itself reports only "4.92.0".
+
+def compare_to_app(app, cask):
+    """How the recipe's version stands to the installed one."""
+    if cask is None:
+        return ""
+    if versions.same(app.version, cask.version):
+        return SAME
+    if not versions.comparable(app.version, cask.version):
+        return UNCLEAR
+    return NEWER if versions.is_newer(cask.version, than=app.version) else OLDER
+
+
+def can_adopt(app, cask):
+    """Whether Homebrew can register the app that is already there, as it is."""
+    return compare_to_app(app, cask) == SAME
+
+
+def would_downgrade(app, cask):
+    """Whether taking the app over would put an older version in its place."""
+    return compare_to_app(app, cask) == OLDER
+
+
+def can_take_over(app, cask):
+    """Whether the handover can be offered at all, whatever it would do."""
+    return cask is not None
+
+
+def handover_label(app, cask):
+    """What the handover would do to this app, as the menu should word it."""
+    standing = compare_to_app(app, cask)
+    if standing == SAME:
+        return f"add to Homebrew ({cask.token} {cask.version})"
+    if standing == NEWER:
+        return f"update to {cask.token} {cask.version} and let Homebrew take over"
+    # What it costs goes in brackets after the offer, because the cost is what
+    # makes this a different answer from the one above it.
+    if standing == OLDER:
+        return (
+            f"let Homebrew take over (downgrade {app.version} → {cask.version})"
+        )
+    if standing == UNCLEAR:
+        return (
+            f"let Homebrew take over (replace {app.version} with {cask.version}, "
+            f"no telling which is newer)"
+        )
+    return ""
+
+
+def homebrew_note(app, cask):
+    """Where Homebrew stands with this app, when that needs saying.
+
+    Nothing for a recipe that matches or leads: what the handover would do is
+    then plain from the option itself.
     """
-    return app_version.strip() == cask_version.split(",")[0].strip()
-
-
-def _numbers_in(version):
-    return [int(part) for part in re.findall(r"\d+", version)]
-
-
-def cask_is_behind(app_version, cask_version):
-    """Whether Homebrew's recipe is older than the app already installed.
-
-    It happens often enough to matter: a recipe can lag the app by weeks, and
-    then installing it would be a step backwards rather than an update.
-    """
-    return _numbers_in(cask_version) < _numbers_in(app_version)
+    standing = compare_to_app(app, cask)
+    if not standing:
+        return "Homebrew has no recipe for this app."
+    if standing == OLDER:
+        return (
+            f"Homebrew's recipe {cask.token} is still {cask.version}, older than the "
+            f"{app.version} you have, so handing the app over would put that older "
+            f"build back in its place."
+        )
+    if standing == UNCLEAR:
+        return (
+            f"Homebrew's recipe {cask.token} says {cask.version}, which is not counted "
+            f"the way your {app.version} is, so neither one is clearly the newer."
+        )
+    return ""
 
 
 def hand_to_homebrew(app, cask, shell):
-    """Returns whether the app is now properly looked after, and why."""
+    """Hand the app over, downloading the recipe's version first if it has to.
+
+    Returns whether the app is now properly looked after, and why.
+    """
     if cask is None:
         return False, "Homebrew has no recipe for this app."
     if shell.find_executable("brew") is None:
         return False, "Homebrew is not installed."
 
-    # Trying anyway would download the whole thing and then refuse.
-    if not same_version(app.version, cask.version):
-        if cask_is_behind(app.version, cask.version):
-            return False, (
-                f"Your app is {app.version} and Homebrew's recipe is still "
-                f"{cask.version}. Taking it over would mean going back a version, "
-                f"so wait until the recipe catches up."
-            )
-        return False, (
-            f"Homebrew has {cask.token} {cask.version} and yours is {app.version}. "
-            f"It can only take over a version it already knows, so install over it "
-            f"with: brew install --cask {cask.token}"
-        )
-
-    exit_code = package_managers.adopt_cask(cask.token, shell)
+    if can_adopt(app, cask):
+        exit_code = package_managers.adopt_cask(cask.token, shell)
+    else:
+        # Any other version, ahead or behind, has to be downloaded and put in
+        # place, because --adopt takes nothing but an identical copy.
+        exit_code = package_managers.install_cask_over(cask.token, shell)
     if exit_code != 0:
         return False, f"Homebrew could not take it over, {cask.token} exited with {exit_code}."
 
     recorded = package_managers.recorded_cask_version(cask.token, shell)
     on_disk = installed_apps.read_version(app.path)
-    if recorded and not same_version(on_disk, recorded):
+    if recorded and not versions.same(on_disk, recorded):
         return False, (
             f"Homebrew wrote down {cask.token} {recorded}, but the app is still {on_disk}. "
             f"It would report the app as current from now on, so put it right with: "
