@@ -210,7 +210,7 @@ def test_a_version_already_known_survives_one_bad_day(tmp_path):
         [app()], env, failing(urllib.error.URLError("no route")), now=later
     )
 
-    assert answers[FEED] == appcast.FeedAnswer(version="1.2.5")
+    assert answers[FEED].version == "1.2.5"
 
 
 def test_a_failure_is_asked_about_again_sooner_than_an_answer(tmp_path):
@@ -239,3 +239,31 @@ def test_a_feed_nobody_has_an_app_for_any_more_is_dropped(tmp_path):
 
     kept = json.loads(appcast.cache_path(env).read_text())
     assert list(kept) == ["https://other.test/appcast.xml"]
+
+
+def test_a_feed_that_went_quiet_says_so_even_though_a_version_is_known(tmp_path):
+    # The last version it named is still worth showing, but the run decides
+    # whether an app has stopped updating itself by the error, so covering it
+    # up would make a dead feed look healthy for good.
+    env = {"XDG_CACHE_HOME": str(tmp_path)}
+    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+
+    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
+    error = urllib.error.HTTPError(FEED, 403, "Forbidden", {}, None)
+    answers = appcast.check([app()], env, failing(error), now=later)
+
+    assert answers[FEED].version == "1.2.5"
+    assert answers[FEED].error == "its feed answers 403"
+
+
+def test_the_error_is_remembered_too_so_a_later_run_still_sees_it(tmp_path):
+    env = {"XDG_CACHE_HOME": str(tmp_path)}
+    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+
+    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
+    error = urllib.error.HTTPError(FEED, 403, "Forbidden", {}, None)
+    appcast.check([app()], env, failing(error), now=later)
+
+    kept = json.loads(appcast.cache_path(env).read_text())
+    assert kept[FEED]["error"] == "its feed answers 403"
+    assert kept[FEED]["version"] == "1.2.5"

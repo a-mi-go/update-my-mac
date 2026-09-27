@@ -202,10 +202,10 @@ def _say_what_is_known(app, cask, answer, step):
     else:
         told.append(f"It {app.updater.describe()}.")
 
+    if appcast.offers_newer(app, answer):
+        told.append(f"Its own feed offers {answer.version}.")
     if answer.error:
         told.append(f"But {answer.error}.")
-    elif appcast.offers_newer(app, answer):
-        told.append(f"Its own feed offers {answer.version}.")
     step.say(f"[dim]{escape(' '.join(told))}[/]")
 
 

@@ -35,7 +35,13 @@ class NotAnAppcast(Exception):
 
 @dataclass(frozen=True)
 class FeedAnswer:
-    """What came back from one feed: a version, or why there is none."""
+    """What a feed said, and what went wrong asking it.
+
+    Both at once when a feed that used to answer has stopped: the version is
+    the last one it named, and the error is the state it is in now. Dropping
+    either would be a lie, and dropping the error would be the worse one,
+    because a feed going quiet is how an app stops updating itself.
+    """
     version: str = ""
     error: str = ""
 
@@ -140,10 +146,11 @@ def check(apps, env=None, fetch_one=fetch, now=time.time):
             continue
 
         answer = read_feed(url, fetch_one)
-        # An answer that once came back is worth more than a failure from just
-        # now, so a version already known is not thrown away over one bad day.
-        if answer.error and cached.get(url, {}).get("version"):
-            answer = FeedAnswer(version=cached[url]["version"])
+        # A version that once came back is still worth showing, but it never
+        # covers up the fact that the feed is not answering now.
+        known = cached.get(url, {}).get("version", "")
+        if answer.error and known:
+            answer = FeedAnswer(version=known, error=answer.error)
         answers[url] = answer
         cached[url] = {
             "version": answer.version,
