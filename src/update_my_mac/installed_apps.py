@@ -21,6 +21,7 @@ class InstalledApp:
     version: str
     path: Path
     updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
+    bundle_id: str = ""
 
     def describe(self):
         return f"{self.name}  {self.version}"
@@ -144,7 +145,14 @@ def find_all(env=None):
             if comes_from_the_app_store(app_path) or belongs_to_macos(app_path):
                 continue
             info = app_updaters.read_bundle_info(app_path)
-            found.append(InstalledApp(app_path.stem, read_version(app_path, info), app_path))
+            found.append(
+                InstalledApp(
+                    app_path.stem,
+                    read_version(app_path, info),
+                    app_path,
+                    bundle_id=info.get("CFBundleIdentifier", ""),
+                )
+            )
     return found
 
 
@@ -175,9 +183,28 @@ def find_untracked(shell, env=None):
                     read_version(app_path, info),
                     app_path,
                     app_updaters.detect(app_path, shell, info),
+                    info.get("CFBundleIdentifier", ""),
                 )
             )
-    return found
+    return without_shortcuts(found)
+
+
+def without_shortcuts(apps):
+    """The apps, minus the launchers other apps put next to themselves.
+
+    Google Drive drops "Google Docs", "Google Sheets" and "Google Slides" into
+    /Applications. They open a web page, carry the version of the app that made
+    them, and are replaced when it updates. What gives them away is the bundle
+    identifier: com.google.drivefs.shortcuts.docs sits under com.google.drivefs.
+    """
+    owners = {app.bundle_id for app in apps if app.bundle_id}
+    return [app for app in apps if not made_by_another_app(app, owners)]
+
+
+def made_by_another_app(app, owners):
+    return any(
+        app.bundle_id.startswith(f"{owner}.") for owner in owners if owner != app.bundle_id
+    )
 
 
 
