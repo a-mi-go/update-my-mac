@@ -3,9 +3,10 @@
 Homebrew compares the version it recorded at install time, and for a cask
 marked `auto_updates` not even that, so it never notices.
 
-Only apps it actually installed belong here. One it never installed is
-somebody else's app that happens to have a recipe, and the way to bring that
-one in is the handover, not an upgrade.
+Only apps it actually installed belong here, and only the ones it is not
+already calling outdated. One it never installed is somebody else's app that
+happens to have a recipe, and the way to bring that one in is the handover,
+not an upgrade.
 """
 
 from dataclasses import dataclass
@@ -53,12 +54,18 @@ def to_upgrade(behind):
     return [item.cask.token for item in behind if not item.wrongly_recorded]
 
 
-def find(apps, casks, recorded=None):
+def find(apps, casks, recorded=None, already_reported=()):
+    """Apps behind their recipe that Homebrew is saying nothing about.
+
+    `already_reported` is what `brew outdated` named. Listing one of those
+    here as well would say the same thing twice, in two places, with two
+    different names for the same app.
+    """
     recorded = recorded or {}
     found = []
     for app in apps:
         cask = casks.for_app(app.path)
-        if not cask or not recorded.get(cask.token):
+        if not cask or not recorded.get(cask.token) or cask.token in already_reported:
             continue
         if is_behind(app.version, cask.version):
             found.append(Behind(app, cask, recorded[cask.token]))

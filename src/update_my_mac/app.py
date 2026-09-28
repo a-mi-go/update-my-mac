@@ -2,8 +2,11 @@
 
 import functools
 
+from rich.console import Console
+
 from update_my_mac import (
     adopt_apps,
+    sections,
     appcast,
     fix_things,
     behind_the_recipe,
@@ -21,6 +24,10 @@ from update_my_mac import (
     shell,
     track_apps,
 )
+
+
+# Something has to move while brew, mas and a dozen update feeds are asked.
+SPINNER = "dots"
 
 
 def _exit_code(reports, manager_updates=()):
@@ -46,12 +53,15 @@ def _website_and_cask():
     return lambda app: _casks().for_app(app.path)
 
 
-def _behind_the_recipe():
+def _behind_the_recipe(reports):
     """Apps older than their cask, which is the one thing Homebrew never says."""
+    brew = next((r for r in reports if r.manager == "brew"), None)
+    named = {line.split()[0] for line in (brew.outdated_packages if brew else [])}
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
         package_managers.recorded_cask_versions(shell),
+        already_reported=named,
     )
 
 
@@ -241,61 +251,70 @@ def _untracked_apps(decisions):
 
 def run_check_mode():
     report.print_header()
-    # The managers come first: an outdated manager is what everything else
-    # below it depends on.
     installed = package_managers.installed_managers(shell)
-    manager_updates = package_managers.check_managers_themselves(shell, installed)
-    report.print_manager_updates(manager_updates, any_installed=bool(installed))
+    findings = _look_around(installed, app_decisions.load())
+    report.print_report(findings)
+    return _exit_code(findings.reports, findings.manager_updates)
 
-    reports = package_managers.check_installed(shell)
-    report.print_outdated_summary(reports)
 
-    listed, left_alone = _untracked_apps(app_decisions.load())
-    report.print_untracked_apps(
-        listed,
-        left_alone=left_alone,
-        offered=appcast.check(listed),
-        find_cask=_website_and_cask(),
-    )
-    report.print_foreign_owners(installed_apps.owned_by_someone_else())
-    report.print_duplicate_commands(duplicate_commands.find(shell))
-    report.print_behind_the_recipe(_behind_the_recipe())
-    report.print_still_running_old(running_apps.find(shell))
-    return _exit_code(reports, manager_updates)
+def _look_around(installed, decisions, console=None):
+    """Every check, one after another, with a word about which one is running."""
+    console = console or Console(highlight=False)
+    findings = sections.Findings(any_manager_installed=bool(installed))
+
+    with console.status("", spinner=SPINNER) as spinner:
+        def now(what):
+            spinner.update(f"[dim]{what}[/]")
+
+        # The managers come first: an outdated manager is what everything
+        # else below it depends on.
+        now("asking the package managers about themselves")
+        findings.manager_updates = package_managers.check_managers_themselves(shell, installed)
+
+        now("asking each manager what is outdated")
+        findings.reports = package_managers.check_installed(shell)
+
+        now("looking for apps no manager tracks")
+        listed, findings.left_alone = _untracked_apps(decisions)
+        findings.untracked = listed
+        findings.find_cask = _website_and_cask()
+
+        now("reading what each app's own update feed offers")
+        findings.offered = appcast.check(listed)
+
+        now("comparing each app against Homebrew's recipe")
+        findings.behind = _behind_the_recipe(findings.reports)
+
+        now("looking for commands two managers installed")
+        findings.doubled = duplicate_commands.find(shell)
+
+        now("looking for apps running a version that is no longer on disk")
+        findings.stale = running_apps.find(shell)
+        findings.foreign = installed_apps.owned_by_someone_else()
+
+    return findings
 
 
 def run_interactive_mode():
     report.print_header()
     installed = package_managers.installed_managers(shell)
-    manager_updates = package_managers.check_managers_themselves(shell, installed)
-    report.print_manager_updates(manager_updates, any_installed=bool(installed))
-    failed = apply_updates.run_manager_menu(manager_updates, shell)
-
-    # Everything below is checked afterwards, so the list is what the current
-    # tools report rather than what the old ones knew.
-    reports = package_managers.check_installed(shell)
-    report.print_outdated_summary(reports)
-
     decisions = app_decisions.load()
-    listed, left_alone = _untracked_apps(decisions)
-    offered = appcast.check(listed)
-    report.print_untracked_apps(
-        listed, left_alone=left_alone, offered=offered, find_cask=_website_and_cask()
-    )
-    report.print_foreign_owners(installed_apps.owned_by_someone_else())
-    doubled = duplicate_commands.find(shell)
-    report.print_duplicate_commands(doubled)
-    behind = _behind_the_recipe()
-    report.print_behind_the_recipe(behind)
-    stale = running_apps.find(shell)
-    report.print_still_running_old(stale)
+    findings = _look_around(installed, decisions)
+    report.print_report(findings)
+
+    failed = apply_updates.run_manager_menu(findings.manager_updates, shell)
 
     # Sorting things out comes before the updates, so the menu below lists
     # what is still outdated after it.
     sorted_out = fix_things.run_fix_menu(
-        _problems(listed, doubled, stale, behind, decisions, offered)
+        _problems(
+            findings.untracked, findings.doubled, findings.stale, findings.behind,
+            decisions, findings.offered,
+        )
     )
-    if sorted_out:
+
+    reports = findings.reports
+    if sorted_out or failed:
         # Handing an app to Homebrew or pulling a cask up to its recipe changes
         # what is outdated, and the menu numbers below would otherwise stand
         # for what was true before any of that.
@@ -303,7 +322,7 @@ def run_interactive_mode():
         report.print_outdated_summary(reports)
 
     failed += apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(reports, manager_updates)
+    return 1 if failed else _exit_code(reports, findings.manager_updates)
 
 
 def run_retry_app_mode():

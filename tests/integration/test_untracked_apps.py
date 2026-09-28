@@ -66,7 +66,7 @@ def test_an_app_can_be_left_alone_and_stays_that_way(tmp_path, empty_home):
     # The next run says how many are left alone instead of listing them.
     second = run(tmp_path, empty_home, "--check")
     assert "TokenEater" not in second.stdout
-    assert "1 more left alone on purpose" in second.stdout
+    assert "1 left alone on purpose" in second.stdout
 
 
 def test_a_left_alone_app_can_be_brought_back(tmp_path, empty_home):

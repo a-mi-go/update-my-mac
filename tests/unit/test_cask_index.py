@@ -121,3 +121,15 @@ def test_the_cache_sits_where_the_xdg_variables_say(tmp_path):
 
     default = cask_index.cache_path({"HOME": str(tmp_path)})
     assert default == tmp_path / ".cache" / "update-my-mac" / "casks.json"
+
+
+def test_a_name_that_differs_only_in_case_is_not_claimed():
+    # Tempting, because a Mac filesystem does not care about case. But the
+    # orca cask installs plotly's orca, and the Orca in /Applications here is
+    # a different program with the same name.
+    index = cask_index.CaskIndex(cask_index.reduce_to_apps([
+        {"token": "orca", "version": "1.3.1", "artifacts": [{"app": ["orca.app"]}]},
+    ]))
+
+    assert index.for_app("/Applications/Orca.app") is None
+    assert index.for_app("/Applications/orca.app").token == "orca"

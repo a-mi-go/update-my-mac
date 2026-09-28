@@ -2,7 +2,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import __version__, app_updaters, appcast, report
+from update_my_mac import __version__, app_updaters, appcast, report, sections
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
@@ -358,3 +358,91 @@ def test_an_app_whose_feed_went_quiet_is_listed_once(capsys):
     assert "Cannot update themselves any more: 1" in printed
     assert "its feed answers 403" in printed
     assert "These update themselves" not in printed
+
+
+def report_of(findings, width=80, terminal=False):
+    console = Console(width=width, no_color=True, force_terminal=terminal or None)
+    with console.capture() as captured:
+        report.print_report(findings, console)
+    return captured.get()
+
+
+def test_the_report_is_framed_for_someone_watching():
+    findings = sections.Findings(
+        reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
+    )
+
+    framed = report_of(findings, terminal=True)
+
+    assert "update-my-mac" in framed
+    assert "╭" in framed
+    assert "1 need you, 0 can wait" in framed
+
+
+def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
+    # Every line would start with a border, which is only in the way in a
+    # pipe or a log.
+    findings = sections.Findings(
+        reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
+    )
+
+    plain = report_of(findings)
+
+    assert "╭" not in plain
+    assert "│" not in plain
+    # The count the frame would have carried is said in words instead.
+    assert "1 need you, 0 can wait" in plain
+
+
+def test_a_clean_run_says_which_managers_answered():
+    # Silence about a manager reads as "not checked".
+    findings = sections.Findings(reports=[
+        ManagerReport("brew", "Homebrew", []),
+        ManagerReport("mas", "Mac App Store", []),
+    ])
+
+    printed = report_of(findings)
+
+    assert "Everything is up to date." in printed
+    assert "up to date: Homebrew, Mac App Store" in printed
+
+
+def test_a_machine_with_no_managers_is_not_told_everything_is_fine():
+    printed = report_of(sections.Findings(any_manager_installed=False))
+
+    assert "No supported package managers found." in printed
+    assert "Everything is up to date" not in printed
+
+
+def test_a_section_says_how_many_and_why_it_is_there():
+    findings = sections.Findings(
+        reports=[ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"])]
+    )
+
+    heading = next(line for line in report_of(findings).splitlines() if "Mac App Store" in line)
+
+    assert "Mac App Store 1" in heading
+    assert "one menu answer away" in heading
+
+
+def test_a_reason_that_would_not_fit_is_left_off_rather_than_wrapped():
+    findings = sections.Findings(
+        reports=[ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"])]
+    )
+
+    printed = report_of(findings, width=40)
+
+    assert "Mac App Store 1" in printed
+    assert "one menu answer away" not in printed
+
+
+def test_the_managers_that_are_current_are_said_so_in_green():
+    findings = sections.Findings(reports=[ManagerReport("brew", "Homebrew", [])])
+    console = Console(width=80, force_terminal=True)
+    with console.capture() as captured:
+        report.print_report(findings, console)
+
+    printed = captured.get()
+    assert "✅" in printed
+    # 32 is green, and this line is the only thing wearing it.
+    assert "\x1b[32mup to date: Homebrew" in printed
