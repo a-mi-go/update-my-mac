@@ -103,7 +103,14 @@ class CaskIndex:
         self.by_app = by_app
 
     def for_app(self, app_path):
-        """The cask that installs this app, or None if Homebrew has none."""
+        """The cask that installs this app, or None if Homebrew has none.
+
+        Matched on the exact file name. Matching without regard to case would
+        find one more app on this Mac and get it wrong: the orca cask installs
+        plotly's orca, while the Orca in /Applications is a different program
+        that happens to share the name. A file name is a weak identifier and
+        nothing in the published cask list is a stronger one.
+        """
         found = self.by_app.get(Path(app_path).name)
         if not isinstance(found, dict):
             return None

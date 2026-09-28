@@ -4,13 +4,15 @@ from update_my_mac import __version__
 
 from dataclasses import dataclass
 
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
 from rich.markup import escape
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from update_my_mac import app_updaters, appcast, versions
+from update_my_mac import __version__ as _version, app_updaters, appcast, sections, versions
 
 
 # Beyond this items count a list is printed as a grid for better readability
@@ -71,6 +73,99 @@ def _as_item(package):
 
 def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
+
+
+# What each level looks like. The mark carries the meaning where colour
+# cannot, which is every terminal without it and every log file.
+MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "ℹ️ "}
+CLEAN = "✅"
+COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
+
+# The panel takes a column of border and two of padding on each side.
+PANEL_SIDES = 6
+ROW_INDENT = "   "
+
+
+def print_report(findings, console=None):
+    """The whole of what a run found, in one place.
+
+    Framed when someone is watching, plain when the output is going into a
+    pipe or a log, where a border on every line is only in the way.
+    """
+    console = console or Console(highlight=False, soft_wrap=True)
+    found = sections.of(findings)
+    width = console.width - (PANEL_SIDES if console.is_terminal else 0)
+
+    body = []
+    for section in found:
+        body += [_heading(section, width), _rows(section), Text()]
+    body += _footer(findings, found, console.is_terminal)
+
+    if not console.is_terminal:
+        console.print(Group(*body))
+        return
+
+    needs_you, can_wait = sections.counts(found)
+    console.print(Panel(
+        Group(*body),
+        title=Text.assemble((" update-my-mac ", "bold"), (f"{_version} ", "dim")),
+        title_align="left",
+        subtitle=Text(f" {needs_you} need you, {can_wait} can wait ", style="dim"),
+        border_style="cyan",
+        box=box.ROUNDED,
+        padding=(1, 2),
+    ))
+
+
+def _footer(findings, found, framed):
+    """What was checked and found clean, and what is not in the list above."""
+    lines = []
+    if not findings.any_manager_installed:
+        # Saying everything is fine would claim something nobody checked.
+        lines.append(Text("No supported package managers found.", style="yellow"))
+    elif not found:
+        lines.append(Text("Everything is up to date.", style="green"))
+    clean = sections.clean_managers(findings)
+    if clean:
+        lines.append(Text.assemble(
+            (f"{CLEAN} ", ""), (f"up to date: {', '.join(clean)}", "green"),
+        ))
+    if findings.left_alone:
+        lines.append(Text(
+            f"{findings.left_alone} left alone on purpose, --retry-app lists one again",
+            style="dim",
+        ))
+    if found and not framed:
+        # The frame carries this in its subtitle; a pipe has no frame.
+        needs_you, can_wait = sections.counts(found)
+        lines.append(Text(f"{needs_you} need you, {can_wait} can wait", style="dim"))
+    return lines
+
+
+def _heading(section, width):
+    """The section title, its count, and the reason it exists, on one line."""
+    heading = Text.assemble(
+        (f"{MARK[section.level]} ", ""),
+        (f"{section.title} ", f"bold {COLOUR[section.level]}"),
+        (str(section.count), "bold cyan"),
+    )
+    # The reason only goes on this line when there is room for it.
+    room = width - heading.cell_len - len(section.note)
+    if section.note and room >= 2:
+        heading.pad_right(room)
+        heading.append(section.note, style="dim italic")
+    return heading
+
+
+def _rows(section):
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(overflow="fold")
+    grid.add_column(overflow="fold")
+    grid.add_column(style="dim", overflow="fold")
+    for row in section.rows:
+        name, version, note = row.cells()
+        grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
+    return grid
 
 
 def print_header(console=None):
