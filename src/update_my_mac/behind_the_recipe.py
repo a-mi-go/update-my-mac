@@ -67,6 +67,9 @@ def find(apps, casks, recorded=None, already_reported=()):
         cask = casks.for_app(app.path)
         if not cask or not recorded.get(cask.token) or cask.token in already_reported:
             continue
+        if versions.same_as_any(app.versions_named(), cask.version):
+            # The app says two versions and one of them is the recipe's.
+            continue
         if is_behind(app.version, cask.version):
             found.append(Behind(app, cask, recorded[cask.token]))
     return found

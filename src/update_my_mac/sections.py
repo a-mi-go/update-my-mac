@@ -114,17 +114,16 @@ def _checks_that_failed(findings):
 
 def _wrongly_recorded(findings):
     rows = [
-        Row(item.app.name, item.version_change(), "needs a reinstall")
+        Row(item.app.name, item.version_change())
         for item in findings.behind
         if item.wrongly_recorded
     ]
+    # Homebrew wrote down the version its recipe has, whatever it actually
+    # put on disk, so it believes it is finished with these. brew outdated
+    # says nothing about them and neither does a greedy upgrade.
     return [
-        Section(
-            CRITICAL,
-            "Homebrew recorded a version it never installed",
-            "no upgrade will touch these",
-            rows,
-        )
+        Section(CRITICAL, "Homebrew thinks these are current",
+                "only a reinstall fetches them", rows)
     ]
 
 

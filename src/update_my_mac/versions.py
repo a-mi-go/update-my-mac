@@ -58,3 +58,14 @@ def is_newer(candidate, than):
     if not comparable(than, candidate):
         return False
     return numbers_in(than) < numbers_in(candidate)
+
+
+def same_as_any(ours, theirs):
+    """Whether any version an app gives for itself names the release `theirs` does.
+
+    An app writes two: the one a person reads and the build it came from.
+    Google Drive calls itself 131.0 and its build 131.0.2, and its recipe
+    says 131.0.2, so reading only the first one makes it look a release
+    behind when it is not.
+    """
+    return any(known(one) and same(one, theirs) for one in ours)

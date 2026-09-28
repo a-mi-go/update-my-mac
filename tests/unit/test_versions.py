@@ -81,3 +81,13 @@ SEEN_IN_THE_WILD = [
 def test_the_versions_seen_so_far_are_judged_the_way_they_were():
     for name, installed, recipe, expected in SEEN_IN_THE_WILD:
         assert versions.comparable(installed, recipe) is expected, name
+
+
+def test_either_version_an_app_gives_for_itself_counts():
+    assert versions.same_as_any(["131.0", "131.0.2"], "131.0.2")
+    assert versions.same_as_any(["131.0.2", ""], "131.0.2")
+    assert not versions.same_as_any(["15.0.14", "14026.5.18"], "15.0.23")
+
+
+def test_an_app_that_names_no_version_matches_nothing():
+    assert not versions.same_as_any(["", versions.UNKNOWN], "1.0")
