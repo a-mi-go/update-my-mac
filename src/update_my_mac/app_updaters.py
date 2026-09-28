@@ -12,6 +12,10 @@ from dataclasses import dataclass
 import urllib.parse
 
 SPARKLE = "sparkle"
+# Electron's own updater on macOS. Whether it runs, and against which feed,
+# is decided in the app's code rather than in a file anyone can read, so all
+# that can be said about one is that it is there.
+SQUIRREL = "squirrel"
 NONE = "none"
 
 # What the developer shipped and what the user chose, in that order of doubt.
@@ -45,6 +49,10 @@ class UpdaterStatus:
     def describe(self):
         if self.kind == NONE:
             return "no updater"
+        if self.kind == SQUIRREL:
+            # There is no setting to read, so there is nothing to report but
+            # the fact that the machinery is in the bundle.
+            return "brings its own updater, nothing on disk says whether it runs"
         if self.automatic is None:
             answer = "never answered"
         elif self.automatic:
@@ -85,6 +93,15 @@ def has_sparkle(app_path, info):
     return framework.is_dir() or bool(info.get(FEED_URL))
 
 
+def has_squirrel(app_path):
+    """Whether the app ships Electron's updater.
+
+    Exodus ships it and keeps itself current, and was listed as an app that
+    nothing checks because only Sparkle was ever looked for.
+    """
+    return (app_path / "Contents" / "Frameworks" / "Squirrel.framework").is_dir()
+
+
 def read_user_settings(bundle_id, shell):
     """What the user answered, read as the app's own preferences.
 
@@ -122,7 +139,10 @@ def detect(app_path, shell, info=None):
     """What the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
-        return UpdaterStatus()
+        # Nothing about Squirrel is written down: it is switched on in code
+        # and told where to look at runtime, so "there is one" is the whole
+        # of what can be said.
+        return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
 
     settings = read_user_settings(info.get("CFBundleIdentifier", ""), shell)
     # The user's answer wins. Without one, the developer's default applies, and

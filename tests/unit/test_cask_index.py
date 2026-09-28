@@ -47,8 +47,21 @@ def test_an_app_no_cask_ships_is_not_invented():
     assert index_of().for_app("/Applications/TokenEater.app") is None
 
 
-def test_casks_without_an_app_are_skipped():
-    assert len(index_of()) == 2
+def test_a_cask_that_installs_a_package_is_kept_under_its_own_name():
+    # Google Drive and Foxit ship installers and name no app, so nothing on
+    # disk points at them. The token is the only handle left.
+    found = index_of().for_app("/Applications/no app at all.app")
+
+    assert found.token == "no-app-at-all"
+    assert found.installs_a_package
+
+
+def test_an_app_cask_is_not_marked_as_an_installer():
+    assert not index_of().for_app("/Applications/Codex.app").installs_a_package
+
+
+def test_a_package_cask_is_not_matched_against_an_app_it_does_not_name():
+    assert index_of().for_app("/Applications/Something Else.app") is None
 
 
 def test_a_cask_without_a_token_is_ignored():

@@ -206,3 +206,36 @@ def test_an_app_homebrew_never_heard_of_says_so(tmp_path):
     app = bundle(tmp_path, "TokenEater", "1.0")
 
     assert adopt_apps.homebrew_note(app, None) == "Homebrew has no recipe for this app."
+
+
+PACKAGE = Cask("google-drive", "https://www.google.com/drive/", "131.0.2",
+               installs_a_package=True)
+
+
+def test_an_app_homebrew_installs_from_a_package_is_not_offered_a_handover(tmp_path):
+    # --adopt only ever takes over an app bundle Homebrew would have put
+    # there itself, and a pkg cask never puts one anywhere it can see.
+    app = bundle(tmp_path, "Google Drive", "131.0")
+
+    assert not adopt_apps.can_take_over(app, PACKAGE)
+    assert adopt_apps.handover_label(app, PACKAGE) == ""
+
+
+def test_a_package_cask_still_says_what_version_exists(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "131.0")
+
+    note = adopt_apps.homebrew_note(app, PACKAGE)
+
+    assert "google-drive 131.0.2" in note
+    assert "installs it from a package" in note
+
+
+def test_handing_over_a_package_cask_is_refused_before_anything_runs(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "131.0")
+    shell = BrewShell("")
+
+    taken, message = adopt_apps.hand_to_homebrew(app, PACKAGE, shell)
+
+    assert not taken
+    assert "installs a package" in message
+    assert shell.streamed == []

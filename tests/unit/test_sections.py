@@ -161,5 +161,16 @@ def test_an_updater_nobody_answered_for_gets_its_own_line():
         app("Unanswered", "1.0", sparkle(automatic=None, feed="")),
     ]))
 
-    section = find("They have an updater, nobody answered for it", found)
+    section = find("They have an updater, and nothing says whether it runs", found)
     assert section.rows[0].note == "never answered, last checked 2026-08-16"
+
+
+def test_an_electron_app_is_not_counted_as_having_nothing():
+    # Exodus ships Squirrel and keeps itself current, and was listed under
+    # "nobody checks these" because only Sparkle was ever looked for.
+    electron = UpdaterStatus(app_updaters.SQUIRREL)
+    found = sections.of(sections.Findings(untracked=[app("Exodus", "24.33.4", electron)]))
+
+    section = find("They have an updater, and nothing says whether it runs", found)
+    assert section.rows[0].name == "Exodus"
+    assert "nothing on disk says whether it runs" in section.rows[0].note
