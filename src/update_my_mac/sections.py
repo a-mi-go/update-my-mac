@@ -228,8 +228,8 @@ def _untracked_apps(findings):
                 _app_rows(self_updating, findings)),
         Section(INFO, "Their updater is switched off", "turning it on would keep them current",
                 _app_rows(switched_off, findings)),
-        Section(INFO, "They have an updater, nobody answered for it", "it may never have run",
-                _app_rows(unclear, findings)),
+        Section(INFO, "They have an updater, and nothing says whether it runs",
+                "it may never have run", _app_rows(unclear, findings)),
         Section(INFO, "Nobody checks these", "no manager, no updater",
                 _app_rows(unattended, findings)),
     ]
@@ -244,7 +244,11 @@ def _about(app, findings):
     if app.updater.kind != app_updaters.NONE:
         return app.updater.describe()
     cask = findings.find_cask(app) if findings.find_cask else None
-    return f"Homebrew has {cask.token}" if cask else ""
+    if not cask:
+        return ""
+    if cask.installs_a_package:
+        return f"Homebrew knows it as {cask.token}, as an installer"
+    return f"Homebrew has {cask.token}"
 
 
 def _undecided(findings):

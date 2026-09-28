@@ -18,6 +18,10 @@ class Cask:
     token: str
     homepage: str
     version: str
+    # A cask that ships an installer package rather than an app bundle.
+    # Homebrew can say what version exists, but --adopt only ever takes over
+    # an app it would have installed itself.
+    installs_a_package: bool = False
 
 
 def cache_path(env):
@@ -45,6 +49,23 @@ def app_names_in(cask):
     return found
 
 
+def installs_a_package(cask):
+    """Whether this cask ships an installer rather than an app bundle."""
+    return any(
+        isinstance(artifact, dict) and artifact.get("pkg")
+        for artifact in cask.get("artifacts", [])
+    )
+
+
+def as_app_name(token):
+    """The app name a cask token would have, if it were named after the app.
+
+    Only good enough to recognise "Google Drive" in google-drive. It is used
+    for casks that name no app at all, where there is nothing better to go on.
+    """
+    return token.replace("-", " ").lower()
+
+
 def reduce_to_apps(casks):
     """Boil the published list of casks down to a lookup table.
 
@@ -62,8 +83,13 @@ def reduce_to_apps(casks):
             "homepage": cask.get("homepage") or "",
             "version": cask.get("version") or "",
         }
-        for name in app_names_in(cask):
+        named = app_names_in(cask)
+        for name in named:
             by_app.setdefault(name, entry)
+        # A package cask names no app, so the only handle on it is its token.
+        # Weaker, and never used to offer a handover.
+        if not named and installs_a_package(cask):
+            by_app.setdefault(as_app_name(token), dict(entry, installs_a_package=True))
     return by_app
 
 
@@ -111,10 +137,23 @@ class CaskIndex:
         that happens to share the name. A file name is a weak identifier and
         nothing in the published cask list is a stronger one.
         """
-        found = self.by_app.get(Path(app_path).name)
+        name = Path(app_path).name
+        found = self.by_app.get(name)
+        if found is None:
+            # Nothing installs an app by this name. A package cask might
+            # still be the same software, recognised only by what it is
+            # called.
+            found = self.by_app.get(name.removesuffix(".app").lower())
+            if not isinstance(found, dict) or not found.get("installs_a_package"):
+                return None
         if not isinstance(found, dict):
             return None
-        return Cask(found.get("token", ""), found.get("homepage", ""), found.get("version", ""))
+        return Cask(
+            found.get("token", ""),
+            found.get("homepage", ""),
+            found.get("version", ""),
+            found.get("installs_a_package", False),
+        )
 
     def __len__(self):
         return len(self.by_app)

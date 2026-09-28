@@ -155,3 +155,17 @@ def test_nonsense_from_defaults_is_ignored(tmp_path):
     )
 
     assert app_updaters.detect(app, BrokenShell()).is_unclear
+
+
+def test_electrons_updater_is_found_by_the_framework_it_ships(tmp_path):
+    app = tmp_path / "Exodus.app"
+    (app / "Contents" / "Frameworks" / "Squirrel.framework").mkdir(parents=True)
+
+    assert app_updaters.has_squirrel(app)
+
+
+def test_an_app_with_neither_framework_has_no_updater(tmp_path):
+    app = tmp_path / "Quiet.app"
+    (app / "Contents" / "Frameworks").mkdir(parents=True)
+
+    assert not app_updaters.has_squirrel(app)
