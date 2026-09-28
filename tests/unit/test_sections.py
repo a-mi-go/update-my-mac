@@ -69,7 +69,7 @@ def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
 def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
     found = sections.of(sections.Findings(behind=[behind(recorded="5.0.6")]))
 
-    written_down = find("Homebrew recorded a version it never installed", found)
+    written_down = find("Homebrew thinks these are current", found)
     assert written_down.level == sections.CRITICAL
     assert "Homebrew" not in titles(found)
 

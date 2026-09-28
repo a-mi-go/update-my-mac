@@ -22,9 +22,16 @@ class InstalledApp:
     path: Path
     updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
     bundle_id: str = ""
+    # What the app calls its build. Often the same as the version, sometimes
+    # longer, and sometimes the only one that matches a Homebrew recipe.
+    build: str = ""
 
     def describe(self):
         return f"{self.name}  {self.version}"
+
+    def versions_named(self):
+        """Every version the app gives for itself, most readable first."""
+        return [self.version, self.build]
 
 
 def app_directories(env):
@@ -49,6 +56,11 @@ def app_directories(env):
 
 # What an app that says nothing about its version is listed as.
 UNKNOWN_VERSION = versions.UNKNOWN
+
+
+def read_build(info):
+    """The build the app came from, which a recipe is often written against."""
+    return info.get("CFBundleVersion") or ""
 
 
 def read_version(app_path, info=None):
@@ -151,6 +163,7 @@ def find_all(env=None):
                     read_version(app_path, info),
                     app_path,
                     bundle_id=info.get("CFBundleIdentifier", ""),
+                    build=read_build(info),
                 )
             )
     return found
@@ -184,6 +197,7 @@ def find_untracked(shell, env=None):
                     app_path,
                     app_updaters.detect(app_path, shell, info),
                     info.get("CFBundleIdentifier", ""),
+                    read_build(info),
                 )
             )
     return without_shortcuts(found)
