@@ -250,7 +250,6 @@ def _untracked_apps(decisions):
 
 
 def run_check_mode():
-    report.print_header()
     installed = package_managers.installed_managers(shell)
     findings = _look_around(installed, app_decisions.load())
     report.print_report(findings)
@@ -296,7 +295,6 @@ def _look_around(installed, decisions, console=None):
 
 
 def run_interactive_mode():
-    report.print_header()
     installed = package_managers.installed_managers(shell)
     decisions = app_decisions.load()
     findings = _look_around(installed, decisions)
@@ -326,6 +324,5 @@ def run_interactive_mode():
 
 
 def run_retry_app_mode():
-    report.print_header()
     track_apps.run_revisit_menu(app_decisions.load())
     return 0

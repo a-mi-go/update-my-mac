@@ -237,21 +237,6 @@ def test_a_switched_off_updater_is_not_called_unknown(capsys):
     assert "They have an updater, nobody answered for it: 1" in printed
 
 
-def test_the_run_starts_with_a_line_across_the_terminal(capsys):
-    report.print_header(Console(width=60, no_color=True))
-
-    printed = capsys.readouterr().out
-    assert "update-my-mac" in printed
-    assert "─" in printed
-
-
-def test_the_version_is_not_taken_apart_by_the_highlighter(capsys):
-    # Left to rich, "0.1.0" came out as two coloured numbers and a full stop.
-    report.print_header(Console(width=60, no_color=True))
-
-    assert __version__ in capsys.readouterr().out
-
-
 def test_apps_owned_by_someone_else_come_with_a_way_out(capsys):
     report.print_foreign_owners(
         [Path("/Applications/Firefox.app"), Path("/Applications/Disk Drill.app")],
@@ -377,6 +362,12 @@ def test_the_report_is_framed_for_someone_watching():
     assert "update-my-mac" in framed
     assert "╭" in framed
     assert "1 need you, 0 can wait" in framed
+
+
+def test_a_run_without_a_frame_still_says_what_wrote_it():
+    findings = sections.Findings(reports=[ManagerReport("brew", "Homebrew", [])])
+
+    assert f"update-my-mac {__version__}" in report_of(findings)
 
 
 def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
