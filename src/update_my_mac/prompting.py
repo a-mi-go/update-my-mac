@@ -64,11 +64,17 @@ class Step:
         except (EOFError, KeyboardInterrupt):
             raise Stopped
 
-    def choose(self, options):
-        """Offer the (key, label) options and return the key that was picked."""
+    def choose(self, options, question=""):
+        """Offer the (key, label) options and return the key that was picked.
+
+        The question is asked by whatever draws the menu, so that the one
+        that erases itself afterwards takes the question with it.
+        """
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
+        if question:
+            self.say(question)
         self._list(options)
         while True:
             # Asked again rather than guessed at, because guessing wrong here

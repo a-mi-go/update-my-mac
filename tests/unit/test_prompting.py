@@ -86,3 +86,12 @@ def test_a_menu_with_nothing_in_it_is_a_mistake():
     except ValueError:
         return
     raise AssertionError("an empty menu should not be offered")
+
+
+def test_the_menu_asks_the_question_it_was_given():
+    terminal = Terminal("1")
+
+    chosen = terminal.step.choose([("a", "one"), ("b", "two")], "[bold]Which one?[/]")
+
+    assert chosen == "a"
+    assert terminal.lines[0] == "Which one?"

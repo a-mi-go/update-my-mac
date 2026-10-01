@@ -45,8 +45,7 @@ def run_untracked_menu(
             # walk-through has its own way out.
             ignored, adopted = walk()
         else:
-            step.say("[bold]What should we do with them?[/]")
-            chosen = step.choose(choices)
+            chosen = step.choose(choices, "[bold]What should we do with them?[/]")
             if chosen == ADOPT_ALL:
                 adopted = adopt_all(found, adopt, step)
             elif chosen == DECIDE_FOR_EACH:
@@ -171,7 +170,10 @@ def _ask_about(app, cask, adopt, open_url, open_app, offered, step):
     _say_what_is_known(app, cask, answer, said)
 
     while True:
-        chosen = step.choose(_app_choices(app, cask, adopt, site, can_ask_the_app and not answer.error))
+        chosen = step.choose(
+            _app_choices(app, cask, adopt, site, can_ask_the_app and not answer.error),
+            "[bold]What should we do with it?[/]",
+        )
         # Only a handover settles anything. Looking at a website or starting
         # the app leaves it exactly as undecided as it was.
         if chosen == WEBSITE:

@@ -9,9 +9,9 @@ from dataclasses import dataclass
 
 from update_my_mac.prompting import Step, Stopped
 
+QUESTION = "[bold]Should we sort things out before updating?[/]"
 FIX_EVERYTHING = "yes, just fix everything, I trust you"
 NOT_NOW = "No, I'm here for the updates (I'll take care of this next time)"
-QUESTION = "[bold]Should we sort things out before updating?[/]"
 
 
 @dataclass
@@ -34,8 +34,7 @@ def run_resolve_menu(problems, step=None, interactive=True):
     try:
         while True:
             step.say()
-            step.say(QUESTION)
-            chosen = step.choose(options)
+            chosen = step.choose(options, QUESTION)
 
             if chosen == NOT_NOW:
                 break
