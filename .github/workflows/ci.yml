@@ -24,7 +24,10 @@ jobs:
           if [ "$RUNNER_OS" = macOS ]; then
             brew install fish
           else
-            sudo apt-get update -qq && sudo apt-get install -y -qq fish zsh
+            # The package lists on the runner are usually fresh enough; updating
+            # them takes most of this step, so it is only the fallback.
+            sudo apt-get install -y -qq fish zsh ||
+              { sudo apt-get update -qq && sudo apt-get install -y -qq fish zsh; }
           fi
       - name: Run tests
         run: uv run --frozen pytest -q
