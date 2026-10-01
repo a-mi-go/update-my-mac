@@ -11,11 +11,7 @@ import time
 from dataclasses import dataclass
 import urllib.parse
 
-# The common third-party updater, which writes its settings where they can
-# be read.
 SPARKLE = "sparkle"
-# Electron's updater. The app passes it a feed address and a schedule while
-# it runs, so nothing on disk says whether it is on or what it checks.
 SQUIRREL = "squirrel"
 NONE = "none"
 
@@ -47,6 +43,8 @@ class UpdaterStatus:
         return self.kind != NONE and self.automatic is None
 
     def update_method_note(self):
+        # Squirrel is told its feed and schedule while the app runs, so
+        # nothing on disk says whether it is on.
         if self.kind == SQUIRREL:
             return "own updater, nothing says if it runs"
         if self.kind != SPARKLE:
