@@ -127,14 +127,13 @@ def _confirm_updates(console, ask):
         console.print("[yellow]Didn't catch that.[/]")
 
 
-def choose_what_to_update(entries, pick=keys.pick_several):
+def pick_what_to_update(entries, pick=keys.pick_several):
     """A multiple choice: the entries that were picked, or CANCEL."""
     picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
     return picked or CANCEL
 
 
 def _run_each_manager(manager_keys, shell, console, announce, run_one):
-    """What went through and what went badly."""
     done, failed = [], []
     for key in manager_keys:
         manager = package_managers.by_key(key)
@@ -188,7 +187,7 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
     if keys.available():
         while True:
             try:
-                chosen = choose_what_to_update(entries)
+                chosen = pick_what_to_update(entries)
             except KeyboardInterrupt:
                 prompting.interrupted(console.print)
                 continue
