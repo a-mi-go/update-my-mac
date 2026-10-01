@@ -95,6 +95,7 @@ def _updates_confirmed(console, ask):
         except KeyboardInterrupt:
             prompting.interrupted(console.print)
             continue
+        prompting.answered()
         # A blank line, or the answer and what follows run together.
         console.print()
         return said
@@ -103,9 +104,7 @@ def _updates_confirmed(console, ask):
 def _confirm_updates(console, ask):
     if keys.available():
         try:
-            said = bool(keys.confirm("Update them now?"))
-            prompting.answered()
-            return said
+            return bool(keys.confirm("Update them now?"))
         except keys.Unusable as failure:
             console.print(keys.unusable_message(failure))
 
@@ -123,10 +122,8 @@ def _confirm_updates(console, ask):
             return False
 
         if answer in ("", "n", "no"):
-            prompting.answered()
             return False
         if answer in ("y", "yes"):
-            prompting.answered()
             return True
         console.print("[yellow]Didn't catch that.[/]")
 

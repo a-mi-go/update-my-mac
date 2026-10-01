@@ -107,16 +107,17 @@ class Step:
             raise ValueError("a menu has to offer something")
         while True:
             try:
-                return self._ask(options, question)
+                chosen = self._ask_by_keys_or_number(options, question)
             except KeyboardInterrupt:
                 interrupted(self.say)
+                continue
+            answered()
+            return chosen
 
-    def _ask(self, options, question):
+    def _ask_by_keys_or_number(self, options, question):
         if self.with_keys:
             try:
-                chosen = self._choose_with_keys(options, question)
-                answered()
-                return chosen
+                return self._choose_with_keys(options, question)
             except keys.Unusable as failure:
                 self.say(keys.unusable_message(failure))
 
@@ -128,7 +129,6 @@ class Step:
             # acts on an app the person did not mean.
             given = self.read("> ")
             if given.isdigit() and 1 <= int(given) <= len(options):
-                answered()
                 return options[int(given) - 1][0]
             self.say("[yellow]Didn't catch that.[/]")
 
