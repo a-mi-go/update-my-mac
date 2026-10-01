@@ -26,8 +26,7 @@ def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
 
     step.say()
     try:
-        step.say("[bold]What should we do with them?[/]")
-        chosen = step.choose(CHOICES)
+        chosen = step.choose(CHOICES, "[bold]What should we do with them?[/]")
         if chosen == REMOVE_SHADOWED:
             return remove_shadowed(duplicates, remove, step)
         if chosen == DECIDE_FOR_EACH:
@@ -74,7 +73,7 @@ def _walk_through(duplicates, remove, step):
             for copy in duplicate.shadowed:
                 said.say(f"never used: {escape(copy.describe())}")
 
-            chosen = step.choose(_copy_choices(duplicate))
+            chosen = step.choose(_copy_choices(duplicate), "[bold]What should we do with it?[/]")
             if chosen == CANCEL:
                 break
             if chosen == KEEP_BOTH:

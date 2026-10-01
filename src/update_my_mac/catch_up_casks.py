@@ -42,8 +42,7 @@ def run_catch_up_menu(behind, run, step=None, interactive=True):
 
     step.say()
     try:
-        step.say("[bold]What should we do with them?[/]")
-        chosen = step.choose(_choices(behind))
+        chosen = step.choose(_choices(behind), "[bold]What should we do with them?[/]")
         if chosen == CATCH_UP_ALL:
             return catch_up_all(behind, run, step)
         if chosen == DECIDE_FOR_EACH:
@@ -101,7 +100,7 @@ def _walk_through(behind, run, step):
                     "[dim]Homebrew wrote down a version it never installed, so no "
                     "upgrade will touch this one.[/]"
                 )
-            chosen = step.choose(_app_choices(item))
+            chosen = step.choose(_app_choices(item), "[bold]What should we do with it?[/]")
             if chosen == CANCEL:
                 break
             if chosen == CATCH_UP and _run_one(command_for(item), run, said):
