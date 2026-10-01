@@ -23,6 +23,18 @@ class FakeUv:
         return self.works
 
 
+class FakeUpdateShell:
+    """Stands in for uv tool update-shell, which would edit the real shell config."""
+
+    def __init__(self, works=True):
+        self.works = works
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.works
+
+
 @pytest.fixture
 def machine(tmp_path):
     """A home, an empty bin dir, and a bare PATH: a first run."""
@@ -34,10 +46,11 @@ def machine(tmp_path):
     return home, bin_dir, env
 
 
-def run(machine, *argv, answers=(), interactive=True, now=None, uv=None):
+def run(machine, *argv, answers=(), interactive=True, now=None, uv=None, update_shell=None):
     home, bin_dir, env = machine
     terminal = Terminal(*answers)
     uv = uv or FakeUv(bin_dir)
+    update_shell = update_shell or FakeUpdateShell()
     code = install_command.main(
         ["--project-dir", "/repo", "--bin-dir", str(bin_dir), *argv],
         ask=terminal.ask,
@@ -47,6 +60,7 @@ def run(machine, *argv, answers=(), interactive=True, now=None, uv=None):
         interactive=interactive,
         now=now,
         install=uv,
+        update_shell=update_shell,
     )
     return code, terminal.text, uv
 
@@ -435,6 +449,51 @@ def test_a_missing_path_entry_is_pointed_out(machine):
     _, text, _ = run(machine, interactive=False)
 
     assert f"Add {bin_dir} to your PATH" in text
+    assert "Done." not in text
+    assert "won't be found" in text
+
+
+def test_a_missing_path_entry_can_be_fixed_on_the_spot(machine):
+    _, _, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    update_shell = FakeUpdateShell()
+
+    _, text, _ = run(machine, answers=["", ""], update_shell=update_shell)
+
+    assert update_shell.calls == 1
+    assert "Open a new terminal, then try: update --check" in text
+
+
+def test_declining_the_path_fix_leaves_the_shell_alone(machine):
+    _, bin_dir, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    update_shell = FakeUpdateShell()
+
+    _, text, _ = run(machine, answers=["", "n"], update_shell=update_shell)
+
+    assert update_shell.calls == 0
+    assert f"Add {bin_dir} to your PATH" in text
+    assert "won't be found" in text
+
+
+def test_a_failed_path_fix_is_not_called_done(machine):
+    _, _, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+
+    _, text, _ = run(machine, answers=["", "y"], update_shell=FakeUpdateShell(works=False))
+
+    assert "Done." not in text
+    assert "won't be found" in text
+
+
+def test_the_path_is_never_edited_without_a_terminal(machine):
+    _, _, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    update_shell = FakeUpdateShell()
+
+    run(machine, interactive=False, update_shell=update_shell)
+
+    assert update_shell.calls == 0
 
 
 def test_another_programs_update_in_the_bin_dir_stops_before_any_question(machine):
