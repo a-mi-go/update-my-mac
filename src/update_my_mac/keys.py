@@ -17,8 +17,8 @@ class Unusable(Exception):
     """The menu could not be drawn, whatever the reason."""
 
 
-def did_not_work(failure):
-    return f"[yellow]The arrow keys did not work here ({failure}).[/]"
+def unusable_message(failure):
+    return f"[yellow]The menu could not be drawn ({failure}).[/] Type a number instead."
 
 
 def available():
@@ -75,15 +75,12 @@ SEPARATOR = "─" * 24
 
 
 def _answer_to(prompt):
-    """Ask the prompt, leaving a Ctrl-C to the run and the rest to the caller.
+    """The answer, or Unusable when questionary could not ask at all.
 
-    Ctrl-C is re-raised rather than handled, because questionary would print
-    its own message and hand back None as though nothing had been chosen.
+    A Ctrl-C is a BaseException, so it passes this by and ends the run.
     """
     try:
         return prompt.unsafe_ask()
-    except KeyboardInterrupt:
-        raise
     except Exception as failure:
         raise Unusable(failure) from failure
 

@@ -468,7 +468,7 @@ def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
         said = apply_updates._updates_confirmed(console, lambda prompt: "y")
 
     assert said
-    assert "arrow keys did not work" in captured.get()
+    assert "could not be drawn" in captured.get()
 
 
 def test_the_yes_or_no_hint_survives_the_markup():

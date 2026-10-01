@@ -107,7 +107,7 @@ def _confirm_updates(console, ask):
             prompting.answered()
             return said
         except keys.Unusable as failure:
-            console.print(keys.did_not_work(failure))
+            console.print(keys.unusable_message(failure))
 
     while True:
         try:
@@ -197,7 +197,7 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
                 prompting.interrupted(console.print)
                 continue
             except keys.Unusable as failure:
-                console.print(keys.did_not_work(failure))
+                console.print(keys.unusable_message(failure))
                 break
             prompting.answered()
             return [] if chosen == CANCEL else run_chosen(chosen, shell, console)

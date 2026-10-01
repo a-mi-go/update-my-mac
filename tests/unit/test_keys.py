@@ -98,7 +98,7 @@ def test_a_menu_that_will_not_draw_falls_back_to_typing(monkeypatch):
     chosen = prompting.Step(terminal.out, terminal.ask, with_keys=True).choose(choices())
 
     assert chosen == "no"
-    assert "arrow keys did not work" in terminal.text
+    assert "could not be drawn" in terminal.text
 
 
 def resolved(part):
