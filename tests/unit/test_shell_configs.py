@@ -1,5 +1,8 @@
 import os
+import shutil
 import time
+
+import pytest
 
 from update_my_mac import shell_configs
 
@@ -176,3 +179,41 @@ def test_this_process_is_not_a_shell():
 def test_builtins_are_recognised_per_shell():
     assert shell_configs.builtin_in("bash", "cd")
     assert not shell_configs.builtin_in("bash", "update")
+
+
+def a_tool_in(tmp_path):
+    tool_dir = tmp_path / "tools"
+    tool_dir.mkdir()
+    tool = tool_dir / "mytool"
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    return tool_dir
+
+
+def new_terminal_env(home):
+    return {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+
+
+@pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+def test_a_command_added_to_path_in_zshenv_is_found_in_a_new_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshenv": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", new_terminal_env(home)) is True
+
+
+@pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+def test_a_zshrc_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".zshenv": f'export PATH="{tool_dir}:$PATH"\n',
+        ".zshrc": "export PATH=/usr/bin:/bin\n",
+    })
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", new_terminal_env(home)) is False
+
+
+def test_a_shell_that_is_not_installed_is_unknown(tmp_path):
+    env = {"HOME": str(tmp_path), "PATH": str(tmp_path)}
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", env) is None
