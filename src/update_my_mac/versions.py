@@ -8,9 +8,9 @@ whatever the release notes call it. None of it is semver.
 import re
 
 # Two versions are only worth comparing when their leading numbers are of
-# about the same size. Foxit reports 2026.1.1.70276 where its recipe says
-# 14.0.8.69494: one counts from a year, the other from a small number, and
-# neither is behind the other.
+# about the same size. A date-based 2026.1.1.70276 and a counted 14.0.8.69494
+# say nothing about each other: one starts from a year, the other from a small
+# number, and neither is behind.
 #
 # This is a rule of thumb and it cannot be anything else, because nothing in
 # a version string says which scheme it belongs to. What it is built for is

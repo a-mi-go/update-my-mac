@@ -3,7 +3,7 @@
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac import fix_things, prompting
+from update_my_mac import resolve_issues, prompting
 from fake_terminal import Terminal
 
 
@@ -16,31 +16,31 @@ def problem(label, walked=None, fixed=None, count=1):
 
         return called
 
-    return fix_things.Problem(label, note(walked), note(fixed))
+    return resolve_issues.Problem(label, note(walked), note(fixed))
 
 
 def test_nothing_found_means_nothing_is_asked():
     terminal = Terminal()
 
-    assert fix_things.run_fix_menu([], terminal.step) == 0
+    assert resolve_issues.run_resolve_menu([], terminal.step) == 0
     assert terminal.text == ""
 
 
 def test_only_what_turned_up_is_offered():
     terminal = Terminal("2")
 
-    fix_things.run_fix_menu([problem("untracked apps")], terminal.step)
+    resolve_issues.run_resolve_menu([problem("untracked apps")], terminal.step)
 
     assert "1) untracked apps" in terminal.text
-    assert "2) " + fix_things.FIX_EVERYTHING in terminal.text
-    assert "3) " + fix_things.NOT_NOW in terminal.text
+    assert "2) " + resolve_issues.FIX_EVERYTHING in terminal.text
+    assert "3) " + resolve_issues.NOT_NOW in terminal.text
 
 
 def test_picking_one_opens_its_walk_through():
     walked = []
     terminal = Terminal("1", "4")
 
-    dealt_with = fix_things.run_fix_menu(
+    dealt_with = resolve_issues.run_resolve_menu(
         [problem("apps", walked), problem("copies", walked)], terminal.step
     )
 
@@ -53,7 +53,7 @@ def test_the_question_comes_back_until_someone_is_done():
     walked = []
     terminal = Terminal("1", "2", "4")
 
-    fix_things.run_fix_menu(
+    resolve_issues.run_resolve_menu(
         [problem("apps", walked), problem("copies", walked)], terminal.step
     )
 
@@ -64,7 +64,7 @@ def test_fixing_everything_asks_nothing_further():
     fixed = []
     terminal = Terminal("3")
 
-    dealt_with = fix_things.run_fix_menu(
+    dealt_with = resolve_issues.run_resolve_menu(
         [problem("apps", fixed=fixed, count=8), problem("copies", fixed=fixed)],
         terminal.step,
     )
@@ -77,7 +77,7 @@ def test_saying_no_leaves_everything_as_it_is():
     walked, fixed = [], []
     terminal = Terminal("3")
 
-    dealt_with = fix_things.run_fix_menu(
+    dealt_with = resolve_issues.run_resolve_menu(
         [problem("apps", walked, fixed)], terminal.step
     )
 
@@ -87,7 +87,7 @@ def test_saying_no_leaves_everything_as_it_is():
 def test_without_a_terminal_nothing_is_asked():
     terminal = Terminal()
 
-    fix_things.run_fix_menu([problem("apps")], terminal.step, interactive=False)
+    resolve_issues.run_resolve_menu([problem("apps")], terminal.step, interactive=False)
 
     assert terminal.text == ""
 
@@ -95,7 +95,7 @@ def test_without_a_terminal_nothing_is_asked():
 def test_ctrl_c_stops_without_crashing():
     terminal = Terminal(then=KeyboardInterrupt)
 
-    assert fix_things.run_fix_menu([problem("apps")], terminal.step) == 0
+    assert resolve_issues.run_resolve_menu([problem("apps")], terminal.step) == 0
 
 
 def test_a_line_closes_the_phase():
@@ -104,7 +104,7 @@ def test_a_line_closes_the_phase():
     for answers in (("3",), ("1", "3")):
         terminal = Terminal(*answers)
 
-        fix_things.run_fix_menu([problem("apps")], terminal.step)
+        resolve_issues.run_resolve_menu([problem("apps")], terminal.step)
 
         assert "-" * prompting.CLOSING_WIDTH in terminal.text
 
@@ -116,7 +116,7 @@ def test_the_line_comes_after_what_was_fixed():
         step.say("took it over")
         return 1
 
-    fix_things.run_fix_menu([fix_things.Problem("apps", None, took_it_over)], terminal.step)
+    resolve_issues.run_resolve_menu([resolve_issues.Problem("apps", None, took_it_over)], terminal.step)
 
     line = "-" * prompting.CLOSING_WIDTH
     assert terminal.text.index(line) > terminal.text.index("took it over")
@@ -149,10 +149,10 @@ def test_an_interruption_keeps_what_fixing_everything_already_did():
 
     for exception in (KeyboardInterrupt, prompting.Stopped):
         terminal = Terminal("3")
-        dealt_with = fix_things.run_fix_menu(
+        dealt_with = resolve_issues.run_resolve_menu(
             [
-                fix_things.Problem("apps", None, sorted_out),
-                fix_things.Problem("copies", None, stopping(exception)),
+                resolve_issues.Problem("apps", None, sorted_out),
+                resolve_issues.Problem("copies", None, stopping(exception)),
             ],
             terminal.step,
         )
@@ -168,6 +168,6 @@ def test_an_interrupted_step_still_reports_what_it_managed():
 
     terminal = Terminal("2")
 
-    assert fix_things.run_fix_menu(
-        [fix_things.Problem("apps", None, stopped_after_two)], terminal.step
+    assert resolve_issues.run_resolve_menu(
+        [resolve_issues.Problem("apps", None, stopped_after_two)], terminal.step
     ) == 2

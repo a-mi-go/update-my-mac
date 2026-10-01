@@ -9,9 +9,12 @@ from dataclasses import dataclass, field
 
 from update_my_mac import adopt_apps, app_updaters, appcast, versions
 
-# What ignoring it costs. Critical is not "you have updates", it is "nothing
-# will tell you about this again": Homebrew holding a version it never
-# installed, a feed that has stopped answering, a check that could not run.
+# Critical: a crooked state that should be taken care of, such as Homebrew
+#   holding a version it never installed, a feed that has stopped answering,
+#   or a check that could not run.
+# Warning: updates might be hindered. Worth a look in the "sort things out"
+#   menu.
+# Info: updates are available, or something could be made better.
 CRITICAL, WARNING, INFO = "critical", "warning", "info"
 
 # What a number counts, when the heading above it does not already say.
@@ -76,11 +79,11 @@ def of(findings):
     """The sections worth printing, loudest first."""
     built = (
         _checks_that_failed(findings)
-        + _wrongly_recorded(findings)
+        + _false_version_recorded(findings)
         + _feeds_gone_quiet(findings)
         + _owned_by_someone_else(findings)
         + _homebrew(findings)
-        + _other_managers(findings)
+        + _outdated_per_manager(findings)
         + _managers_themselves(findings)
         + _installed_twice(findings)
         + _not_restarted(findings)
@@ -92,8 +95,8 @@ def of(findings):
 def clean_managers(findings):
     """The managers that were asked and had nothing to report.
 
-    Worth naming: silence about a manager reads as "not checked" rather than
-    "nothing to do", and which of them ran is the whole point of a check.
+    Named rather than left out, because printing nothing about a manager
+    reads as "not checked" rather than "nothing to do".
     """
     return [
         report.label
@@ -102,14 +105,14 @@ def clean_managers(findings):
     ]
 
 
-def counts(sections):
+def count_findings(sections):
     """How many findings need you, and how many can wait."""
     needs_you = sum(s.count for s in sections if s.level in (CRITICAL, WARNING))
     can_wait = sum(s.count for s in sections if s.level == INFO)
     return needs_you, can_wait
 
 
-def _split(change):
+def _version_change(change):
     """A manager's "1.2.3 → 1.2.4" as it should be shown."""
     return change.strip()
 
@@ -117,9 +120,8 @@ def _split(change):
 def _checks_that_failed(findings):
     """A manager that could not answer, named once however it failed.
 
-    A manager can fail both the question about itself and the question about
-    its packages, and hearing that twice says nothing more than hearing it
-    once.
+    Each manager is asked twice, about itself and about its packages. Keyed
+    by label so one that failed both is listed once.
     """
     failed = {}
     for thing in list(findings.manager_updates) + list(findings.reports):
@@ -129,7 +131,7 @@ def _checks_that_failed(findings):
     return [Section(CRITICAL, "A check could not run", "this report is incomplete", rows)]
 
 
-def _wrongly_recorded(findings):
+def _false_version_recorded(findings):
     rows = [
         Row(item.app.name, item.version_change())
         for item in findings.behind
@@ -183,8 +185,8 @@ def _homebrew(findings):
     return [section]
 
 
-def _other_managers(findings):
-    """One section per manager, so a name says who would do the upgrading."""
+def _outdated_per_manager(findings):
+    """One section per manager other than Homebrew, named after the manager."""
     built = []
     for report in findings.reports:
         if report.manager == "brew" or report.error_message:
@@ -197,7 +199,7 @@ def _other_managers(findings):
 
 def _package_row(package):
     name, _, change = package.partition("  ")
-    return Row(name, _split(change))
+    return Row(name, _version_change(change))
 
 
 def _managers_themselves(findings):
@@ -242,30 +244,29 @@ def _untracked_apps(findings):
     )
     return [
         Section(INFO, "They look after themselves", "nothing to do",
-                _app_rows(self_updating, findings)),
+                _rows_for_apps(self_updating, findings)),
         Section(INFO, "Their updater is switched off", "turning it on would keep them current",
-                _app_rows(switched_off, findings)),
+                _rows_for_apps(switched_off, findings)),
         Section(INFO, "They have an updater, and nothing says whether it runs",
-                "it may never have run", _app_rows(unclear, findings)),
-        # Not "no manager knows them": Homebrew has a recipe for some of
-        # these. It never installed this copy, which is the difference the
-        # word untracked carries.
-        # Not "they have no updater": an app can update itself from inside
-        # and leave nothing on disk to read. All that was looked at is the
-        # bundle, so that is all the heading claims.
+                "it may never have run", _rows_for_apps(unclear, findings)),
+        # Untracked, not unknown: a recipe can exist for a copy Homebrew
+        # never installed.
         Section(INFO, "Untracked apps", "nothing says they update themselves",
-                _app_rows(unattended, findings)),
+                _rows_for_apps(unattended, findings)),
     ]
 
 
-def _app_rows(apps, findings):
-    return [Row(app.name, _available(app, findings), _about(app, findings)) for app in apps]
+def _rows_for_apps(apps, findings):
+    return [
+        Row(app.name, _available(app, findings), _what_is_known_about(app, findings))
+        for app in apps
+    ]
 
 
-def _about(app, findings):
-    """What is worth saying next to an untracked app."""
+def _what_is_known_about(app, findings):
+    """What updates this app, or the recipe that could take it over."""
     if app.updater.kind != app_updaters.NONE:
-        return app.updater.describe()
+        return app.updater.describe_how_it_updates()
     cask = findings.find_cask(app) if findings.find_cask else None
     if not cask:
         return ""

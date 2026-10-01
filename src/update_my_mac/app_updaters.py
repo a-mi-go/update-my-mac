@@ -11,14 +11,13 @@ import time
 from dataclasses import dataclass
 import urllib.parse
 
+# The common third-party updater, which writes its settings where they can
+# be read.
 SPARKLE = "sparkle"
-# Electron's own updater on macOS. Whether it runs, and against which feed,
-# is decided in the app's code rather than in a file anyone can read, so all
-# that can be said about one is that it is there.
+# Electron's updater, configured in code rather than in any readable file.
 SQUIRREL = "squirrel"
 NONE = "none"
 
-# What the developer shipped and what the user chose, in that order of doubt.
 AUTOMATIC_CHECKS = "SUEnableAutomaticChecks"
 SILENT_INSTALL = "SUAutomaticallyUpdate"
 LAST_CHECK = "SULastCheckTime"
@@ -46,13 +45,12 @@ class UpdaterStatus:
         """An updater is there, but nobody ever said whether it should run."""
         return self.kind != NONE and self.automatic is None
 
-    def describe(self):
+    def describe_how_it_updates(self):
         if self.kind == NONE:
             return "no updater"
         if self.kind == SQUIRREL:
-            # There is no setting to read, so there is nothing to report but
-            # the fact that the machinery is in the bundle.
             return "own updater, nothing says if it runs"
+        # Sparkle from here, the only kind that records whether it may run.
         if self.automatic is None:
             answer = "never answered"
         elif self.automatic:
@@ -85,28 +83,23 @@ def read_bundle_info(app_path):
 def has_sparkle(app_path, info):
     """Sparkle can be linked without a feed in the plist, and the other way round.
 
-    Codex ships the framework and sets its feed in code; some apps keep the key
-    from an older build without the framework. Either trace is enough to say
-    the app has an updater.
+    An app can ship the framework and set its feed at runtime, and another can
+    keep the key from an older build without the framework. Either trace is
+    enough to say the app has an updater.
     """
     framework = app_path / "Contents" / "Frameworks" / "Sparkle.framework"
     return framework.is_dir() or bool(info.get(FEED_URL))
 
 
 def has_squirrel(app_path):
-    """Whether the app ships Electron's updater.
-
-    Exodus ships it and keeps itself current, and was listed as an app that
-    nothing checks because only Sparkle was ever looked for.
-    """
+    """Whether the app ships Electron's updater."""
     return (app_path / "Contents" / "Frameworks" / "Squirrel.framework").is_dir()
 
 
-def read_user_settings(bundle_id, shell):
+def read_users_app_settings(bundle_id, shell):
     """What the user answered, read as the app's own preferences.
 
-    `defaults export` is used rather than the preference file, because macOS
-    keeps preferences in a daemon and the file on disk can be stale or absent.
+    `defaults export` rather than the file, which macOS can leave stale.
     """
     if not bundle_id:
         return {}
@@ -139,14 +132,11 @@ def detect(app_path, shell, info=None):
     """What the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
-        # Nothing about Squirrel is written down: it is switched on in code
-        # and told where to look at runtime, so "there is one" is the whole
-        # of what can be said.
+        # Squirrel records nothing, so finding it is all there is.
         return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
 
-    settings = read_user_settings(info.get("CFBundleIdentifier", ""), shell)
-    # The user's answer wins. Without one, the developer's default applies, and
-    # without that there is nothing to go on.
+    settings = read_users_app_settings(info.get("CFBundleIdentifier", ""), shell)
+    # The user's answer wins over the developer's default.
     automatic = settings.get(AUTOMATIC_CHECKS)
     if automatic is None:
         automatic = info.get(AUTOMATIC_CHECKS)
