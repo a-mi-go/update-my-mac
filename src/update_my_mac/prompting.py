@@ -8,16 +8,14 @@ from rich.text import Text
 from update_my_mac import keys
 
 # Marked rather than set below a line, because a separator is a row of its own
-# and a row can be landed on. An arrow rather than a cross: the last answer is
-# often "not now" rather than a refusal.
+# and a cursor can land on it.
 WAY_OUT = "↩ "
 
 # How far one step of the conversation sits inside the one that opened it.
 STEP = "  "
 
-# The line that closes a section. Capped rather than drawn edge to edge, so it
-# reads as a divider between two parts of the run rather than as the edge of
-# the terminal, and a narrow terminal still gets a whole line of its own.
+# The line that closes a section, capped so it reads as a divider rather than
+# as the edge of the terminal.
 CLOSING_WIDTH = 84
 
 
@@ -27,7 +25,6 @@ _warned = False
 
 
 def interrupted(say):
-    """What to do about a Ctrl-C. Raises it again when it is the second one."""
     global _warned
     if _warned:
         raise KeyboardInterrupt
@@ -36,7 +33,6 @@ def interrupted(say):
 
 
 def answered():
-    """A question that came back clears the warning."""
     global _warned
     _warned = False
 
@@ -44,13 +40,11 @@ def answered():
 class Stopped(Exception):
     """No more input to answer with, which ends the step but not the run.
 
-    Ctrl-C is a different thing and is not caught anywhere below the top: it
-    ends the run wherever it arrives.
+    Ctrl-C is the other thing, and it ends the run wherever it arrives.
     """
 
 
 def _with_way_out_mark(label, at, total):
-    """The label, marked when it is the last one in a menu."""
     return f"{WAY_OUT}{label}" if at == total - 1 else label
 
 
@@ -92,8 +86,6 @@ class Step:
         try:
             return self.ask(f"{self.margin}{question}").strip()
         except EOFError:
-            # No more input to answer with, which stops this step. Ctrl-C is
-            # not caught here: it ends the run.
             raise Stopped
 
     def choose(self, options, question=""):
@@ -133,12 +125,9 @@ class Step:
             self.say("[yellow]Didn't catch that.[/]")
 
     def _choose_with_keys(self, options, question):
-        """Move a cursor instead of typing a number.
-
-        A line the cursor skips sets the way out apart, which is what the
-        numbered menu uses a mark for.
-        """
         entries = list(options)
+        # A line the cursor skips sets the way out apart, the way the numbered
+        # menu uses a mark for it.
         entries.insert(len(entries) - 1, None)
 
         picked = keys.pick_one(_without_markup(question), entries)

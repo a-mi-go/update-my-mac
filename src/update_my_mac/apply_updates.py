@@ -88,7 +88,6 @@ def print_menu(entries, console):
 
 
 def _updates_confirmed(console, ask):
-    """Whether to go ahead, asked with the keys where the terminal allows it."""
     while True:
         try:
             said = _confirm_updates(console, ask)
