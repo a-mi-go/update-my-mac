@@ -441,7 +441,7 @@ def test_the_question_is_coloured_rather_than_handed_to_input():
     asked = []
 
     with console.capture() as captured:
-        apply_updates._said_yes(console, lambda prompt: asked.append(prompt) or "n")
+        apply_updates._updates_confirmed(console, lambda prompt: asked.append(prompt) or "n")
 
     assert asked == [""]
     # 36 is cyan, and the whole question wears it.
@@ -453,7 +453,7 @@ def test_the_keys_are_asked_first_where_the_terminal_allows_it(monkeypatch):
     monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
     monkeypatch.setattr(apply_updates.keys, "confirm", lambda question: True)
 
-    assert apply_updates._said_yes(Console(width=80), None)
+    assert apply_updates._updates_confirmed(Console(width=80), None)
 
 
 def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
@@ -465,7 +465,7 @@ def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
     console = Console(width=80)
 
     with console.capture() as captured:
-        said = apply_updates._said_yes(console, lambda prompt: "y")
+        said = apply_updates._updates_confirmed(console, lambda prompt: "y")
 
     assert said
     assert "arrow keys did not work" in captured.get()
@@ -476,7 +476,7 @@ def test_the_yes_or_no_hint_survives_the_markup():
     console = Console(width=80, no_color=True)
 
     with console.capture() as captured:
-        apply_updates._said_yes(console, lambda prompt: "n")
+        apply_updates._updates_confirmed(console, lambda prompt: "n")
 
     assert "[y/N]" in captured.get()
 
@@ -486,7 +486,7 @@ def test_the_question_is_bold_and_the_marker_coloured():
     console = Console(width=80, force_terminal=True)
 
     with console.capture() as captured:
-        apply_updates._said_yes(console, lambda prompt: "n")
+        apply_updates._updates_confirmed(console, lambda prompt: "n")
 
     # The question is bold, the marker is cyan, and the hint is neither:
     # dimmed it was barely readable.
@@ -503,7 +503,7 @@ def test_a_line_is_broken_after_the_answer():
     console = Console(width=80, no_color=True)
 
     with console.capture() as captured:
-        apply_updates._said_yes(console, lambda prompt: "n")
+        apply_updates._updates_confirmed(console, lambda prompt: "n")
 
     assert captured.get().endswith("\n")
     assert captured.get().count("\n") == 1
