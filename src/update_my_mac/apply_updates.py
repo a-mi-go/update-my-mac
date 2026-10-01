@@ -6,6 +6,8 @@ from rich.console import Console
 from rich.markup import escape
 
 from update_my_mac import package_managers, report
+from update_my_mac import keys
+from update_my_mac import prompting
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -85,10 +87,64 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _run_each(keys, shell, console, announce, run_one):
+def _said_yes(console, ask):
+    """Whether to go ahead, asked with the keys where the terminal allows it."""
+    while True:
+        try:
+            said = _ask_yes(console, ask)
+        except KeyboardInterrupt:
+            prompting.interrupted(console.print)
+            continue
+        # A blank line, or the answer and what follows run together.
+        console.print()
+        return said
+
+
+def _ask_yes(console, ask):
+    if keys.available():
+        try:
+            said = bool(keys.confirm("Update them now?"))
+            prompting.answered()
+            return said
+        except keys.Unusable as failure:
+            console.print(keys.did_not_work(failure))
+
+    while True:
+        try:
+            # highlight=False, or rich prints the brackets bold.
+            console.print(
+                f"[cyan]{keys.QMARK}[/] [bold]Update them now?[/] \\[y/N] ",
+                end="",
+                highlight=False,
+            )
+            answer = ask("").strip().lower()
+        except EOFError:
+            console.print("\nNothing updated.")
+            return False
+
+        if answer in ("", "n", "no"):
+            prompting.answered()
+            return False
+        if answer in ("y", "yes"):
+            prompting.answered()
+            return True
+        console.print("[yellow]Didn't catch that.[/]")
+
+
+def choose_what_to_update(entries, pick=keys.pick_several):
+    """Pick several with the space bar. Returns the entries, or CANCEL.
+
+    Everything and Nothing are not options here: selecting all of them is
+    Everything, and selecting none is Nothing.
+    """
+    picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
+    return picked or CANCEL
+
+
+def _run_each(manager_keys, shell, console, announce, run_one):
     """What went through, what went badly, and whether Ctrl-C ended the run."""
     done, failed = [], []
-    for key in keys:
+    for key in manager_keys:
         manager = package_managers.by_key(key)
         console.print(f"\n[bold]{announce} {manager.label}[/]")
         exit_code = run_one(manager, shell)
@@ -100,14 +156,14 @@ def _run_each(keys, shell, console, announce, run_one):
     return done, failed, False
 
 
-def upgrade_managers_themselves(keys, shell, console):
+def upgrade_managers_themselves(manager_keys, shell, console):
     """Update the managers first, so the upgrades after them use current tools."""
-    return _run_each(keys, shell, console, "Updating", package_managers.upgrade_self)
+    return _run_each(manager_keys, shell, console, "Updating", package_managers.upgrade_self)
 
 
-def upgrade_managers(keys, shell, console):
+def upgrade_managers(manager_keys, shell, console):
     """Upgrade each manager's packages in turn."""
-    return _run_each(keys, shell, console, "Upgrading", package_managers.upgrade)
+    return _run_each(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
 
 
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
@@ -120,18 +176,8 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    while True:
-        try:
-            answer = ask("Update them now? [y/N] ").strip().lower()
-        except EOFError:
-            console.print("\nNothing updated.")
-            return []
-
-        if answer in ("", "n", "no"):
-            return []
-        if answer in ("y", "yes"):
-            break
-        console.print("[yellow]Didn't catch that.[/]")
+    if not _said_yes(console, ask):
+        return []
 
     done, failed, _ = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
@@ -146,6 +192,19 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
     entries = build_menu(reports)
     if not entries:
         return []
+
+    if keys.available():
+        while True:
+            try:
+                chosen = choose_what_to_update(entries)
+            except KeyboardInterrupt:
+                prompting.interrupted(console.print)
+                continue
+            except keys.Unusable as failure:
+                console.print(keys.did_not_work(failure))
+                break
+            prompting.answered()
+            return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
 
     while True:
         print_menu(entries, console)

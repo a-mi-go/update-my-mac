@@ -407,3 +407,103 @@ def test_the_manager_step_closes_the_same_way():
     )
 
     assert "Homebrew: exited with 2" in printed
+
+
+def test_picking_several_needs_no_everything_or_nothing_option():
+    entries = apply_updates.build_menu([
+        ManagerReport("brew", "Homebrew", ["git  1 → 2"]),
+        ManagerReport("mas", "Mac App Store", ["Xcode  1 → 2"]),
+    ])
+    asked = []
+
+    def pick(question, choices):
+        asked.append((question, [label for _, label in choices]))
+        return [choices[1][0]]
+
+    chosen = apply_updates.choose_what_to_update(entries, pick=pick)
+
+    assert [entry.label for entry in chosen] == ["Mac App Store (1 app)"]
+    assert asked[0][0] == "What should be updated?"
+    assert "Everything" not in asked[0][1]
+
+
+def test_backing_out_of_the_multi_select_updates_nothing():
+    entries = apply_updates.build_menu([ManagerReport("brew", "Homebrew", ["git  1 → 2"])])
+
+    chosen = apply_updates.choose_what_to_update(entries, pick=lambda question, choices: None)
+
+    assert chosen == apply_updates.CANCEL
+
+
+def test_the_question_is_coloured_rather_than_handed_to_input():
+    # input() writes its prompt raw, so markup there would be shown as text.
+    console = Console(width=80, force_terminal=True)
+    asked = []
+
+    with console.capture() as captured:
+        apply_updates._said_yes(console, lambda prompt: asked.append(prompt) or "n")
+
+    assert asked == [""]
+    # 36 is cyan, and the whole question wears it.
+    assert "\x1b[36m" in captured.get()
+    assert "Update them now?" in captured.get()
+
+
+def test_the_keys_are_asked_first_where_the_terminal_allows_it(monkeypatch):
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates.keys, "confirm", lambda question: True)
+
+    assert apply_updates._said_yes(Console(width=80), None)
+
+
+def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
+    def refuse(question):
+        raise apply_updates.keys.Unusable("no terminal capability")
+
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates.keys, "confirm", refuse)
+    console = Console(width=80)
+
+    with console.capture() as captured:
+        said = apply_updates._said_yes(console, lambda prompt: "y")
+
+    assert said
+    assert "arrow keys did not work" in captured.get()
+
+
+def test_the_yes_or_no_hint_survives_the_markup():
+    # rich reads [y/N] as a style and swallows it unless the bracket is escaped.
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        apply_updates._said_yes(console, lambda prompt: "n")
+
+    assert "[y/N]" in captured.get()
+
+
+def test_the_question_is_bold_and_the_marker_coloured():
+    # rich's own highlighter picks brackets out of a line and bolds them.
+    console = Console(width=80, force_terminal=True)
+
+    with console.capture() as captured:
+        apply_updates._said_yes(console, lambda prompt: "n")
+
+    # The question is bold, the marker is cyan, and the hint is neither:
+    # dimmed it was barely readable.
+    printed = captured.get()
+    assert "\x1b[1mUpdate them now?" in printed
+    assert "\x1b[36m" in printed
+    assert "\x1b[2m" not in printed
+
+
+def test_a_line_is_broken_after_the_answer():
+    # The question is printed without a line break, because the answer is
+    # typed on the same line. In a terminal the Enter that ends the answer
+    # breaks it; here nothing does, so this is the one that gets printed.
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        apply_updates._said_yes(console, lambda prompt: "n")
+
+    assert captured.get().endswith("\n")
+    assert captured.get().count("\n") == 1
