@@ -40,7 +40,7 @@ def test_an_app_without_sparkle_has_no_updater(tmp_path):
 
     status = app_updaters.detect(app, FakeShell())
     assert status.kind == app_updaters.NONE
-    assert status.describe() == "no updater"
+    assert status.describe_how_it_updates() == "no updater"
 
 
 def test_the_framework_alone_counts_as_an_updater(tmp_path):
@@ -62,7 +62,7 @@ def test_an_updater_nobody_answered_for_is_unclear(tmp_path):
     status = app_updaters.detect(app, FakeShell())
     assert status.is_unclear
     assert not status.looks_after_itself
-    assert status.describe() == "never answered"
+    assert status.describe_how_it_updates() == "never answered"
 
 
 def test_what_the_developer_shipped_counts_when_nobody_answered(tmp_path):
@@ -89,7 +89,7 @@ def test_the_users_answer_beats_the_shipped_default(tmp_path):
 
     status = app_updaters.detect(app, shell)
     assert status.is_switched_off
-    assert status.describe() == "checking is off"
+    assert status.describe_how_it_updates() == "checking is off"
 
 
 def test_silent_installing_is_said_differently(tmp_path):
@@ -100,7 +100,7 @@ def test_silent_installing_is_said_differently(tmp_path):
     )
     shell = FakeShell({"SUEnableAutomaticChecks": True, "SUAutomaticallyUpdate": True})
 
-    assert app_updaters.detect(app, shell).describe() == "updates itself"
+    assert app_updaters.detect(app, shell).describe_how_it_updates() == "updates itself"
 
 
 def test_the_last_check_is_shown_as_a_day(tmp_path):
@@ -116,7 +116,7 @@ def test_the_last_check_is_shown_as_a_day(tmp_path):
         }
     )
 
-    assert "last checked 2026-09-24" in app_updaters.detect(app, shell).describe()
+    assert "last checked 2026-09-24" in app_updaters.detect(app, shell).describe_how_it_updates()
 
 
 def test_an_app_without_a_readable_plist_has_no_updater(tmp_path):

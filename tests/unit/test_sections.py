@@ -5,7 +5,7 @@ from pathlib import Path
 from update_my_mac import app_updaters, appcast, behind_the_recipe, sections
 from update_my_mac.app_updaters import UpdaterStatus
 from update_my_mac.cask_index import Cask
-from update_my_mac.duplicate_commands import Copy, Duplicate
+from update_my_mac.duplicate_installations import Copy, Duplicate
 from update_my_mac.installed_apps import InstalledApp
 from update_my_mac.package_managers import ManagerReport, ManagerUpdate
 
@@ -142,7 +142,7 @@ def test_what_needs_you_is_counted_apart_from_what_can_wait():
         untracked=[app("Evoto", "7.1.5")],
     ))
 
-    assert sections.counts(found) == (1, 1)
+    assert sections.count_findings(found) == (1, 1)
 
 
 def test_an_updater_that_is_switched_off_is_not_the_same_as_none():

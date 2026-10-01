@@ -75,8 +75,7 @@ def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
 
 
-# What each level looks like. The mark carries the meaning where colour
-# cannot, which is every terminal without it and every log file.
+# A mark as well as a colour, so the level survives a pipe and a log file.
 MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "ℹ️ "}
 CLEAN = "✅"
 COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
@@ -87,10 +86,10 @@ ROW_INDENT = "   "
 
 
 def print_report(findings, console=None):
-    """The whole of what a run found, in one place.
+    """All check results and issue findings, in one place.
 
-    Framed when someone is watching, plain when the output is going into a
-    pipe or a log, where a border on every line is only in the way.
+    Framed for a terminal, plain for a pipe or a log, where a border on every
+    line is only in the way.
     """
     console = console or Console(highlight=False, soft_wrap=True)
     found = sections.of(findings)
@@ -107,7 +106,7 @@ def print_report(findings, console=None):
         console.print(Group(*body))
         return
 
-    needs_you, can_wait = sections.counts(found)
+    needs_you, can_wait = sections.count_findings(found)
     console.print(Panel(
         Group(*body),
         title=Text.assemble((" update-my-mac ", "bold"), (f"{_version} ", "dim")),
@@ -139,7 +138,7 @@ def _footer(findings, found, framed):
         ))
     if found and not framed:
         # The frame carries this in its subtitle; a pipe has no frame.
-        needs_you, can_wait = sections.counts(found)
+        needs_you, can_wait = sections.count_findings(found)
         lines.append(Text(f"{needs_you} need you, {can_wait} can wait", style="dim"))
     return lines
 
@@ -205,7 +204,7 @@ def _print_group(console, heading, apps, with_updater=True, offered=None, find_c
             Item(
                 app.name,
                 _version_column(app, offered, find_cask),
-                app.updater.describe() if with_updater else "",
+                app.updater.describe_how_it_updates() if with_updater else "",
             )
             for app in apps
         ],
@@ -260,7 +259,7 @@ def print_behind_the_recipe(behind, console=None):
     )
 
 
-def print_duplicate_commands(duplicates, console=None):
+def print_duplicate_installations(duplicates, console=None):
     """Commands two managers installed, where PATH quietly picks the winner."""
     if not duplicates:
         return

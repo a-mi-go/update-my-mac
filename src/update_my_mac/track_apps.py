@@ -206,7 +206,7 @@ def _say_what_is_known(app, cask, answer, step):
     if app.updater.kind == app_updaters.NONE:
         told.append("Nothing in it says how it updates.")
     else:
-        told.append(f"It {app.updater.describe()}.")
+        told.append(f"It {app.updater.describe_how_it_updates()}.")
 
     if appcast.offers_newer(app, answer):
         told.append(f"Its own feed offers {answer.version}.")

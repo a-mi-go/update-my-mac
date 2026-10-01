@@ -8,10 +8,10 @@ from update_my_mac import (
     adopt_apps,
     sections,
     appcast,
-    fix_things,
+    resolve_issues,
     behind_the_recipe,
     catch_up_casks,
-    duplicate_commands,
+    duplicate_installations,
     app_decisions,
     apply_updates,
     cask_index,
@@ -65,7 +65,7 @@ def _behind_the_recipe(reports):
     )
 
 
-def _problems(untracked, doubled, stale, behind, decisions, offered):
+def _issues(untracked, doubled, stale, behind, decisions, offered):
     """The kinds of trouble that turned up, as choices the person can pick."""
     cask_for = _website_and_cask()
     found = []
@@ -142,7 +142,7 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
 
 def _problem(label, things, walk_through, fix_all):
     """One entry in the menu, with the things it is about tied to it."""
-    return fix_things.Problem(
+    return resolve_issues.Problem(
         label,
         lambda step: walk_through(things, step),
         lambda step: fix_all(things, step),
@@ -251,13 +251,13 @@ def _untracked_apps(decisions):
 
 def run_check_mode():
     installed = package_managers.installed_managers(shell)
-    findings = _look_around(installed, app_decisions.load())
+    findings = _run_all_checks(installed, app_decisions.load())
     report.print_report(findings)
     return _exit_code(findings.reports, findings.manager_updates)
 
 
-def _look_around(installed, decisions, console=None):
-    """Every check, one after another, with a word about which one is running."""
+def _run_all_checks(installed, decisions, console=None):
+    """Run every check and return what they found, naming the one in progress."""
     console = console or Console(highlight=False)
     findings = sections.Findings(any_manager_installed=bool(installed))
 
@@ -265,8 +265,7 @@ def _look_around(installed, decisions, console=None):
         def now(what):
             spinner.update(f"[dim]{what}[/]")
 
-        # The managers come first: an outdated manager is what everything
-        # else below it depends on.
+        # Check if there are any outdated package managers first.
         now("asking the package managers about themselves")
         findings.manager_updates = package_managers.check_managers_themselves(shell, installed)
 
@@ -284,11 +283,13 @@ def _look_around(installed, decisions, console=None):
         now("comparing each app against Homebrew's recipe")
         findings.behind = _behind_the_recipe(findings.reports)
 
-        now("looking for commands two managers installed")
-        findings.doubled = duplicate_commands.find(shell)
+        now("looking for app or package duplicates")
+        findings.doubled = duplicate_installations.find(shell)
 
-        now("looking for apps running a version that is no longer on disk")
+        now("looking for running apps that are no longer installed")
         findings.stale = running_apps.find(shell)
+
+        now("looking for apps owned by another user")
         findings.foreign = installed_apps.owned_by_someone_else()
 
     return findings
@@ -297,25 +298,22 @@ def _look_around(installed, decisions, console=None):
 def run_interactive_mode():
     installed = package_managers.installed_managers(shell)
     decisions = app_decisions.load()
-    findings = _look_around(installed, decisions)
+    findings = _run_all_checks(installed, decisions)
     report.print_report(findings)
 
     failed = apply_updates.run_manager_menu(findings.manager_updates, shell)
 
-    # Sorting things out comes before the updates, so the menu below lists
-    # what is still outdated after it.
-    sorted_out = fix_things.run_fix_menu(
-        _problems(
+    # Resolving issues first, so the update menu below lists what is left.
+    resolved = resolve_issues.run_resolve_menu(
+        _issues(
             findings.untracked, findings.doubled, findings.stale, findings.behind,
             decisions, findings.offered,
         )
     )
 
     reports = findings.reports
-    if sorted_out or failed:
-        # Handing an app to Homebrew or pulling a cask up to its recipe changes
-        # what is outdated, and the menu numbers below would otherwise stand
-        # for what was true before any of that.
+    if resolved or failed:
+        # Resolving an issue changes what is outdated, so ask again.
         reports = package_managers.check_installed(shell)
         report.print_outdated_summary(reports)
 
