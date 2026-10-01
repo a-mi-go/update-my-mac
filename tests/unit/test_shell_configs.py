@@ -190,11 +190,15 @@ def a_tool_in(tmp_path):
     return tool_dir
 
 
-def new_terminal_env(home):
-    return {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+def new_terminal_env(home, shell="zsh"):
+    # The shell's own folder too: fish lives in /opt/homebrew/bin on a Mac.
+    shell_dir = os.path.dirname(shutil.which(shell) or "/usr/bin/true")
+    return {"HOME": str(home), "PATH": f"/usr/bin:/bin:{shell_dir}"}
 
 
 needs_zsh = pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+needs_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+needs_fish = pytest.mark.skipif(shutil.which("fish") is None, reason="fish is not installed")
 
 
 @needs_zsh
@@ -280,6 +284,42 @@ def test_frameworks_are_told_not_to_update_themselves(tmp_path):
     shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home))
 
     assert seen.read_text().strip() == "true true"
+
+
+@needs_bash
+def test_a_command_added_to_path_is_found_in_a_new_bash_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".bash_profile": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is True
+
+
+@needs_bash
+def test_a_bash_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".bash_profile": f'export PATH="{tool_dir}:$PATH"\nexport PATH=/usr/bin:/bin\n',
+    })
+
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is False
+
+
+@needs_fish
+def test_a_command_added_to_path_is_found_in_a_new_fish_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\n"})
+
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is True
+
+
+@needs_fish
+def test_a_fish_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\nset -gx PATH /usr/bin /bin\n",
+    })
+
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is False
 
 
 def test_a_shell_that_is_not_installed_is_unknown(tmp_path):
