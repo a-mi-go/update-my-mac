@@ -137,11 +137,7 @@ class CaskIndex:
         name = Path(app_path).name
         found = self.by_app.get(name)
         if found is None:
-            # A cask that ships an installer doesn't provide an app name, so
-            # try its token. Anything else is not a match at all.
-            found = self.by_app.get(name.removesuffix(".app").lower())
-            if not isinstance(found, dict) or not found.get("installs_a_package"):
-                return None
+            found = self._installer_cask_named(name)
         if not isinstance(found, dict):
             return None
         return Cask(
@@ -150,6 +146,18 @@ class CaskIndex:
             found.get("version", ""),
             found.get("installs_a_package", False),
         )
+
+    def _installer_cask_named(self, app_name):
+        """A cask that ships an installer, matched on its token.
+
+        An installer names no app, so the token is the only handle there is.
+        Accepted for those casks alone, because a token is weaker evidence
+        than a file name.
+        """
+        found = self.by_app.get(app_name.removesuffix(".app").lower())
+        if isinstance(found, dict) and found.get("installs_a_package"):
+            return found
+        return None
 
     def __len__(self):
         return len(self.by_app)
