@@ -118,7 +118,7 @@ class Step:
                 answered()
                 return chosen
             except keys.Unusable as failure:
-                self.say(keys.did_not_work(failure))
+                self.say(keys.unusable_message(failure))
 
         if question:
             self.say(question)
