@@ -317,6 +317,30 @@ def run_interactive_mode():
     return 1 if failed else _exit_code(reports, findings.manager_updates)
 
 
+def run_updates_only_mode():
+    """Ask the managers what is outdated, then offer it. Nothing else.
+
+    The checks that look at apps are what take the time: a download of
+    Homebrew's cask list, an update feed per app, and every bundle in
+    /Applications read twice. None of it says anything about what a manager
+    would upgrade, so this mode does none of it.
+    """
+    console = Console(highlight=False)
+    installed = package_managers.installed_managers(shell)
+
+    with console.status(f"[dim]asking {len(installed)} managers what is outdated[/]",
+                        spinner=SPINNER):
+        manager_updates = package_managers.check_managers_themselves(shell, installed)
+        reports = package_managers.check_installed(shell)
+
+    failed = apply_updates.run_manager_menu(manager_updates, shell)
+    if failed:
+        reports = package_managers.check_installed(shell)
+
+    failed += apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(reports, manager_updates)
+
+
 def run_retry_app_mode():
     track_apps.run_revisit_menu(app_decisions.load())
     return 0
