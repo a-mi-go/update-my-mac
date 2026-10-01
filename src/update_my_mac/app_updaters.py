@@ -12,9 +12,9 @@ from dataclasses import dataclass
 import urllib.parse
 
 SPARKLE = "sparkle"
+SQUIRREL = "squirrel"
 NONE = "none"
 
-# What the developer shipped and what the user chose, in that order of doubt.
 AUTOMATIC_CHECKS = "SUEnableAutomaticChecks"
 SILENT_INSTALL = "SUAutomaticallyUpdate"
 LAST_CHECK = "SULastCheckTime"
@@ -42,13 +42,17 @@ class UpdaterStatus:
         """An updater is there, but nobody ever said whether it should run."""
         return self.kind != NONE and self.automatic is None
 
-    def describe(self):
-        if self.kind == NONE:
+    def update_method_note(self):
+        # Squirrel is told its feed and schedule while the app runs, so
+        # nothing on disk says whether it is on.
+        if self.kind == SQUIRREL:
+            return "own updater, nothing says if it runs"
+        if self.kind != SPARKLE:
             return "no updater"
         if self.automatic is None:
             answer = "never answered"
         elif self.automatic:
-            answer = "installs updates itself" if self.installs_silently else "checks by itself"
+            answer = "updates itself" if self.installs_silently else "checks only"
         else:
             answer = "checking is off"
         return f"{answer}, last checked {self.last_checked}" if self.last_checked else answer
@@ -77,19 +81,23 @@ def read_bundle_info(app_path):
 def has_sparkle(app_path, info):
     """Sparkle can be linked without a feed in the plist, and the other way round.
 
-    Codex ships the framework and sets its feed in code; some apps keep the key
-    from an older build without the framework. Either trace is enough to say
-    the app has an updater.
+    An app can ship the framework and set its feed at runtime, and another can
+    keep the key from an older build without the framework. Either trace is
+    enough to say the app has an updater.
     """
     framework = app_path / "Contents" / "Frameworks" / "Sparkle.framework"
     return framework.is_dir() or bool(info.get(FEED_URL))
 
 
-def read_user_settings(bundle_id, shell):
+def has_squirrel(app_path):
+    """Whether the app ships Electron's updater."""
+    return (app_path / "Contents" / "Frameworks" / "Squirrel.framework").is_dir()
+
+
+def read_users_app_settings(bundle_id, shell):
     """What the user answered, read as the app's own preferences.
 
-    `defaults export` is used rather than the preference file, because macOS
-    keeps preferences in a daemon and the file on disk can be stale or absent.
+    `defaults export` rather than the file, which macOS can leave stale.
     """
     if not bundle_id:
         return {}
@@ -109,7 +117,7 @@ def read_user_settings(bundle_id, shell):
     return exported if isinstance(exported, dict) else {}
 
 
-def _as_day(value):
+def _timestamp_to_date(value):
     if isinstance(value, str):
         return value[:10]
     try:
@@ -122,22 +130,22 @@ def detect(app_path, shell, info=None):
     """What the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
-        return UpdaterStatus()
+        return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
 
-    settings = read_user_settings(info.get("CFBundleIdentifier", ""), shell)
-    # The user's answer wins. Without one, the developer's default applies, and
-    # without that there is nothing to go on.
-    automatic = settings.get(AUTOMATIC_CHECKS)
-    if automatic is None:
-        automatic = info.get(AUTOMATIC_CHECKS)
-
+    users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""), shell)
     return UpdaterStatus(
         kind=SPARKLE,
-        automatic=automatic,
-        installs_silently=bool(settings.get(SILENT_INSTALL)),
-        last_checked=_as_day(settings.get(LAST_CHECK)),
+        automatic=_may_check_automatically(users_answer, info),
+        installs_silently=bool(users_answer.get(SILENT_INSTALL)),
+        last_checked=_timestamp_to_date(users_answer.get(LAST_CHECK)),
         feed_url=info.get(FEED_URL, ""),
     )
+
+
+def _may_check_automatically(users_answer, developers_default):
+    """The user's answer if they gave one, otherwise what the app shipped with."""
+    answer = users_answer.get(AUTOMATIC_CHECKS)
+    return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
 
 
 def group_by_status(apps):

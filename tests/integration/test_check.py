@@ -45,7 +45,7 @@ def test_reports_outdated_packages(empty_home):
     assert "5.4.2 → 5.4.5" in typescript
     eslint = next(line for line in out.splitlines() if "eslint" in line)
     assert "9.0.0 → 9.12.0" in eslint
-    assert "6 outdated in total" in out
+    assert "6 need your attention" in out
 
 
 def test_nothing_outdated_says_so(empty_home):
@@ -71,7 +71,10 @@ def test_a_failing_manager_is_reported_as_failed_not_outdated(empty_home):
     result = run_check_against_mocks("npm_failure", empty_home)
     # Non-zero so a scheduled run can tell "nothing outdated" from "did not run".
     assert result.returncode == 1
-    assert "npm (global): check failed" in result.stdout
+    failed = next(line for line in result.stdout.splitlines() if "check failed" in line)
+    assert "npm (global)" in failed
+    # Named once, although both questions to npm came back empty.
+    assert result.stdout.count("check failed") == 1
     assert "ENOTFOUND" in result.stdout
     # A failed check must not be summarised as everything being fine.
     assert "Everything is up to date" not in result.stdout
@@ -91,5 +94,5 @@ def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
     result = run_check_against_mocks("clean", empty_home, app_dirs=str(apps))
 
     assert result.returncode == 0, result.stderr
-    assert "Not tracked by any package manager: 1" in result.stdout
+    assert "Untracked apps 1" in result.stdout
     assert "TokenEater" in result.stdout

@@ -86,7 +86,7 @@ def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
     # brew outdated and --greedy have nothing to say about it ever again.
     item = behind_item(recorded="5.0.6")
 
-    assert item.wrongly_recorded
+    assert item.false_version_recorded
     assert behind_the_recipe.to_reinstall([item]) == ["betterdisplay"]
     assert behind_the_recipe.to_upgrade([item]) == []
 
@@ -94,7 +94,7 @@ def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
 def test_a_cask_homebrew_knows_is_old_only_needs_a_greedy_upgrade():
     item = behind_item(recorded="5.0.5")
 
-    assert not item.wrongly_recorded
+    assert not item.false_version_recorded
     assert behind_the_recipe.to_upgrade([item]) == ["betterdisplay"]
     assert behind_the_recipe.to_reinstall([item]) == []
 
@@ -109,7 +109,7 @@ def test_what_homebrew_wrote_down_is_carried_into_the_finding():
     found = behind_the_recipe.find(apps, Casks(), {"betterdisplay": "5.0.6"})
 
     assert found[0].recorded == "5.0.6"
-    assert found[0].wrongly_recorded
+    assert found[0].false_version_recorded
 
 
 def test_an_app_counted_differently_from_its_recipe_is_not_called_behind():
@@ -134,3 +134,31 @@ def test_a_recipe_dated_where_the_app_counts_is_not_called_ahead():
     )
 
     assert found == []
+
+
+def test_an_app_whose_build_matches_the_recipe_is_not_behind():
+    # Google Drive calls itself 131.0 and its build 131.0.2, and its recipe
+    # says 131.0.2. Reading only the first made it look a release behind.
+    drive = InstalledApp("Google Drive", "131.0", Path("/Applications/Google Drive.app"),
+                         build="131.0.2")
+
+    found = behind_the_recipe.find(
+        [drive], index(**{"Google Drive": ("google-drive", "131.0.2")}),
+        {"google-drive": "131.0.2"},
+    )
+
+    assert found == []
+
+
+def test_an_app_whose_build_is_numbered_differently_is_still_compared():
+    # Tor Browser calls itself 15.0.14 with a build of 14026.5.18, which says
+    # nothing about the recipe's 15.0.23.
+    tor = InstalledApp("Tor Browser", "15.0.14", Path("/Applications/Tor Browser.app"),
+                       build="14026.5.18")
+
+    found = behind_the_recipe.find(
+        [tor], index(**{"Tor Browser": ("tor-browser", "15.0.23")}),
+        {"tor-browser": "15.0.23"},
+    )
+
+    assert [item.app.name for item in found] == ["Tor Browser"]

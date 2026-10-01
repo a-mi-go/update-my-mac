@@ -5,7 +5,7 @@ from pathlib import Path
 from rich.text import Text
 
 from update_my_mac import resolve_duplicates
-from update_my_mac.duplicate_commands import Copy, Duplicate
+from update_my_mac.duplicate_installations import Copy, Duplicate
 from fake_terminal import Terminal
 
 

@@ -18,33 +18,16 @@ from pathlib import Path
 from update_my_mac import versions
 
 SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
-# How long an answer is reused, and how long the asking may take.
-#
-# Reusing an answer is a trade against being wrong about an app, and being
-# wrong here matters more than it looks: whether an app counts as one that
-# still looks after itself is decided by what came back from its feed. So
-# the two directions are not kept for the same length of time.
-#
-# An answer that came back is kept for hours, because a Sparkle feed changes
-# when the vendor ships, not by the minute, and the cost of being a few hours
-# behind is a version number that is one release old.
-#
-# A failure is asked about again far sooner, because the state it describes
-# is the one that gets acted on: an app whose feed has gone quiet is taken
-# out of "these update themselves" and offered as something to sort out. A
-# host that was briefly down should not carry that verdict for a whole day.
-#
-# A failure never erases a version that once came back. Both are kept, so
-# the report can show the last version it named and still say the feed is
-# not answering.
+# A failure is asked about again far sooner than an answer, because a quiet
+# feed takes an app out of "these update themselves". A host that was briefly
+# down should not hold that verdict for a whole day.
 STALE_AFTER_SECONDS = 6 * 60 * 60
 STALE_AFTER_A_FAILURE = 30 * 60
 
-# One feed may take this long, and all of them together only a little longer.
-# `--check` runs unattended, and a Mac with twenty Sparkle apps behind slow
-# hosts would otherwise sit here one timeout at a time.
-TIMEOUT_SECONDS = 15
-BUDGET_SECONDS = 30
+# A budget as well as a timeout, because `--check` runs unattended and twenty
+# apps behind slow hosts would otherwise wait one timeout at a time.
+TIMEOUT_PER_FEED_SECONDS = 15
+BUDGET_FOR_ALL_FEEDS_SECONDS = 30
 
 
 class NotAnAppcast(Exception):
@@ -111,7 +94,7 @@ def newest_version(feed):
 def fetch(url):
     """The feed's text. Raises urllib's errors, which the caller turns into words."""
     request = urllib.request.Request(url, headers={"User-Agent": "update-my-mac"})
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(request, timeout=TIMEOUT_PER_FEED_SECONDS) as response:
         return response.read().decode("utf-8", "replace")
 
 
@@ -159,7 +142,7 @@ def check(apps, env=None, fetch_one=fetch, now=time.time):
         if kept is not None:
             answers[url] = kept
             continue
-        if now() - started >= BUDGET_SECONDS:
+        if now() - started >= BUDGET_FOR_ALL_FEEDS_SECONDS:
             answers[url] = FeedAnswer(error="there was no time left to ask its feed")
             continue
 
@@ -201,7 +184,13 @@ def answer_for(app, answers):
 
 
 def offers_newer(app, answer):
-    """Whether the feed names a version later than the one installed."""
+    """Whether the feed names a version later than the one installed.
+
+    An app names two versions for itself, and a feed may be written against
+    either of them.
+    """
+    if versions.any_version_matches(app.versions_named(), answer.version):
+        return False
     return versions.is_newer(answer.version, than=app.version)
 
 

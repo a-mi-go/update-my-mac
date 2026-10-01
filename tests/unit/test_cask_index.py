@@ -47,8 +47,21 @@ def test_an_app_no_cask_ships_is_not_invented():
     assert index_of().for_app("/Applications/TokenEater.app") is None
 
 
-def test_casks_without_an_app_are_skipped():
-    assert len(index_of()) == 2
+def test_a_cask_that_installs_a_package_is_kept_under_its_own_name():
+    # Google Drive and Foxit ship installers and name no app, so nothing on
+    # disk points at them. The token is the only handle left.
+    found = index_of().for_app("/Applications/no app at all.app")
+
+    assert found.token == "no-app-at-all"
+    assert found.installs_a_package
+
+
+def test_an_app_cask_is_not_marked_as_an_installer():
+    assert not index_of().for_app("/Applications/Codex.app").installs_a_package
+
+
+def test_a_package_cask_is_not_matched_against_an_app_it_does_not_name():
+    assert index_of().for_app("/Applications/Something Else.app") is None
 
 
 def test_a_cask_without_a_token_is_ignored():
@@ -121,3 +134,15 @@ def test_the_cache_sits_where_the_xdg_variables_say(tmp_path):
 
     default = cask_index.cache_path({"HOME": str(tmp_path)})
     assert default == tmp_path / ".cache" / "update-my-mac" / "casks.json"
+
+
+def test_a_name_that_differs_only_in_case_is_not_claimed():
+    # Tempting, because a Mac filesystem does not care about case. But the
+    # orca cask installs plotly's orca, and the Orca in /Applications here is
+    # a different program with the same name.
+    index = cask_index.CaskIndex(cask_index.reduce_to_apps([
+        {"token": "orca", "version": "1.3.1", "artifacts": [{"app": ["orca.app"]}]},
+    ]))
+
+    assert index.for_app("/Applications/Orca.app") is None
+    assert index.for_app("/Applications/orca.app").token == "orca"

@@ -37,7 +37,7 @@ def test_nothing_behind_means_nothing_is_asked():
     assert terminal.text == ""
 
 
-def test_a_wrongly_recorded_version_is_reinstalled():
+def test_a_false_version_recorded_version_is_reinstalled():
     brew = Brew()
     terminal = Terminal(DECIDE, CATCH_UP, then=EOFError)
 
