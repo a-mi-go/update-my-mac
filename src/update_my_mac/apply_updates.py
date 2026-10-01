@@ -138,7 +138,7 @@ def choose_what_to_update(entries, pick=keys.pick_several):
 
 
 def _run_each_manager(manager_keys, shell, console, announce, run_one):
-    """What went through, what went badly, and whether Ctrl-C ended the run."""
+    """What went through and what went badly."""
     done, failed = [], []
     for key in manager_keys:
         manager = package_managers.by_key(key)
@@ -149,7 +149,7 @@ def _run_each_manager(manager_keys, shell, console, announce, run_one):
             failed.append((key, f"exited with {exit_code}"))
         else:
             done.append(key)
-    return done, failed, False
+    return done, failed
 
 
 def upgrade_managers_themselves(manager_keys, shell, console):
@@ -175,7 +175,7 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     if not _updates_confirmed(console, ask):
         return []
 
-    done, failed, _ = upgrade_managers_themselves(
+    done, failed = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
     )
     say_what_happened(console, done, failed)
@@ -265,7 +265,6 @@ def say_what_changed(console, entries, shell):
 def run_chosen(entries, shell, console):
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]
-    _, failed, stopped = upgrade_managers(package_keys, shell, console)
-    if not stopped:
-        say_what_changed(console, upgraded, shell)
+    _, failed = upgrade_managers(package_keys, shell, console)
+    say_what_changed(console, upgraded, shell)
     return [key for key, _ in failed]
