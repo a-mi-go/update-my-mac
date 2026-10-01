@@ -328,13 +328,14 @@ def run_updates_only_mode():
     console = Console(highlight=False)
     installed = package_managers.installed_managers(shell)
 
-    with console.status(f"[dim]asking {len(installed)} managers what is outdated[/]",
+    with console.status(f"[dim]asking {len(installed)} managers about themselves[/]",
                         spinner=SPINNER):
         manager_updates = package_managers.check_managers_themselves(shell, installed)
-        reports = package_managers.check_installed(shell)
 
     failed = apply_updates.run_manager_menu(manager_updates, shell)
-    if failed:
+
+    # Only now, so a manager that just updated itself is the one answering.
+    with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
         reports = package_managers.check_installed(shell)
 
     failed += apply_updates.run_upgrade_menu(reports, shell)
