@@ -186,7 +186,7 @@ def test_an_app_nobody_asked_about_has_no_answer():
 
 def test_a_feed_is_left_unasked_once_the_time_is_up(tmp_path):
     asked = []
-    clock = iter([0, 0, 0, appcast.BUDGET_SECONDS + 1, appcast.BUDGET_SECONDS + 1])
+    clock = iter([0, 0, 0, appcast.BUDGET_FOR_ALL_FEEDS_SECONDS + 1, appcast.BUDGET_FOR_ALL_FEEDS_SECONDS + 1])
 
     def fetch_one(url):
         asked.append(url)
