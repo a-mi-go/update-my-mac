@@ -123,7 +123,7 @@ def test_an_app_with_a_recipe_says_which_one():
         find_cask=lambda a: Cask("betterdisplay", "https://x.test/", "5.0.6"),
     ))
 
-    assert find("Nobody checks these", found).rows[0].note == "Homebrew has betterdisplay"
+    assert find("Untracked apps", found).rows[0].note == "cask betterdisplay"
 
 
 def test_the_managers_that_answered_and_had_nothing_to_say_are_named():
@@ -153,7 +153,7 @@ def test_an_updater_that_is_switched_off_is_not_the_same_as_none():
 
     assert "Their updater is switched off" in titles(found)
     assert find("Their updater is switched off", found).rows[0].name == "Off"
-    assert find("Nobody checks these", found).rows[0].name == "Nothing"
+    assert find("Untracked apps", found).rows[0].name == "Nothing"
 
 
 def test_an_updater_nobody_answered_for_gets_its_own_line():
@@ -173,4 +173,20 @@ def test_an_electron_app_is_not_counted_as_having_nothing():
 
     section = find("They have an updater, and nothing says whether it runs", found)
     assert section.rows[0].name == "Exodus"
-    assert "nothing on disk says whether it runs" in section.rows[0].note
+    assert "nothing says if it runs" in section.rows[0].note
+
+
+def test_a_count_says_what_it_counts_where_the_title_does_not():
+    found = sections.of(sections.Findings(reports=[
+        ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"]),
+        ManagerReport("brew", "Homebrew", ["git  1 → 2", "jq  1 → 2"]),
+    ]))
+
+    assert find("Mac App Store", found).counted() == "1 update available"
+    assert find("Homebrew", found).counted() == "2 updates available"
+
+
+def test_a_title_that_already_names_the_thing_only_gets_the_number():
+    found = sections.of(sections.Findings(untracked=[app("Evoto", "7.1.5")]))
+
+    assert find("Untracked apps", found).counted() == "1"

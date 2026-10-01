@@ -94,5 +94,5 @@ def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
     result = run_check_against_mocks("clean", empty_home, app_dirs=str(apps))
 
     assert result.returncode == 0, result.stderr
-    assert "Nobody checks these 1" in result.stdout
+    assert "Untracked apps 1" in result.stdout
     assert "TokenEater" in result.stdout

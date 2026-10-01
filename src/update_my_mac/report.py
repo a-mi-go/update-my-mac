@@ -149,7 +149,7 @@ def _heading(section, width):
     heading = Text.assemble(
         (f"{MARK[section.level]} ", ""),
         (f"{section.title} ", f"bold {COLOUR[section.level]}"),
-        (str(section.count), "bold cyan"),
+        (section.counted(), "bold cyan"),
     )
     # The reason only goes on this line when there is room for it.
     room = width - heading.cell_len - len(section.note)

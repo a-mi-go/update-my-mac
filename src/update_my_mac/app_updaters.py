@@ -52,11 +52,11 @@ class UpdaterStatus:
         if self.kind == SQUIRREL:
             # There is no setting to read, so there is nothing to report but
             # the fact that the machinery is in the bundle.
-            return "brings its own updater, nothing on disk says whether it runs"
+            return "own updater, nothing says if it runs"
         if self.automatic is None:
             answer = "never answered"
         elif self.automatic:
-            answer = "installs updates itself" if self.installs_silently else "checks by itself"
+            answer = "updates itself" if self.installs_silently else "checks only"
         else:
             answer = "checking is off"
         return f"{answer}, last checked {self.last_checked}" if self.last_checked else answer

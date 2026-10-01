@@ -137,7 +137,7 @@ def test_untracked_apps_are_split_by_who_looks_after_them(capsys):
     assert "They have an updater, nobody answered for it: 1" in printed
     assert "These update themselves: 1" in printed
     assert "Air" in printed
-    assert "checks by itself, last checked 2026-09-24" in printed
+    assert "checks only, last checked 2026-09-24" in printed
 
 
 def test_a_group_nobody_falls_into_is_not_printed(capsys):
@@ -284,11 +284,11 @@ def test_versions_line_up_under_each_other():
 
 def test_a_comment_gets_a_column_of_its_own():
     lines = printed_list([
-        report.Item("Air", "262.5", "checks by itself"),
+        report.Item("Air", "262.5", "checks only"),
         report.Item("Dockish", "1.1", "never answered"),
     ])
 
-    assert lines[0].index("checks by itself") == lines[1].index("never answered")
+    assert lines[0].index("checks only") == lines[1].index("never answered")
 
 
 def test_a_column_nobody_fills_is_left_out():
