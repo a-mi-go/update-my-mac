@@ -39,8 +39,7 @@ class Section:
     rows: list
     # Usually one per row, but a doubled command takes a row for each copy.
     count: int = 0
-    # What the number counts, where the title does not already say it. A
-    # heading reading "Untracked apps 11 apps" would say it twice.
+    # What the number counts, left empty where the title already says it.
     counted_as: str = ""
 
     def __post_init__(self):
@@ -50,8 +49,8 @@ class Section:
         """The number, and what it counts, in the right number."""
         if not self.counted_as:
             return str(self.count)
-        # Written in the singular, so only the noun in front takes the s:
-        # one update available, five updates available.
+        # Only the noun takes the s: one update available, five updates
+        # available.
         noun, _, rest = self.counted_as.partition(" ")
         if self.count != 1:
             noun += "s"
@@ -82,9 +81,9 @@ def of(findings):
         + _false_version_recorded(findings)
         + _feeds_gone_quiet(findings)
         + _owned_by_someone_else(findings)
-        + _homebrew(findings)
+        + _homebrew_outdated(findings)
         + _outdated_per_manager(findings)
-        + _managers_themselves(findings)
+        + _managers_needing_an_update(findings)
         + _installed_twice(findings)
         + _not_restarted(findings)
         + _untracked_apps(findings)
@@ -137,9 +136,8 @@ def _false_version_recorded(findings):
         for item in findings.behind
         if item.wrongly_recorded
     ]
-    # Homebrew wrote down the version its recipe has, whatever it actually
-    # put on disk, so it believes it is finished with these. brew outdated
-    # says nothing about them and neither does a greedy upgrade.
+    # Homebrew wrote down its recipe's version, not what it put on disk, so
+    # it believes it is finished with these.
     return [
         Section(CRITICAL, "Homebrew thinks these are current",
                 "only a reinstall fetches them", rows)
@@ -166,7 +164,7 @@ def _owned_by_someone_else(findings):
     ]
 
 
-def _homebrew(findings):
+def _homebrew_outdated(findings):
     """What brew outdated says, and what it overlooks, in one place."""
     report = next((r for r in findings.reports if r.manager == "brew"), None)
     rows = []
@@ -202,7 +200,7 @@ def _package_row(package):
     return Row(name, _version_change(change))
 
 
-def _managers_themselves(findings):
+def _managers_needing_an_update(findings):
     rows = [
         Row(update.label, "", update.description or "can be refreshed")
         for update in findings.manager_updates
@@ -240,7 +238,7 @@ def _untracked_apps(findings):
     at all: one of them can be turned back on.
     """
     unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(
-        _undecided(findings)
+        _untracked_not_already_listed(findings)
     )
     return [
         Section(INFO, "They look after themselves", "nothing to do",
@@ -258,7 +256,7 @@ def _untracked_apps(findings):
 
 def _rows_for_apps(apps, findings):
     return [
-        Row(app.name, _available(app, findings), _what_is_known_about(app, findings))
+        Row(app.name, _installed_and_offered(app, findings), _what_is_known_about(app, findings))
         for app in apps
     ]
 
@@ -270,12 +268,11 @@ def _what_is_known_about(app, findings):
     cask = findings.find_cask(app) if findings.find_cask else None
     if not cask:
         return ""
-    # Only that a recipe exists. What you could do with it differs by kind,
-    # and there is no room to say it here.
+    # Only that a recipe exists; what handing it over would mean differs.
     return f"cask {cask.token}"
 
 
-def _undecided(findings):
+def _untracked_not_already_listed(findings):
     """Untracked apps, minus the ones already named in a louder section."""
     return [
         app for app in findings.untracked
@@ -283,7 +280,7 @@ def _undecided(findings):
     ]
 
 
-def _available(app, findings):
+def _installed_and_offered(app, findings):
     """The installed version, and the newer one on offer for it."""
     answer = appcast.answer_for(app, findings.offered)
     if appcast.offers_newer(app, answer):
