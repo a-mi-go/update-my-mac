@@ -33,10 +33,11 @@ def uv_caches():
 
 def setup_env(home, bin_dir, tool_dir):
     # Just uv and the system, so nothing else installed here can collide with a
-    # name the test picks.
+    # name the test picks. The bin dir is on PATH as on a set-up machine, so
+    # setup has no PATH question to ask.
     uv_dir = Path(shutil.which("uv")).parent
     return {
-        "PATH": f"{uv_dir}:/usr/bin:/bin",
+        "PATH": f"{bin_dir}:{uv_dir}:/usr/bin:/bin",
         "HOME": str(home),
         "UV_TOOL_BIN_DIR": str(bin_dir),
         "UV_TOOL_DIR": str(tool_dir),
