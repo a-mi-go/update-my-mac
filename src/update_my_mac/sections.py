@@ -14,6 +14,9 @@ from update_my_mac import adopt_apps, app_updaters, appcast, versions
 # installed, a feed that has stopped answering, a check that could not run.
 CRITICAL, WARNING, INFO = "critical", "warning", "info"
 
+# What a number counts, when the heading above it does not already say.
+UPDATES = "update available"
+
 
 @dataclass
 class Row:
@@ -33,9 +36,23 @@ class Section:
     rows: list
     # Usually one per row, but a doubled command takes a row for each copy.
     count: int = 0
+    # What the number counts, where the title does not already say it. A
+    # heading reading "Untracked apps 11 apps" would say it twice.
+    counted_as: str = ""
 
     def __post_init__(self):
         self.count = self.count or len(self.rows)
+
+    def counted(self):
+        """The number, and what it counts, in the right number."""
+        if not self.counted_as:
+            return str(self.count)
+        # Written in the singular, so only the noun in front takes the s:
+        # one update available, five updates available.
+        noun, _, rest = self.counted_as.partition(" ")
+        if self.count != 1:
+            noun += "s"
+        return f"{self.count} {noun} {rest}".rstrip()
 
 
 @dataclass
@@ -159,7 +176,7 @@ def _homebrew(findings):
         if not item.wrongly_recorded
     ]
     note = "what it reports, and what it overlooks" if findings.behind else ""
-    section = Section(WARNING, "Homebrew", note, rows)
+    section = Section(WARNING, "Homebrew", note, rows, counted_as=UPDATES)
     if report and report.ignored_taps:
         named = ", ".join(report.ignored_taps)
         section.rows.append(Row("", "", f"nothing from {named} was checked"))
@@ -173,7 +190,8 @@ def _other_managers(findings):
         if report.manager == "brew" or report.error_message:
             continue
         rows = [_package_row(package) for package in report.outdated_packages]
-        built.append(Section(WARNING, report.label, "one menu answer away", rows))
+        built.append(Section(WARNING, report.label, "one menu answer away", rows,
+                             counted_as=UPDATES))
     return built
 
 
@@ -190,7 +208,7 @@ def _managers_themselves(findings):
     ]
     return [
         Section(WARNING, "The package managers themselves",
-                "worth doing before the rest", rows)
+                "worth doing before the rest", rows, counted_as=UPDATES)
     ]
 
 
@@ -201,7 +219,7 @@ def _installed_twice(findings):
         rows += [Row("", copy.describe(), "never used") for copy in duplicate.shadowed]
     return [
         Section(WARNING, "Installed twice", "PATH picks the winner", rows,
-                count=len(findings.doubled))
+                count=len(findings.doubled), counted_as="command")
     ]
 
 
@@ -229,7 +247,13 @@ def _untracked_apps(findings):
                 _app_rows(switched_off, findings)),
         Section(INFO, "They have an updater, and nothing says whether it runs",
                 "it may never have run", _app_rows(unclear, findings)),
-        Section(INFO, "Nobody checks these", "no manager, no updater",
+        # Not "no manager knows them": Homebrew has a recipe for some of
+        # these. It never installed this copy, which is the difference the
+        # word untracked carries.
+        # Not "they have no updater": an app can update itself from inside
+        # and leave nothing on disk to read. All that was looked at is the
+        # bundle, so that is all the heading claims.
+        Section(INFO, "Untracked apps", "nothing says they update themselves",
                 _app_rows(unattended, findings)),
     ]
 
@@ -245,9 +269,9 @@ def _about(app, findings):
     cask = findings.find_cask(app) if findings.find_cask else None
     if not cask:
         return ""
-    if cask.installs_a_package:
-        return f"Homebrew knows it as {cask.token}, as an installer"
-    return f"Homebrew has {cask.token}"
+    # Only that a recipe exists. What you could do with it differs by kind,
+    # and there is no room to say it here.
+    return f"cask {cask.token}"
 
 
 def _undecided(findings):
@@ -265,6 +289,7 @@ def _available(app, findings):
         return f"{app.version} → {answer.version}"
 
     cask = findings.find_cask(app) if findings.find_cask else None
-    if cask and versions.is_newer(cask.version, than=app.version):
-        return f"{app.version} → {cask.version}"
+    if cask and not versions.same_as_any(app.versions_named(), cask.version):
+        if versions.is_newer(cask.version, than=app.version):
+            return f"{app.version} → {cask.version}"
     return app.version

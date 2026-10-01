@@ -100,7 +100,7 @@ def test_silent_installing_is_said_differently(tmp_path):
     )
     shell = FakeShell({"SUEnableAutomaticChecks": True, "SUAutomaticallyUpdate": True})
 
-    assert app_updaters.detect(app, shell).describe() == "installs updates itself"
+    assert app_updaters.detect(app, shell).describe() == "updates itself"
 
 
 def test_the_last_check_is_shown_as_a_day(tmp_path):
