@@ -224,6 +224,17 @@ def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_somethi
     out(f"  [bold]{escape(shell_configs.clear_line(shell, name))}[/]")
 
 
+# Where each shell's PATH is usually set from scratch, for the warning.
+CONFIG_HINT = {"zsh": "~/.zshrc", "bash": "~/.bashrc", "fish": "~/.config/fish/config.fish"}
+
+
+def shell_in_use(calling_pid, env):
+    """zsh, bash or fish: what the calling process is, else what $SHELL says, else None."""
+    shell = shell_configs.shell_of_process(calling_pid) if calling_pid is not None else None
+    shell = shell or os.path.basename(env.get("SHELL", ""))
+    return shell if shell in CONFIG_HINT else None
+
+
 def settle_name(args, env, ask, out, err, interactive):
     """(name, definitions to disable), or (None, []) to stop. Changes nothing."""
     name = first_name(args, ask, out, interactive)
@@ -271,14 +282,28 @@ def run(args, ask, out, err, env, interactive, now, install, update_shell):
         link_under_name(name, args.bin_dir, out)
 
     path_fixed = path_missing and fix_path and update_shell()
-    if path_missing and not path_fixed:
+    shell = shell_in_use(args.calling_pid, env) if path_fixed else None
+    config_resets_path = False
+    if shell:
+        out()
+        out("Checking that a new terminal finds it. This reads your whole shell config and can take a moment.")
+        config_resets_path = shell_configs.found_in_new_terminal(shell, name, args.bin_dir, env) is False
+    if config_resets_path:
+        out()
+        out(f"[yellow]A new terminal still won't find '[bold]{name}[/bold]'.[/] Something in your shell config")
+        out(f"(for {shell}, usually [bold]{CONFIG_HINT[shell]}[/]) sets PATH from scratch, for example")
+        out("[bold]export PATH=/usr/local/bin:/usr/bin[/] without the old value. Make it keep the old")
+        out(f"value, or add [bold]{escape(args.bin_dir)}[/] to it.")
+    elif path_missing and not path_fixed:
         out()
         out(f"[yellow]Add {escape(args.bin_dir)} to your PATH[/], or run: [bold]uv tool update-shell[/]")
 
     warn_if_terminal_is_stale(name, args.calling_pid, env, out, now, bool(to_disable))
 
     out()
-    if path_fixed:
+    if config_resets_path:
+        out(f"[yellow]Installed, but a new terminal won't find '{name}' until that is fixed.[/]")
+    elif path_fixed:
         out(f"[green]Done.[/] Open a new terminal, then try: [bold]{name} --check[/]")
     elif path_missing:
         out(f"[yellow]Installed, but '{name}' won't be found until that is on your PATH.[/]")
