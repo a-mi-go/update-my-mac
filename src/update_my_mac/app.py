@@ -127,8 +127,7 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
     label = (
         f"yes, get those apps back on track "
         f"({known} of {len(troubled)} can go to Homebrew)" if known
-        else f"yes, go through the {len(troubled)} apps nobody tracks "
-             f"(none of them can go to Homebrew)"
+        else f"yes, go through the apps nobody tracks ({len(troubled)})"
     )
     return _problem(
         label,

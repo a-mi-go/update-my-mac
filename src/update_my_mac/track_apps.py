@@ -221,7 +221,7 @@ def _app_choices(app, cask, adopt, site, can_ask_the_app):
         choices.append((WEBSITE, f"download and install manually from {site}"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
     choices.append((LATER, "leave it for now"))
-    choices.append((CANCEL, "cancel the walk-through and move on to the next step"))
+    choices.append((CANCEL, "cancel the walk-through"))
     return choices
 
 

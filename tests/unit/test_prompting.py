@@ -1,6 +1,6 @@
 """The indenting and the numbering that every walk-through is built out of."""
 
-from update_my_mac.prompting import STEP, Step, Stopped
+from update_my_mac.prompting import STEP, WAY_OUT, Step, Stopped
 
 from fake_terminal import Terminal
 
@@ -31,7 +31,7 @@ def test_the_options_stand_one_step_inside_the_question():
 
     Step(terminal.out, terminal.ask).choose([("a", "one"), ("b", "two")])
 
-    assert terminal.lines[:3] == [f"{STEP}1) one", f"{STEP}-----", f"{STEP}2) two"]
+    assert terminal.lines[:2] == [f"{STEP}1) one", f"{STEP}2) {WAY_OUT}two"]
 
 
 def test_the_prompt_stands_in_the_column_the_question_does():

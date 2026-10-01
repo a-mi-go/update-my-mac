@@ -3,10 +3,14 @@
 from rich.console import Console
 from rich.markup import escape
 from rich.rule import Rule
+from rich.text import Text
 
-# The way out of a menu sits below a line, so it reads as a way out rather
-# than as one more thing to do.
-SEPARATOR = "-----"
+from update_my_mac import keys
+
+# Marked rather than set below a line, because a separator is a row of its own
+# and a row can be landed on. An arrow rather than a cross: the last answer is
+# often "not now" rather than a refusal.
+WAY_OUT = "↩ "
 
 # How far one step of the conversation sits inside the one that opened it.
 STEP = "  "
@@ -45,6 +49,15 @@ class Stopped(Exception):
     """
 
 
+def _with_way_out_mark(label, at, total):
+    """The label, marked when it is the last one in a menu."""
+    return f"{WAY_OUT}{label}" if at == total - 1 else label
+
+
+def _without_markup(text):
+    return Text.from_markup(text).plain if text else ""
+
+
 def printer(out):
     """The given print function, or one onto a fresh console."""
     return out or Console(highlight=False, soft_wrap=True).print
@@ -59,15 +72,17 @@ class Step:
     and never learns how deep it ended up.
     """
 
-    def __init__(self, out=None, ask=input, depth=0):
+    def __init__(self, out=None, ask=input, depth=0, with_keys=None):
         self.out = printer(out)
         self.ask = ask
         self.depth = depth
         self.margin = STEP * depth
+        # None means "decide from the terminal", which is False in every test.
+        self.with_keys = keys.available() if with_keys is None else with_keys
 
     def inside(self):
         """The step one level in, for whatever this one opens."""
-        return Step(self.out, self.ask, self.depth + 1)
+        return Step(self.out, self.ask, self.depth + 1, self.with_keys)
 
     def say(self, text=""):
         # A blank line is left as it is: indenting it would leave trailing spaces.
@@ -97,9 +112,17 @@ class Step:
                 interrupted(self.say)
 
     def _ask(self, options, question):
+        if self.with_keys:
+            try:
+                chosen = self._choose_with_keys(options, question)
+                answered()
+                return chosen
+            except keys.Unusable as failure:
+                self.say(keys.did_not_work(failure))
+
         if question:
             self.say(question)
-        self._list(options)
+        self._print_numbered(options)
         while True:
             # Asked again rather than guessed at, because guessing wrong here
             # acts on an app the person did not mean.
@@ -109,12 +132,26 @@ class Step:
                 return options[int(given) - 1][0]
             self.say("[yellow]Didn't catch that.[/]")
 
-    def _list(self, options):
+    def _choose_with_keys(self, options, question):
+        """Move a cursor instead of typing a number.
+
+        A line the cursor skips sets the way out apart, which is what the
+        numbered menu uses a mark for.
+        """
+        entries = list(options)
+        entries.insert(len(entries) - 1, None)
+
+        picked = keys.pick_one(_without_markup(question), entries)
+        if picked is None:
+            # No answer at all, whatever the menu's reason for giving none.
+            raise Stopped
+        return picked
+
+    def _print_numbered(self, options):
         listed = self.inside()
-        for number, (_, label) in enumerate(options, start=1):
-            if number == len(options):
-                listed.say(f"[dim]{SEPARATOR}[/]")
-            listed.say(f"[bold cyan]{number})[/] {escape(label)}")
+        for at, (_, label) in enumerate(options):
+            marked = escape(_with_way_out_mark(label, at, len(options)))
+            listed.say(f"[bold cyan]{at + 1})[/] {marked}")
 
     def close_section(self):
         self.out(Rule(characters="-", style="white"), width=CLOSING_WIDTH)
