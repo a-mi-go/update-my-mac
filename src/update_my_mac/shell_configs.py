@@ -7,6 +7,7 @@ PATH, so a leftover one quietly hides the installed command.
 import os
 import re
 import shutil
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
@@ -199,6 +200,54 @@ def clear_line(shell, name):
     if shell == "fish":
         return f"functions -e {name}; abbr -e {name} 2>/dev/null"
     return f"unalias {name} 2>/dev/null; unset -f {name} 2>/dev/null; hash -r"
+
+
+# Set for the shell that found_in_new_terminal starts, which reads the whole
+# config with nobody to answer: a framework asking whether to update itself
+# would take its default, and that is a change nobody agreed to.
+QUIET_FRAMEWORKS = {"DISABLE_AUTO_UPDATE": "true", "DISABLE_UPDATE_PROMPT": "true"}
+
+
+def found_in_new_terminal(shell, name, bin_dir, env, timeout=20):
+    """Whether a new terminal finds bin_dir/name: True, False, or None if unknown.
+
+    A fresh login shell is what a terminal tab is on macOS. It reads the whole
+    shell config, so a line there that sets PATH from scratch shows up here and
+    not in the edit that was meant to fix it. Whatever the config prints is
+    ignored: only where the shell resolves name counts, so an alias or another
+    program of that name is a False. A shell that is missing, or takes longer
+    than timeout (a prompt of its own, say), is just unknown.
+    """
+    if shutil.which(shell, path=env.get("PATH", "")) is None:
+        return None
+    scripts = {
+        "bash": ["bash", "-lic", 'command -v -- "$1"', "_", name],
+        "zsh": ["zsh", "-lic", 'command -v -- "$1"', "_", name],
+        "fish": ["fish", "-lic", "command -s -- $argv[1]", name],
+    }
+    try:
+        # Its own process group, so that a timeout can end whatever the config
+        # started in the background too; it would otherwise hold the pipe open.
+        shell_process = subprocess.Popen(
+            scripts[shell], env={**env, **QUIET_FRAMEWORKS}, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True,
+        )
+    except OSError:
+        return None
+    try:
+        output, _ = shell_process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(shell_process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        shell_process.communicate()
+        return None
+    lines = output.decode(errors="replace").strip().splitlines()
+    if shell_process.returncode != 0 or not lines:
+        return False
+    found = os.path.realpath(lines[-1].strip())
+    return found == os.path.realpath(os.path.join(bin_dir, name))
 
 
 def builtin_in(shell, name):
