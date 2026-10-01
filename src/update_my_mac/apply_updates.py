@@ -87,11 +87,11 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _said_yes(console, ask):
+def _updates_confirmed(console, ask):
     """Whether to go ahead, asked with the keys where the terminal allows it."""
     while True:
         try:
-            said = _ask_yes(console, ask)
+            said = _confirm_updates(console, ask)
         except KeyboardInterrupt:
             prompting.interrupted(console.print)
             continue
@@ -100,7 +100,7 @@ def _said_yes(console, ask):
         return said
 
 
-def _ask_yes(console, ask):
+def _confirm_updates(console, ask):
     if keys.available():
         try:
             said = bool(keys.confirm("Update them now?"))
@@ -132,16 +132,12 @@ def _ask_yes(console, ask):
 
 
 def choose_what_to_update(entries, pick=keys.pick_several):
-    """Pick several with the space bar. Returns the entries, or CANCEL.
-
-    Everything and Nothing are not options here: selecting all of them is
-    Everything, and selecting none is Nothing.
-    """
+    """A multiple choice: the entries that were picked, or CANCEL."""
     picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
     return picked or CANCEL
 
 
-def _run_each(manager_keys, shell, console, announce, run_one):
+def _run_each_manager(manager_keys, shell, console, announce, run_one):
     """What went through, what went badly, and whether Ctrl-C ended the run."""
     done, failed = [], []
     for key in manager_keys:
@@ -158,12 +154,12 @@ def _run_each(manager_keys, shell, console, announce, run_one):
 
 def upgrade_managers_themselves(manager_keys, shell, console):
     """Update the managers first, so the upgrades after them use current tools."""
-    return _run_each(manager_keys, shell, console, "Updating", package_managers.upgrade_self)
+    return _run_each_manager(manager_keys, shell, console, "Updating", package_managers.upgrade_self)
 
 
 def upgrade_managers(manager_keys, shell, console):
     """Upgrade each manager's packages in turn."""
-    return _run_each(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
+    return _run_each_manager(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
 
 
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
@@ -176,7 +172,7 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    if not _said_yes(console, ask):
+    if not _updates_confirmed(console, ask):
         return []
 
     done, failed, _ = upgrade_managers_themselves(
