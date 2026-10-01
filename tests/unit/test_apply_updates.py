@@ -1,3 +1,4 @@
+import pytest
 from rich.console import Console
 
 from update_my_mac import apply_updates
@@ -200,13 +201,15 @@ def test_no_terminal_cancels_instead_of_crashing():
     assert shell.streamed == []
 
 
-def test_ctrl_c_cancels_instead_of_crashing():
+def test_ctrl_c_at_the_menu_ends_the_run():
+    # Nothing below the top catches it, so it leaves through here.
     shell = RecordingShell()
-    failed = apply_updates.run_upgrade_menu(
-        REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
-    )
 
-    assert failed == []
+    with pytest.raises(KeyboardInterrupt):
+        apply_updates.run_upgrade_menu(
+            REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
+        )
+
     assert shell.streamed == []
 
 
@@ -216,7 +219,7 @@ def test_a_failed_upgrade_is_reported_back():
     assert run(shell, "1") == ["brew", "npm"]
 
 
-def test_ctrl_c_during_an_upgrade_stops_the_rest():
+def test_ctrl_c_during_an_upgrade_ends_the_run():
     class InterruptedShell(RecordingShell):
         def stream_command(self, args, env=None):
             self.streamed.append(args)
@@ -224,7 +227,10 @@ def test_ctrl_c_during_an_upgrade_stops_the_rest():
 
     shell = InterruptedShell()
 
-    assert run(shell, "1") == ["brew"]
+    with pytest.raises(KeyboardInterrupt):
+        run(shell, "1")
+
+    # The one it was in the middle of, and nothing after it.
     assert shell.streamed == [["/fake/brew", "upgrade"]]
 
 
@@ -378,14 +384,16 @@ def test_nothing_is_claimed_after_an_interrupted_run():
         def stream_command(self, args, env=None):
             raise KeyboardInterrupt
 
-    printed = printed_by(
-        lambda console: apply_updates.run_upgrade_menu(
-            REPORTS, InterruptedShell(), console, answers("1")
-        )
-    )
+    console = Console(width=100, no_color=True)
+    with console.capture() as captured:
+        with pytest.raises(KeyboardInterrupt):
+            apply_updates.run_upgrade_menu(
+                REPORTS, InterruptedShell(), console, answers("1")
+            )
 
     # The menu itself says "What should be updated?", so look for the closing
     # lines rather than the word.
+    printed = captured.get()
     assert "1 updated" not in printed
     assert "still outdated" not in printed
 

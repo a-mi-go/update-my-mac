@@ -1,5 +1,6 @@
 """The one question that offers everything the run found to sort out."""
 
+import pytest
 from rich.rule import Rule
 from rich.text import Text
 
@@ -92,10 +93,12 @@ def test_without_a_terminal_nothing_is_asked():
     assert terminal.text == ""
 
 
-def test_ctrl_c_stops_without_crashing():
+def test_ctrl_c_is_left_to_end_the_run():
+    # Nothing below the top catches it, so a question stops everything.
     terminal = Terminal(then=KeyboardInterrupt)
 
-    assert resolve_issues.run_resolve_menu([problem("apps")], terminal.step) == 0
+    with pytest.raises(KeyboardInterrupt):
+        resolve_issues.run_resolve_menu([problem("apps")], terminal.step)
 
 
 def test_a_line_closes_the_phase():
@@ -147,27 +150,24 @@ def test_an_interruption_keeps_what_fixing_everything_already_did():
     def sorted_out(_step):
         return 2
 
-    for exception in (KeyboardInterrupt, prompting.Stopped):
-        terminal = Terminal("3")
-        dealt_with = resolve_issues.run_resolve_menu(
-            [
-                resolve_issues.Problem("apps", None, sorted_out),
-                resolve_issues.Problem("copies", None, stopping(exception)),
-            ],
-            terminal.step,
-        )
+    terminal = Terminal("3")
+    dealt_with = resolve_issues.run_resolve_menu(
+        [
+            resolve_issues.Problem("apps", None, sorted_out),
+            resolve_issues.Problem("copies", None, stopping(prompting.Stopped)),
+        ],
+        terminal.step,
+    )
 
-        assert dealt_with == 2
+    assert dealt_with == 2
 
 
-def test_an_interrupted_step_still_reports_what_it_managed():
-    # The count is what decides whether the run looks at the managers again,
-    # so a step that was stopped halfway must not report nothing.
-    def stopped_after_two(_step):
-        raise prompting.Stopped(2)
+def test_a_step_that_ran_out_of_input_does_not_take_the_others_with_it():
+    def out_of_input(_step):
+        raise prompting.Stopped
 
     terminal = Terminal("2")
 
     assert resolve_issues.run_resolve_menu(
-        [resolve_issues.Problem("apps", None, stopped_after_two)], terminal.step
-    ) == 2
+        [resolve_issues.Problem("apps", None, out_of_input)], terminal.step
+    ) == 0

@@ -91,13 +91,7 @@ def _run_each(keys, shell, console, announce, run_one):
     for key in keys:
         manager = package_managers.by_key(key)
         console.print(f"\n[bold]{announce} {manager.label}[/]")
-        try:
-            exit_code = run_one(manager, shell)
-        except KeyboardInterrupt:
-            # Ctrl-C reaches us too, and has to stop the whole queue.
-            console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
-            return done, failed + [(key, "stopped")], True
-
+        exit_code = run_one(manager, shell)
         if exit_code != 0:
             console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
             failed.append((key, f"exited with {exit_code}"))
@@ -129,7 +123,7 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     while True:
         try:
             answer = ask("Update them now? [y/N] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             console.print("\nNothing updated.")
             return []
 
@@ -157,8 +151,8 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
         print_menu(entries, console)
         try:
             answer = ask("> ")
-        except (EOFError, KeyboardInterrupt):
-            # No terminal, or Ctrl-C. Silence is not consent to upgrade.
+        except EOFError:
+            # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
             return []
 

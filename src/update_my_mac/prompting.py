@@ -17,17 +17,32 @@ STEP = "  "
 CLOSING_WIDTH = 84
 
 
+# Once is a warning, twice in a row ends the run. An answer in between clears
+# it, because one press is easy to hit by accident.
+_warned = False
+
+
+def interrupted(say):
+    """What to do about a Ctrl-C. Raises it again when it is the second one."""
+    global _warned
+    if _warned:
+        raise KeyboardInterrupt
+    _warned = True
+    say("[yellow]Press Ctrl-C again to stop the run.[/]")
+
+
+def answered():
+    """A question that came back clears the warning."""
+    global _warned
+    _warned = False
+
+
 class Stopped(Exception):
-    """Ctrl-C, or no more input to answer with.
+    """No more input to answer with, which ends the step but not the run.
 
-    It carries what the step had already done when it was interrupted. That
-    part still happened, and a step that swallowed its own count would leave
-    the run believing nothing changed.
+    Ctrl-C is a different thing and is not caught anywhere below the top: it
+    ends the run wherever it arrives.
     """
-
-    def __init__(self, done=0):
-        super().__init__(done)
-        self.done = done
 
 
 def printer(out):
@@ -61,7 +76,9 @@ class Step:
     def read(self, question):
         try:
             return self.ask(f"{self.margin}{question}").strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
+            # No more input to answer with, which stops this step. Ctrl-C is
+            # not caught here: it ends the run.
             raise Stopped
 
     def choose(self, options, question=""):
@@ -73,6 +90,13 @@ class Step:
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
+        while True:
+            try:
+                return self._ask(options, question)
+            except KeyboardInterrupt:
+                interrupted(self.say)
+
+    def _ask(self, options, question):
         if question:
             self.say(question)
         self._list(options)
@@ -81,6 +105,7 @@ class Step:
             # acts on an app the person did not mean.
             given = self.read("> ")
             if given.isdigit() and 1 <= int(given) <= len(options):
+                answered()
                 return options[int(given) - 1][0]
             self.say("[yellow]Didn't catch that.[/]")
 

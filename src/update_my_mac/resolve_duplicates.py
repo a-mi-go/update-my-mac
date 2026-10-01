@@ -31,29 +31,20 @@ def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
             return remove_shadowed(duplicates, remove, step)
         if chosen == DECIDE_FOR_EACH:
             return _walk_through(duplicates, remove, step.inside())
-    except Stopped as stopped:
+    except Stopped:
         step.say()
-        return stopped.done
     return 0
 
 
 def remove_shadowed(duplicates, remove, step):
-    """Remove the copies PATH never reaches. Returns how many went.
-
-    Ctrl-C takes the count so far with it, because a copy already removed
-    stays removed.
-    """
+    """Remove the copies PATH never reaches. Returns how many went."""
     each = step.inside()
     removed = 0
     for duplicate in duplicates:
         for copy in duplicate.shadowed:
             each.say()
             each.say(f"[bold]{escape(duplicate.command)}[/]")
-            try:
-                gone = _remove_one(copy, remove, each.inside())
-            except Stopped:
-                raise Stopped(removed)
-            if gone:
+            if _remove_one(copy, remove, each.inside()):
                 removed += 1
     return removed
 
@@ -102,11 +93,7 @@ def _remove_one(copy, remove, step):
         return False
 
     step.say(f"Removing {escape(copy.package)}")
-    try:
-        exit_code = remove(copy)
-    except KeyboardInterrupt:
-        step.say("[yellow]Stopped.[/]")
-        raise Stopped
+    exit_code = remove(copy)
 
     if exit_code != 0:
         step.say(f"[yellow]That exited with {exit_code}.[/]")

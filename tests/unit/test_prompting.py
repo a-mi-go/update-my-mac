@@ -95,3 +95,47 @@ def test_the_menu_asks_the_question_it_was_given():
 
     assert chosen == "a"
     assert terminal.lines[0] == "Which one?"
+
+
+def interrupting(*answers):
+    """A terminal that presses Ctrl-C before each of these answers."""
+    given = list(answers)
+
+    def ask(_prompt):
+        answer = given.pop(0)
+        if answer is INTERRUPT:
+            raise KeyboardInterrupt
+        return answer
+
+    return ask
+
+
+INTERRUPT = object()
+
+
+def test_the_first_ctrl_c_only_warns():
+    terminal = Terminal()
+    step = Step(terminal.out, interrupting(INTERRUPT, "1"))
+
+    assert step.choose([("a", "one"), ("b", "two")]) == "a"
+    assert "Press Ctrl-C again" in terminal.text
+
+
+def test_the_second_ctrl_c_in_a_row_ends_the_run():
+    step = Step(Terminal().out, interrupting(INTERRUPT, INTERRUPT))
+
+    try:
+        step.choose([("a", "one"), ("b", "two")])
+    except KeyboardInterrupt:
+        return
+    raise AssertionError("the second one should have been left to end the run")
+
+
+def test_an_answer_in_between_clears_the_warning():
+    # One Ctrl-C is easy to hit by accident; an answer says it was not meant.
+    terminal = Terminal()
+    step = Step(terminal.out, interrupting(INTERRUPT, "1", INTERRUPT, "2"))
+
+    assert step.choose([("a", "one"), ("b", "two")]) == "a"
+    assert step.choose([("a", "one"), ("b", "two")]) == "b"
+    assert terminal.text.count("Press Ctrl-C again") == 2
