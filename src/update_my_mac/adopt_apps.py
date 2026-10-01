@@ -19,7 +19,7 @@ def compare_to_app(app, cask):
     """How the recipe's version stands to the installed one."""
     if cask is None:
         return ""
-    if versions.same(app.version, cask.version):
+    if versions.any_version_matches(app.versions_named(), cask.version):
         return SAME
     if not versions.comparable(app.version, cask.version):
         return UNCLEAR
@@ -37,12 +37,18 @@ def would_downgrade(app, cask):
 
 
 def can_take_over(app, cask):
-    """Whether the handover can be offered at all, whatever it would do."""
-    return cask is not None
+    """Whether the handover can be offered at all, whatever it would do.
+
+    Not for a cask that ships an installer package: --adopt only ever takes
+    over an app bundle Homebrew would have put there itself.
+    """
+    return cask is not None and not cask.installs_a_package
 
 
 def handover_label(app, cask):
     """What the handover would do to this app, as the menu should word it."""
+    if not can_take_over(app, cask):
+        return ""
     standing = compare_to_app(app, cask)
     if standing == SAME:
         return f"add to Homebrew ({cask.token} {cask.version})"
@@ -71,6 +77,11 @@ def homebrew_note(app, cask):
     standing = compare_to_app(app, cask)
     if not standing:
         return "Homebrew has no recipe for this app."
+    if cask.installs_a_package:
+        return (
+            f"Homebrew knows it as {cask.token} {cask.version}, but installs it from a "
+            f"package, which it cannot take an app over from."
+        )
     if standing == OLDER:
         return (
             f"Homebrew's recipe {cask.token} is still {cask.version}, older than the "
@@ -92,6 +103,8 @@ def hand_to_homebrew(app, cask, shell):
     """
     if cask is None:
         return False, "Homebrew has no recipe for this app."
+    if cask.installs_a_package:
+        return False, f"{cask.token} installs a package, so there is no app to take over."
     if shell.find_executable("brew") is None:
         return False, "Homebrew is not installed."
 

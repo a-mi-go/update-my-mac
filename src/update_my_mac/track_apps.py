@@ -63,11 +63,10 @@ def run_untracked_menu(
 def worth_sorting_out(app, cask, answer=None):
     """Whether this app is a problem at all.
 
-    An app that looks after itself is doing the job, and saying otherwise is
-    how a list of twenty apps becomes worth ignoring. It only counts once
-    something says it has stopped: its own feed offering a version it never
-    installed, a feed that no longer answers, or a recipe that has gone past
-    it. Codex running ahead of its recipe is none of those.
+    An app that looks after itself only counts once something says it has
+    stopped: a feed offering a version it never installed, a feed that no
+    longer answers, or a recipe that has gone past it. Running ahead of its
+    recipe is none of those.
     """
     if not app.updater.looks_after_itself:
         return True
@@ -206,7 +205,7 @@ def _say_what_is_known(app, cask, answer, step):
     if app.updater.kind == app_updaters.NONE:
         told.append("Nothing in it says how it updates.")
     else:
-        told.append(f"It {app.updater.describe()}.")
+        told.append(f"It {app.updater.update_method_note()}.")
 
     if appcast.offers_newer(app, answer):
         told.append(f"Its own feed offers {answer.version}.")

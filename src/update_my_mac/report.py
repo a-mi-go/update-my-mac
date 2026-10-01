@@ -4,13 +4,15 @@ from update_my_mac import __version__
 
 from dataclasses import dataclass
 
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
 from rich.markup import escape
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from update_my_mac import app_updaters, appcast, versions
+from update_my_mac import __version__ as _version, app_updaters, appcast, sections, versions
 
 
 # Beyond this items count a list is printed as a grid for better readability
@@ -63,7 +65,7 @@ def print_as_list_or_grid(console, indent, items):
     console.print(Padding(table, (0, 0, 0, len(indent))))
 
 
-def _as_item(package):
+def _split_name_and_change(package):
     """A manager's "name  1.2.3 → 1.2.4" line, split so the arrows line up."""
     name, _, versions = package.partition("  ")
     return Item(name, versions.strip())
@@ -73,10 +75,96 @@ def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
 
 
-def print_header(console=None):
-    """A line across the terminal, so a run is easy to find when scrolling back."""
-    console = console or Console(highlight=False)
-    console.rule(f"[bold]update-my-mac[/] {__version__}", style="cyan")
+# A mark as well as a colour, so the level survives a pipe and a log file.
+MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "ℹ️ "}
+CLEAN = "✅"
+COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
+
+PANEL_BORDER, PANEL_PADDING = 1, 2
+PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
+ROW_INDENT = "   "
+
+
+def print_report(findings, console=None):
+    """All check results and issue findings, in one place.
+
+    Framed for a terminal, plain for a pipe or a log, where a border on every
+    line is only in the way.
+    """
+    console = console or Console(highlight=False, soft_wrap=True)
+    found = sections.of(findings)
+    framed = console.is_terminal
+    width = console.width - (PANEL_SIDES if framed else 0)
+
+    body = []
+    for section in found:
+        body += [_heading(section, width), _rows(section), Text()]
+    body += _footer(findings, found, framed)
+
+    if not framed:
+        console.print(Text.assemble(("update-my-mac ", "bold"), (_version, "dim")))
+        console.print(Group(*body))
+        return
+
+    needs_you, can_wait = sections.count_findings(found)
+    console.print(Panel(
+        Group(*body),
+        title=Text.assemble((" update-my-mac ", "bold"), (f"{_version} ", "dim")),
+        title_align="left",
+        subtitle=Text(f" {needs_you} need your attention, {can_wait} can wait ", style="dim"),
+        border_style="cyan",
+        box=box.ROUNDED,
+        padding=(1, 2),
+    ))
+
+
+def _footer(findings, found, framed):
+    """What was checked and found clean, and what is not in the list above."""
+    lines = []
+    if not findings.any_manager_installed:
+        # Saying everything is fine would claim something nobody checked.
+        lines.append(Text("No supported package managers found.", style="yellow"))
+    elif not found:
+        lines.append(Text("Everything is up to date.", style="green"))
+    clean = sections.clean_managers(findings)
+    if clean:
+        lines.append(Text.assemble(
+            (f"{CLEAN} ", ""), (f"up to date: {', '.join(clean)}", "green"),
+        ))
+    if findings.left_alone:
+        lines.append(Text(
+            f"{findings.left_alone} left alone on purpose, --retry-app lists one again",
+            style="dim",
+        ))
+    if found and not framed:
+        needs_you, can_wait = sections.count_findings(found)
+        lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
+    return lines
+
+
+def _heading(section, width):
+    """The section title, its count, and the reason it exists, on one line."""
+    heading = Text.assemble(
+        (f"{MARK[section.level]} ", ""),
+        (f"{section.title} ", f"bold {COLOUR[section.level]}"),
+        (section.counted(), "bold cyan"),
+    )
+    room = width - heading.cell_len - len(section.note)
+    if section.note and room >= 2:
+        heading.pad_right(room)
+        heading.append(section.note, style="dim italic")
+    return heading
+
+
+def _rows(section):
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(overflow="fold")
+    grid.add_column(overflow="fold")
+    grid.add_column(style="dim", overflow="fold")
+    for row in section.rows:
+        name, version, note = row.cells()
+        grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
+    return grid
 
 
 def print_manager_updates(updates, console=None, any_installed=True):
@@ -114,7 +202,7 @@ def _print_group(console, heading, apps, with_updater=True, offered=None, find_c
             Item(
                 app.name,
                 _version_column(app, offered, find_cask),
-                app.updater.describe() if with_updater else "",
+                app.updater.update_method_note() if with_updater else "",
             )
             for app in apps
         ],
@@ -169,7 +257,7 @@ def print_behind_the_recipe(behind, console=None):
     )
 
 
-def print_duplicate_commands(duplicates, console=None):
+def print_duplicate_installations(duplicates, console=None):
     """Commands two managers installed, where PATH quietly picks the winner."""
     if not duplicates:
         return
@@ -287,7 +375,9 @@ def print_outdated_summary(reports, console=None):
             count = len(report.outdated_packages)
             console.print(f"[bold]{report.label}[/]: {count} outdated")
             print_as_list_or_grid(
-                console, "    ", [_as_item(package) for package in report.outdated_packages]
+                console,
+                "    ",
+                [_split_name_and_change(package) for package in report.outdated_packages],
             )
         else:
             console.print(f"[green]{report.label}[/]: up to date")

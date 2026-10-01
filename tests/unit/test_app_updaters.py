@@ -40,7 +40,7 @@ def test_an_app_without_sparkle_has_no_updater(tmp_path):
 
     status = app_updaters.detect(app, FakeShell())
     assert status.kind == app_updaters.NONE
-    assert status.describe() == "no updater"
+    assert status.update_method_note() == "no updater"
 
 
 def test_the_framework_alone_counts_as_an_updater(tmp_path):
@@ -62,7 +62,7 @@ def test_an_updater_nobody_answered_for_is_unclear(tmp_path):
     status = app_updaters.detect(app, FakeShell())
     assert status.is_unclear
     assert not status.looks_after_itself
-    assert status.describe() == "never answered"
+    assert status.update_method_note() == "never answered"
 
 
 def test_what_the_developer_shipped_counts_when_nobody_answered(tmp_path):
@@ -89,7 +89,7 @@ def test_the_users_answer_beats_the_shipped_default(tmp_path):
 
     status = app_updaters.detect(app, shell)
     assert status.is_switched_off
-    assert status.describe() == "checking is off"
+    assert status.update_method_note() == "checking is off"
 
 
 def test_silent_installing_is_said_differently(tmp_path):
@@ -100,7 +100,7 @@ def test_silent_installing_is_said_differently(tmp_path):
     )
     shell = FakeShell({"SUEnableAutomaticChecks": True, "SUAutomaticallyUpdate": True})
 
-    assert app_updaters.detect(app, shell).describe() == "installs updates itself"
+    assert app_updaters.detect(app, shell).update_method_note() == "updates itself"
 
 
 def test_the_last_check_is_shown_as_a_day(tmp_path):
@@ -116,7 +116,7 @@ def test_the_last_check_is_shown_as_a_day(tmp_path):
         }
     )
 
-    assert "last checked 2026-09-24" in app_updaters.detect(app, shell).describe()
+    assert "last checked 2026-09-24" in app_updaters.detect(app, shell).update_method_note()
 
 
 def test_an_app_without_a_readable_plist_has_no_updater(tmp_path):
@@ -155,3 +155,17 @@ def test_nonsense_from_defaults_is_ignored(tmp_path):
     )
 
     assert app_updaters.detect(app, BrokenShell()).is_unclear
+
+
+def test_electrons_updater_is_found_by_the_framework_it_ships(tmp_path):
+    app = tmp_path / "Exodus.app"
+    (app / "Contents" / "Frameworks" / "Squirrel.framework").mkdir(parents=True)
+
+    assert app_updaters.has_squirrel(app)
+
+
+def test_an_app_with_neither_framework_has_no_updater(tmp_path):
+    app = tmp_path / "Quiet.app"
+    (app / "Contents" / "Frameworks").mkdir(parents=True)
+
+    assert not app_updaters.has_squirrel(app)

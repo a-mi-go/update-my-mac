@@ -18,6 +18,9 @@ class Cask:
     token: str
     homepage: str
     version: str
+    # --adopt takes over nothing but an app Homebrew would have installed
+    # itself, so a cask like this is never offered as a handover.
+    installs_a_package: bool = False
 
 
 def cache_path(env):
@@ -45,6 +48,23 @@ def app_names_in(cask):
     return found
 
 
+def installs_a_package(cask):
+    """Whether this cask ships an installer rather than an app bundle."""
+    return any(
+        isinstance(artifact, dict) and artifact.get("pkg")
+        for artifact in cask.get("artifacts", [])
+    )
+
+
+def as_app_name(token):
+    """The app name a cask token would have, if it were named after the app.
+
+    Turns "some-app" into "some app", which is only good enough for casks that
+    name no app at all, where there is nothing better to go on.
+    """
+    return token.replace("-", " ").lower()
+
+
 def reduce_to_apps(casks):
     """Boil the published list of casks down to a lookup table.
 
@@ -62,8 +82,12 @@ def reduce_to_apps(casks):
             "homepage": cask.get("homepage") or "",
             "version": cask.get("version") or "",
         }
-        for name in app_names_in(cask):
+        named = app_names_in(cask)
+        for name in named:
             by_app.setdefault(name, entry)
+        # A package cask names no app, so the only handle on it is its token.
+        if not named and installs_a_package(cask):
+            by_app.setdefault(as_app_name(token), dict(entry, installs_a_package=True))
     return by_app
 
 
@@ -103,11 +127,37 @@ class CaskIndex:
         self.by_app = by_app
 
     def for_app(self, app_path):
-        """The cask that installs this app, or None if Homebrew has none."""
-        found = self.by_app.get(Path(app_path).name)
+        """The cask that installs this app, or None if Homebrew has none.
+
+        Matched on the exact file name. Ignoring case finds more matches and
+        gets some of them wrong, because two unrelated programs can ship the
+        same name in different capitalisation. A file name is a weak
+        identifier and the published cask list offers no stronger one.
+        """
+        name = Path(app_path).name
+        found = self.by_app.get(name)
+        if found is None:
+            found = self._installer_cask_named(name)
         if not isinstance(found, dict):
             return None
-        return Cask(found.get("token", ""), found.get("homepage", ""), found.get("version", ""))
+        return Cask(
+            found.get("token", ""),
+            found.get("homepage", ""),
+            found.get("version", ""),
+            found.get("installs_a_package", False),
+        )
+
+    def _installer_cask_named(self, app_name):
+        """A cask that ships an installer, matched on its token.
+
+        An installer names no app, so the token is the only handle there is.
+        Accepted for those casks alone, because a token is weaker evidence
+        than a file name.
+        """
+        found = self.by_app.get(app_name.removesuffix(".app").lower())
+        if isinstance(found, dict) and found.get("installs_a_package"):
+            return found
+        return None
 
     def __len__(self):
         return len(self.by_app)

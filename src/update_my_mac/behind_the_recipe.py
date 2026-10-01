@@ -3,9 +3,10 @@
 Homebrew compares the version it recorded at install time, and for a cask
 marked `auto_updates` not even that, so it never notices.
 
-Only apps it actually installed belong here. One it never installed is
-somebody else's app that happens to have a recipe, and the way to bring that
-one in is the handover, not an upgrade.
+Only apps it actually installed belong here, and only the ones it is not
+already calling outdated. One it never installed is somebody else's app that
+happens to have a recipe, and the way to bring that one in is the handover,
+not an upgrade.
 """
 
 from dataclasses import dataclass
@@ -28,7 +29,7 @@ class Behind:
         return f"{self.app.name}  {self.version_change()}"
 
     @property
-    def wrongly_recorded(self):
+    def false_version_recorded(self):
         """Homebrew believes it has this version, so no upgrade will touch it.
 
         What it wrote down at install time matches the recipe while the app on
@@ -45,20 +46,28 @@ def is_behind(app_version, cask_version):
 
 def to_reinstall(behind):
     """The casks Homebrew has a wrong version written down for."""
-    return [item.cask.token for item in behind if item.wrongly_recorded]
+    return [item.cask.token for item in behind if item.false_version_recorded]
 
 
 def to_upgrade(behind):
     """The casks a greedy upgrade would actually pick up."""
-    return [item.cask.token for item in behind if not item.wrongly_recorded]
+    return [item.cask.token for item in behind if not item.false_version_recorded]
 
 
-def find(apps, casks, recorded=None):
+def find(apps, casks, recorded=None, already_reported=()):
+    """Apps behind their recipe that Homebrew is saying nothing about.
+
+    `already_reported` is what `brew outdated` named. Listing one of those
+    here as well would say the same thing twice, in two places, with two
+    different names for the same app.
+    """
     recorded = recorded or {}
     found = []
     for app in apps:
         cask = casks.for_app(app.path)
-        if not cask or not recorded.get(cask.token):
+        if not cask or not recorded.get(cask.token) or cask.token in already_reported:
+            continue
+        if versions.any_version_matches(app.versions_named(), cask.version):
             continue
         if is_behind(app.version, cask.version):
             found.append(Behind(app, cask, recorded[cask.token]))

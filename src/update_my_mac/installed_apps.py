@@ -22,9 +22,15 @@ class InstalledApp:
     path: Path
     updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
     bundle_id: str = ""
+    # Sometimes the only version a Homebrew recipe matches.
+    build: str = ""
 
     def describe(self):
         return f"{self.name}  {self.version}"
+
+    def versions_named(self):
+        """Every version the app gives for itself, most readable first."""
+        return [self.version, self.build]
 
 
 def app_directories(env):
@@ -49,6 +55,11 @@ def app_directories(env):
 
 # What an app that says nothing about its version is listed as.
 UNKNOWN_VERSION = versions.UNKNOWN
+
+
+def read_build(info):
+    """The build the app came from, which a recipe is often written against."""
+    return info.get("CFBundleVersion") or ""
 
 
 def read_version(app_path, info=None):
@@ -110,20 +121,20 @@ def _app_names_in(artifact):
     A cask shipping a `pkg` names its app only in what it would remove again.
     """
     found = []
-    for app in _as_list(artifact.get("app")):
+    for app in _as_path_list(artifact.get("app")):
         if isinstance(app, str):
             found.append(os.path.basename(app))
 
-    for removal in _as_list(artifact.get("uninstall")) + _as_list(artifact.get("zap")):
+    for removal in _as_path_list(artifact.get("uninstall")) + _as_path_list(artifact.get("zap")):
         if not isinstance(removal, dict):
             continue
-        for path in _as_list(removal.get("delete")) + _as_list(removal.get("trash")):
+        for path in _as_path_list(removal.get("delete")) + _as_path_list(removal.get("trash")):
             if isinstance(path, str) and path.endswith(".app"):
                 found.append(os.path.basename(path))
     return found
 
 
-def _as_list(value):
+def _as_path_list(value):
     """Casks write a single path as a string and several as a list."""
     if value is None:
         return []
@@ -151,6 +162,7 @@ def find_all(env=None):
                     read_version(app_path, info),
                     app_path,
                     bundle_id=info.get("CFBundleIdentifier", ""),
+                    build=read_build(info),
                 )
             )
     return found
@@ -184,6 +196,7 @@ def find_untracked(shell, env=None):
                     app_path,
                     app_updaters.detect(app_path, shell, info),
                     info.get("CFBundleIdentifier", ""),
+                    read_build(info),
                 )
             )
     return without_shortcuts(found)
@@ -192,10 +205,10 @@ def find_untracked(shell, env=None):
 def without_shortcuts(apps):
     """The apps, minus the launchers other apps put next to themselves.
 
-    Google Drive drops "Google Docs", "Google Sheets" and "Google Slides" into
-    /Applications. They open a web page, carry the version of the app that made
-    them, and are replaced when it updates. What gives them away is the bundle
-    identifier: com.google.drivefs.shortcuts.docs sits under com.google.drivefs.
+    A sync client can drop one per web service into /Applications. They open a
+    page, carry the version of the app that wrote them, and are replaced when
+    it updates. The bundle identifier gives them away: a launcher's id sits
+    under the id of the app that made it.
     """
     owners = {app.bundle_id for app in apps if app.bundle_id}
     return [app for app in apps if not made_by_another_app(app, owners)]
