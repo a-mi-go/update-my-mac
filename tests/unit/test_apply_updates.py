@@ -420,7 +420,7 @@ def test_picking_several_needs_no_everything_or_nothing_option():
         asked.append((question, [label for _, label in choices]))
         return [choices[1][0]]
 
-    chosen = apply_updates.choose_what_to_update(entries, pick=pick)
+    chosen = apply_updates.pick_what_to_update(entries, pick=pick)
 
     assert [entry.label for entry in chosen] == ["Mac App Store (1 app)"]
     assert asked[0][0] == "What should be updated?"
@@ -430,7 +430,7 @@ def test_picking_several_needs_no_everything_or_nothing_option():
 def test_backing_out_of_the_multi_select_updates_nothing():
     entries = apply_updates.build_menu([ManagerReport("brew", "Homebrew", ["git  1 → 2"])])
 
-    chosen = apply_updates.choose_what_to_update(entries, pick=lambda question, choices: None)
+    chosen = apply_updates.pick_what_to_update(entries, pick=lambda question, choices: None)
 
     assert chosen == apply_updates.CANCEL
 
