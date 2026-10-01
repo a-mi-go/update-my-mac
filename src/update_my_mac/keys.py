@@ -33,8 +33,8 @@ def available():
 def _style():
     """Cyan for what the cursor is on, plain for everything else.
 
-    Merged onto questionary's own style rather than replacing it, so what it
-    puts there has to be turned off by name: noinherit clears what came before.
+    Every row starts with noinherit because questionary merges this style onto
+    its own defaults instead of replacing them.
     """
     from questionary import Style
 

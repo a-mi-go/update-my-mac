@@ -318,13 +318,6 @@ def run_interactive_mode():
 
 
 def run_updates_only_mode():
-    """Ask the managers what is outdated, then offer it. Nothing else.
-
-    The checks that look at apps are what take the time: a download of
-    Homebrew's cask list, an update feed per app, and every bundle in
-    /Applications read twice. None of it says anything about what a manager
-    would upgrade, so this mode does none of it.
-    """
     console = Console(highlight=False)
     installed = package_managers.installed_managers(shell)
 

@@ -51,8 +51,6 @@ def main(argv=None, prog=None):
     try:
         return _dispatch(args)
     except KeyboardInterrupt:
-        # Nothing below catches it, so a question, a walk-through and a
-        # download all stop the same way.
         Console(highlight=False).print(
             "\n[yellow]Stopped.[/] Whatever had already run has run, "
             "nothing new was started."
