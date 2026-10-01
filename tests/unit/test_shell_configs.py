@@ -1,5 +1,8 @@
 import os
+import shutil
 import time
+
+import pytest
 
 from update_my_mac import shell_configs
 
@@ -176,3 +179,150 @@ def test_this_process_is_not_a_shell():
 def test_builtins_are_recognised_per_shell():
     assert shell_configs.builtin_in("bash", "cd")
     assert not shell_configs.builtin_in("bash", "update")
+
+
+def a_tool_in(tmp_path):
+    tool_dir = tmp_path / "tools"
+    tool_dir.mkdir()
+    tool = tool_dir / "mytool"
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    return tool_dir
+
+
+def new_terminal_env(home, shell="zsh"):
+    # The shell's own folder too: fish lives in /opt/homebrew/bin on a Mac.
+    shell_dir = os.path.dirname(shutil.which(shell) or "/usr/bin/true")
+    return {"HOME": str(home), "PATH": f"/usr/bin:/bin:{shell_dir}"}
+
+
+needs_zsh = pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+needs_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+needs_fish = pytest.mark.skipif(shutil.which("fish") is None, reason="fish is not installed")
+
+
+@needs_zsh
+def test_a_command_added_to_path_in_zshenv_is_found_in_a_new_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshenv": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+
+
+@needs_zsh
+def test_a_zshrc_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".zshenv": f'export PATH="{tool_dir}:$PATH"\n',
+        ".zshrc": "export PATH=/usr/bin:/bin\n",
+    })
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_a_new_terminal_is_a_login_shell(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zprofile": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+
+
+@needs_zsh
+def test_an_alias_is_not_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshrc": "alias mytool=true\n"})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_another_program_of_that_name_is_not_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "mytool").write_text("#!/bin/sh\n")
+    (elsewhere / "mytool").chmod(0o755)
+    home = make_home(tmp_path, **{".zshenv": f'export PATH="{elsewhere}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_output_from_the_config_does_not_matter(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".zshenv": f'export PATH="{tool_dir}:$PATH"\n',
+        ".zshrc": 'echo ".zshrc initialized"\n',
+    })
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+
+
+@needs_zsh
+def test_a_config_that_starts_something_in_the_background_does_not_hang(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshrc": "sleep 30 &\nsleep 30\n"})
+    started = time.monotonic()
+
+    result = shell_configs.found_in_new_terminal(
+        "zsh", "mytool", tool_dir, new_terminal_env(home), timeout=1
+    )
+
+    assert result is None
+    assert time.monotonic() - started < 10
+
+
+@needs_zsh
+def test_frameworks_are_told_not_to_update_themselves(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    seen = tmp_path / "seen"
+    home = make_home(tmp_path, **{
+        ".zshrc": f'echo "$DISABLE_AUTO_UPDATE $DISABLE_UPDATE_PROMPT" > "{seen}"\n',
+    })
+
+    shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home))
+
+    assert seen.read_text().strip() == "true true"
+
+
+@needs_bash
+def test_a_command_added_to_path_is_found_in_a_new_bash_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".bash_profile": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is True
+
+
+@needs_bash
+def test_a_bash_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".bash_profile": f'export PATH="{tool_dir}:$PATH"\nexport PATH=/usr/bin:/bin\n',
+    })
+
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is False
+
+
+@needs_fish
+def test_a_command_added_to_path_is_found_in_a_new_fish_terminal(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\n"})
+
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is True
+
+
+@needs_fish
+def test_a_fish_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\nset -gx PATH /usr/bin /bin\n",
+    })
+
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is False
+
+
+def test_a_shell_that_is_not_installed_is_unknown(tmp_path):
+    env = {"HOME": str(tmp_path), "PATH": str(tmp_path)}
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tmp_path, env) is None
