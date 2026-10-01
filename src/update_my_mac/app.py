@@ -30,9 +30,11 @@ SPINNER = "dots"
 
 
 def _exit_code(reports, manager_updates=()):
-    # Outdated packages are the normal case, so only a check that could not run
-    # is worth a non-zero exit. A scheduled caller needs to tell those apart,
-    # and a manager that could not answer about itself is such a check.
+    """Non-zero only when a check could not run, never for outdated packages.
+
+    A manager that could not answer about itself is such a check, which is why
+    its updates are counted here too.
+    """
     failed = [thing for thing in list(reports) + list(manager_updates) if thing.error_message]
     return 1 if failed else 0
 
@@ -119,11 +121,8 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
     if not troubled:
         return None
 
-    # Counted by what Homebrew has a recipe for, not by what the step can
-    # sweep up in one go: an app it would have to put back a version is still
-    # one you can hand over. Without a single one, all the step can do is stop
-    # listing an app, and it says so instead of promising a handover it
-    # cannot make.
+    # Counted by what Homebrew has a recipe for, not by what the bulk step can
+    # take: a handover that would be a downgrade is still one you can choose.
     known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in troubled])
     label = (
         f"yes, get those apps back on track "
