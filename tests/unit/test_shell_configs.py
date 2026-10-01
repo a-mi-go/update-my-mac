@@ -194,15 +194,18 @@ def new_terminal_env(home):
     return {"HOME": str(home), "PATH": "/usr/bin:/bin"}
 
 
-@pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+needs_zsh = pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+
+
+@needs_zsh
 def test_a_command_added_to_path_in_zshenv_is_found_in_a_new_terminal(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".zshenv": f'export PATH="{tool_dir}:$PATH"\n'})
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", new_terminal_env(home)) is True
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
 
 
-@pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh is not installed")
+@needs_zsh
 def test_a_zshrc_that_sets_path_from_scratch_hides_the_command(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{
@@ -210,10 +213,76 @@ def test_a_zshrc_that_sets_path_from_scratch_hides_the_command(tmp_path):
         ".zshrc": "export PATH=/usr/bin:/bin\n",
     })
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", new_terminal_env(home)) is False
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_a_new_terminal_is_a_login_shell(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zprofile": f'export PATH="{tool_dir}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+
+
+@needs_zsh
+def test_an_alias_is_not_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshrc": "alias mytool=true\n"})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_another_program_of_that_name_is_not_the_command(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "mytool").write_text("#!/bin/sh\n")
+    (elsewhere / "mytool").chmod(0o755)
+    home = make_home(tmp_path, **{".zshenv": f'export PATH="{elsewhere}:$PATH"\n'})
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+
+
+@needs_zsh
+def test_output_from_the_config_does_not_matter(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{
+        ".zshenv": f'export PATH="{tool_dir}:$PATH"\n',
+        ".zshrc": 'echo ".zshrc initialized"\n',
+    })
+
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+
+
+@needs_zsh
+def test_a_config_that_starts_something_in_the_background_does_not_hang(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    home = make_home(tmp_path, **{".zshrc": "sleep 30 &\nsleep 30\n"})
+    started = time.monotonic()
+
+    result = shell_configs.found_in_new_terminal(
+        "zsh", "mytool", tool_dir, new_terminal_env(home), timeout=1
+    )
+
+    assert result is None
+    assert time.monotonic() - started < 10
+
+
+@needs_zsh
+def test_frameworks_are_told_not_to_update_themselves(tmp_path):
+    tool_dir = a_tool_in(tmp_path)
+    seen = tmp_path / "seen"
+    home = make_home(tmp_path, **{
+        ".zshrc": f'echo "$DISABLE_AUTO_UPDATE $DISABLE_UPDATE_PROMPT" > "{seen}"\n',
+    })
+
+    shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home))
+
+    assert seen.read_text().strip() == "true true"
 
 
 def test_a_shell_that_is_not_installed_is_unknown(tmp_path):
     env = {"HOME": str(tmp_path), "PATH": str(tmp_path)}
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", env) is None
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tmp_path, env) is None

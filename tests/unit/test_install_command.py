@@ -468,7 +468,7 @@ def test_a_config_that_hides_the_fixed_path_is_pointed_out(machine, monkeypatch)
     _, bin_dir, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, env: False)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: False)
 
     _, text, _ = run(machine, answers=["", ""])
 
@@ -480,7 +480,7 @@ def test_a_command_a_new_terminal_finds_is_done(machine, monkeypatch):
     _, _, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, env: True)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: True)
 
     _, text, _ = run(machine, answers=["", ""])
 
@@ -491,7 +491,7 @@ def test_a_new_terminal_that_cannot_be_asked_does_not_block_done(machine, monkey
     _, _, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, env: None)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: None)
 
     _, text, _ = run(machine, answers=["", ""])
 
