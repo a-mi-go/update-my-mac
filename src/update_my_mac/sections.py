@@ -135,8 +135,7 @@ def _false_version_recorded(findings):
         if item.false_version_recorded
     ]
     return [
-        Section(CRITICAL, "Homebrew thinks these are current",
-                "only a reinstall fetches them", rows)
+        Section(CRITICAL, "No upgrade will fetch these", "only a reinstall will", rows)
     ]
 
 
