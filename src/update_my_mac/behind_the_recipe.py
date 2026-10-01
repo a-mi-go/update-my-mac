@@ -29,7 +29,7 @@ class Behind:
         return f"{self.app.name}  {self.version_change()}"
 
     @property
-    def wrongly_recorded(self):
+    def false_version_recorded(self):
         """Homebrew believes it has this version, so no upgrade will touch it.
 
         What it wrote down at install time matches the recipe while the app on
@@ -46,12 +46,12 @@ def is_behind(app_version, cask_version):
 
 def to_reinstall(behind):
     """The casks Homebrew has a wrong version written down for."""
-    return [item.cask.token for item in behind if item.wrongly_recorded]
+    return [item.cask.token for item in behind if item.false_version_recorded]
 
 
 def to_upgrade(behind):
     """The casks a greedy upgrade would actually pick up."""
-    return [item.cask.token for item in behind if not item.wrongly_recorded]
+    return [item.cask.token for item in behind if not item.false_version_recorded]
 
 
 def find(apps, casks, recorded=None, already_reported=()):
@@ -68,7 +68,6 @@ def find(apps, casks, recorded=None, already_reported=()):
         if not cask or not recorded.get(cask.token) or cask.token in already_reported:
             continue
         if versions.any_version_matches(app.versions_named(), cask.version):
-            # The app says two versions and one of them is the recipe's.
             continue
         if is_behind(app.version, cask.version):
             found.append(Behind(app, cask, recorded[cask.token]))

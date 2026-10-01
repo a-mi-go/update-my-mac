@@ -11,12 +11,6 @@ import re
 # about the same size. A date-based 2026.1.1.70276 and a counted 14.0.8.69494
 # say nothing about each other: one starts from a year, the other from a small
 # number, and neither is behind.
-#
-# This is a rule of thumb and it cannot be anything else, because nothing in
-# a version string says which scheme it belongs to. What it is built for is
-# to refuse rather than to guess: a pair it wrongly refuses is described as
-# "no telling which is newer", while a pair it wrongly accepts would be
-# called an update or a downgrade, and one of those gets acted on.
 FAR_APART = 10
 
 UNKNOWN = "?"

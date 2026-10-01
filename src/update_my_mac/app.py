@@ -26,7 +26,6 @@ from update_my_mac import (
 )
 
 
-# Something has to move while brew, mas and a dozen update feeds are asked.
 SPINNER = "dots"
 
 
@@ -265,8 +264,7 @@ def _run_all_checks(installed, decisions, console=None):
         def now(what):
             spinner.update(f"[dim]{what}[/]")
 
-        # Check if there are any outdated package managers first.
-        now("asking the package managers about themselves")
+        now("asking the package managers if they need an update themselves")
         findings.manager_updates = package_managers.check_managers_themselves(shell, installed)
 
         now("asking each manager what is outdated")

@@ -22,8 +22,7 @@ class InstalledApp:
     path: Path
     updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
     bundle_id: str = ""
-    # What the app calls its build. Often the same as the version, sometimes
-    # longer, and sometimes the only one that matches a Homebrew recipe.
+    # Sometimes the only version a Homebrew recipe matches.
     build: str = ""
 
     def describe(self):
@@ -122,20 +121,20 @@ def _app_names_in(artifact):
     A cask shipping a `pkg` names its app only in what it would remove again.
     """
     found = []
-    for app in _as_list(artifact.get("app")):
+    for app in _as_path_list(artifact.get("app")):
         if isinstance(app, str):
             found.append(os.path.basename(app))
 
-    for removal in _as_list(artifact.get("uninstall")) + _as_list(artifact.get("zap")):
+    for removal in _as_path_list(artifact.get("uninstall")) + _as_path_list(artifact.get("zap")):
         if not isinstance(removal, dict):
             continue
-        for path in _as_list(removal.get("delete")) + _as_list(removal.get("trash")):
+        for path in _as_path_list(removal.get("delete")) + _as_path_list(removal.get("trash")):
             if isinstance(path, str) and path.endswith(".app"):
                 found.append(os.path.basename(path))
     return found
 
 
-def _as_list(value):
+def _as_path_list(value):
     """Casks write a single path as a string and several as a list."""
     if value is None:
         return []

@@ -18,9 +18,8 @@ class Cask:
     token: str
     homepage: str
     version: str
-    # A cask that ships an installer package rather than an app bundle.
-    # Homebrew can say what version exists, but --adopt only ever takes over
-    # an app it would have installed itself.
+    # --adopt takes over nothing but an app Homebrew would have installed
+    # itself, so a cask like this is never offered as a handover.
     installs_a_package: bool = False
 
 
@@ -87,7 +86,6 @@ def reduce_to_apps(casks):
         for name in named:
             by_app.setdefault(name, entry)
         # A package cask names no app, so the only handle on it is its token.
-        # Weaker, and never used to offer a handover.
         if not named and installs_a_package(cask):
             by_app.setdefault(as_app_name(token), dict(entry, installs_a_package=True))
     return by_app

@@ -65,7 +65,7 @@ def print_as_list_or_grid(console, indent, items):
     console.print(Padding(table, (0, 0, 0, len(indent))))
 
 
-def _as_item(package):
+def _split_name_and_change(package):
     """A manager's "name  1.2.3 → 1.2.4" line, split so the arrows line up."""
     name, _, versions = package.partition("  ")
     return Item(name, versions.strip())
@@ -80,8 +80,8 @@ MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "
 CLEAN = "✅"
 COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
 
-# The panel takes a column of border and two of padding on each side.
-PANEL_SIDES = 6
+PANEL_BORDER, PANEL_PADDING = 1, 2
+PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
 ROW_INDENT = "   "
 
 
@@ -93,15 +93,15 @@ def print_report(findings, console=None):
     """
     console = console or Console(highlight=False, soft_wrap=True)
     found = sections.of(findings)
-    width = console.width - (PANEL_SIDES if console.is_terminal else 0)
+    framed = console.is_terminal
+    width = console.width - (PANEL_SIDES if framed else 0)
 
     body = []
     for section in found:
         body += [_heading(section, width), _rows(section), Text()]
-    body += _footer(findings, found, console.is_terminal)
+    body += _footer(findings, found, framed)
 
-    if not console.is_terminal:
-        # No frame to carry the name, so it goes on a line of its own.
+    if not framed:
         console.print(Text.assemble(("update-my-mac ", "bold"), (_version, "dim")))
         console.print(Group(*body))
         return
@@ -137,7 +137,6 @@ def _footer(findings, found, framed):
             style="dim",
         ))
     if found and not framed:
-        # The frame carries this in its subtitle; a pipe has no frame.
         needs_you, can_wait = sections.count_findings(found)
         lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
     return lines
@@ -150,7 +149,6 @@ def _heading(section, width):
         (f"{section.title} ", f"bold {COLOUR[section.level]}"),
         (section.counted(), "bold cyan"),
     )
-    # The reason only goes on this line when there is room for it.
     room = width - heading.cell_len - len(section.note)
     if section.note and room >= 2:
         heading.pad_right(room)
@@ -377,7 +375,9 @@ def print_outdated_summary(reports, console=None):
             count = len(report.outdated_packages)
             console.print(f"[bold]{report.label}[/]: {count} outdated")
             print_as_list_or_grid(
-                console, "    ", [_as_item(package) for package in report.outdated_packages]
+                console,
+                "    ",
+                [_split_name_and_change(package) for package in report.outdated_packages],
             )
         else:
             console.print(f"[green]{report.label}[/]: up to date")
