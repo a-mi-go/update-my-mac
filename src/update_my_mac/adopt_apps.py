@@ -19,7 +19,7 @@ def compare_to_app(app, cask):
     """How the recipe's version stands to the installed one."""
     if cask is None:
         return ""
-    if versions.same_as_any(app.versions_named(), cask.version):
+    if versions.any_version_matches(app.versions_named(), cask.version):
         return SAME
     if not versions.comparable(app.version, cask.version):
         return UNCLEAR

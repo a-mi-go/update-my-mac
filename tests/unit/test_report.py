@@ -361,7 +361,7 @@ def test_the_report_is_framed_for_someone_watching():
 
     assert "update-my-mac" in framed
     assert "╭" in framed
-    assert "1 need you, 0 can wait" in framed
+    assert "1 need your attention, 0 can wait" in framed
 
 
 def test_a_run_without_a_frame_still_says_what_wrote_it():
@@ -382,7 +382,7 @@ def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
     assert "╭" not in plain
     assert "│" not in plain
     # The count the frame would have carried is said in words instead.
-    assert "1 need you, 0 can wait" in plain
+    assert "1 need your attention, 0 can wait" in plain
 
 
 def test_a_clean_run_says_which_managers_answered():

@@ -14,7 +14,8 @@ import urllib.parse
 # The common third-party updater, which writes its settings where they can
 # be read.
 SPARKLE = "sparkle"
-# Electron's updater, configured in code rather than in any readable file.
+# Electron's updater. The app passes it a feed address and a schedule while
+# it runs, so nothing on disk says whether it is on or what it checks.
 SQUIRREL = "squirrel"
 NONE = "none"
 
@@ -45,12 +46,11 @@ class UpdaterStatus:
         """An updater is there, but nobody ever said whether it should run."""
         return self.kind != NONE and self.automatic is None
 
-    def describe_how_it_updates(self):
-        if self.kind == NONE:
-            return "no updater"
+    def update_method_note(self):
         if self.kind == SQUIRREL:
             return "own updater, nothing says if it runs"
-        # Sparkle from here, the only kind that records whether it may run.
+        if self.kind != SPARKLE:
+            return "no updater"
         if self.automatic is None:
             answer = "never answered"
         elif self.automatic:
@@ -120,6 +120,11 @@ def read_users_app_settings(bundle_id, shell):
 
 
 def _as_day(value):
+    """A date out of whatever Sparkle wrote down, as "2026-09-24".
+
+    It stores a date object, which becomes that day in local time, or a
+    timestamp string such as "2026-09-24T14:40:00Z", which is cut to its date.
+    """
     if isinstance(value, str):
         return value[:10]
     try:

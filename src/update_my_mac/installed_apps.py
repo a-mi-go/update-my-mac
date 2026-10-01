@@ -206,10 +206,10 @@ def find_untracked(shell, env=None):
 def without_shortcuts(apps):
     """The apps, minus the launchers other apps put next to themselves.
 
-    Google Drive drops "Google Docs", "Google Sheets" and "Google Slides" into
-    /Applications. They open a web page, carry the version of the app that made
-    them, and are replaced when it updates. What gives them away is the bundle
-    identifier: com.google.drivefs.shortcuts.docs sits under com.google.drivefs.
+    A sync client can drop one per web service into /Applications. They open a
+    page, carry the version of the app that wrote them, and are replaced when
+    it updates. The bundle identifier gives them away: a launcher's id sits
+    under the id of the app that made it.
     """
     owners = {app.bundle_id for app in apps if app.bundle_id}
     return [app for app in apps if not made_by_another_app(app, owners)]

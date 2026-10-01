@@ -90,7 +90,7 @@ def package_behind(path):
     if "node_modules" in parts:
         at = parts.index("node_modules") + 1
         name = parts[at]
-        # A scoped package is two path segments, @openai/codex.
+        # A scoped package is two path segments, @scope/name.
         if name.startswith("@") and len(parts) > at + 1:
             at += 1
             name = f"{name}/{parts[at]}"

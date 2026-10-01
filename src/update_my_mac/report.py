@@ -111,7 +111,7 @@ def print_report(findings, console=None):
         Group(*body),
         title=Text.assemble((" update-my-mac ", "bold"), (f"{_version} ", "dim")),
         title_align="left",
-        subtitle=Text(f" {needs_you} need you, {can_wait} can wait ", style="dim"),
+        subtitle=Text(f" {needs_you} need your attention, {can_wait} can wait ", style="dim"),
         border_style="cyan",
         box=box.ROUNDED,
         padding=(1, 2),
@@ -139,7 +139,7 @@ def _footer(findings, found, framed):
     if found and not framed:
         # The frame carries this in its subtitle; a pipe has no frame.
         needs_you, can_wait = sections.count_findings(found)
-        lines.append(Text(f"{needs_you} need you, {can_wait} can wait", style="dim"))
+        lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
     return lines
 
 
@@ -204,7 +204,7 @@ def _print_group(console, heading, apps, with_updater=True, offered=None, find_c
             Item(
                 app.name,
                 _version_column(app, offered, find_cask),
-                app.updater.describe_how_it_updates() if with_updater else "",
+                app.updater.update_method_note() if with_updater else "",
             )
             for app in apps
         ],

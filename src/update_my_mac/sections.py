@@ -105,7 +105,7 @@ def clean_managers(findings):
 
 
 def count_findings(sections):
-    """How many findings need you, and how many can wait."""
+    """How many findings need your attention, and how many can wait."""
     needs_you = sum(s.count for s in sections if s.level in (CRITICAL, WARNING))
     can_wait = sum(s.count for s in sections if s.level == INFO)
     return needs_you, can_wait
@@ -256,7 +256,7 @@ def _untracked_apps(findings):
 
 def _rows_for_apps(apps, findings):
     return [
-        Row(app.name, _installed_and_offered(app, findings), _what_is_known_about(app, findings))
+        Row(app.name, _updates_available(app, findings), _what_is_known_about(app, findings))
         for app in apps
     ]
 
@@ -264,7 +264,7 @@ def _rows_for_apps(apps, findings):
 def _what_is_known_about(app, findings):
     """What updates this app, or the recipe that could take it over."""
     if app.updater.kind != app_updaters.NONE:
-        return app.updater.describe_how_it_updates()
+        return app.updater.update_method_note()
     cask = findings.find_cask(app) if findings.find_cask else None
     if not cask:
         return ""
@@ -280,14 +280,14 @@ def _untracked_not_already_listed(findings):
     ]
 
 
-def _installed_and_offered(app, findings):
+def _updates_available(app, findings):
     """The installed version, and the newer one on offer for it."""
     answer = appcast.answer_for(app, findings.offered)
     if appcast.offers_newer(app, answer):
         return f"{app.version} → {answer.version}"
 
     cask = findings.find_cask(app) if findings.find_cask else None
-    if cask and not versions.same_as_any(app.versions_named(), cask.version):
+    if cask and not versions.any_version_matches(app.versions_named(), cask.version):
         if versions.is_newer(cask.version, than=app.version):
             return f"{app.version} → {cask.version}"
     return app.version
