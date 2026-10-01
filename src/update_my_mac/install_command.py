@@ -175,6 +175,10 @@ def install_with_uv(project_dir):
     return subprocess.run(["uv", "tool", "install", "--editable", str(project_dir)]).returncode == 0
 
 
+def update_shell_with_uv():
+    return subprocess.run(["uv", "tool", "update-shell"]).returncode == 0
+
+
 def link_under_name(name, bin_dir, out):
     """Point name at the installed update. occupied_in_bin_dir ruled out strangers."""
     target = Path(bin_dir) / name
@@ -236,7 +240,7 @@ def settle_name(args, env, ask, out, err, interactive):
         return name, definitions
 
 
-def run(args, ask, out, err, env, interactive, now, install):
+def run(args, ask, out, err, env, interactive, now, install, update_shell):
     # uv always installs the command as `update`, whatever it ends up called, and
     # won't replace a file there it didn't create. Better said now than after
     # every question has been answered.
@@ -250,6 +254,12 @@ def run(args, ask, out, err, env, interactive, now, install):
     if name is None:
         return 1
 
+    path_missing = args.bin_dir not in env.get("PATH", "").split(os.pathsep)
+    fix_path = False
+    if path_missing and interactive:
+        answer = ask(f"{args.bin_dir} is not on your PATH. Add it with 'uv tool update-shell'? [Y/n] ")
+        fix_path = answer.strip().lower() in ("", "y", "yes")
+
     # Only now that every question is answered does anything change.
     if not install(args.project_dir):
         err("[yellow]setup: installing with uv failed; nothing else was changed.[/]")
@@ -260,19 +270,25 @@ def run(args, ask, out, err, env, interactive, now, install):
     if name != DEFAULT_NAME:
         link_under_name(name, args.bin_dir, out)
 
-    if args.bin_dir not in env.get("PATH", "").split(os.pathsep):
+    path_fixed = path_missing and fix_path and update_shell()
+    if path_missing and not path_fixed:
         out()
         out(f"[yellow]Add {escape(args.bin_dir)} to your PATH[/], or run: [bold]uv tool update-shell[/]")
 
     warn_if_terminal_is_stale(name, args.calling_pid, env, out, now, bool(to_disable))
 
     out()
-    out(f"[green]Done.[/] Try: [bold]{name} --check[/]")
+    if path_fixed:
+        out(f"[green]Done.[/] Open a new terminal, then try: [bold]{name} --check[/]")
+    elif path_missing:
+        out(f"[yellow]Installed, but '{name}' won't be found until that is on your PATH.[/]")
+    else:
+        out(f"[green]Done.[/] Try: [bold]{name} --check[/]")
     return 0
 
 
 def main(argv=None, ask=input, out=None, err=None, env=None, interactive=None, now=None,
-         install=install_with_uv):
+         install=install_with_uv, update_shell=update_shell_with_uv):
     args = build_argument_parser().parse_args(argv)
     # Plain text when it isn't a terminal or NO_COLOR is set, as in the tool.
     # soft_wrap, so a long path stays on one line and can still be copied.
@@ -284,7 +300,7 @@ def main(argv=None, ask=input, out=None, err=None, env=None, interactive=None, n
     now = time.time() if now is None else now
 
     try:
-        return run(args, ask, out, err, env, interactive, now, install)
+        return run(args, ask, out, err, env, interactive, now, install, update_shell)
     except KeyboardInterrupt:
         # Every question comes before the install, so stopping here changes nothing.
         out()
