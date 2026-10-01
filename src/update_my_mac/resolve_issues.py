@@ -39,16 +39,13 @@ def run_resolve_menu(problems, step=None, interactive=True):
             if chosen == NOT_NOW:
                 break
             if chosen == FIX_EVERYTHING:
-                # Counted one at a time, so a Ctrl-C keeps what the earlier
-                # ones did.
+                # Counted one at a time, so running out of input keeps what
+                # the earlier ones did.
                 for problem in problems:
                     dealt_with += problem.fix_all(step.inside())
                 break
             dealt_with += chosen.walk_through(step.inside())
-    except Stopped as stopped:
-        step.say()
-        dealt_with += stopped.done
-    except KeyboardInterrupt:
+    except Stopped:
         step.say()
 
     # A line closes the phase, so the update menu below is not read as part

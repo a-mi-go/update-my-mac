@@ -50,9 +50,8 @@ def run_untracked_menu(
                 adopted = adopt_all(found, adopt, step)
             elif chosen == DECIDE_FOR_EACH:
                 ignored, adopted = walk()
-    except Stopped as stopped:
+    except Stopped:
         step.say()
-        adopted += stopped.done
 
     if ignored and not decisions.save():
         _say_it_was_not_written(decisions, step)
@@ -126,12 +125,7 @@ def adopt_all(found, adopt, step):
             continue
         each.say()
         each.say(f"[bold]{escape(app.name)}[/]")
-        try:
-            taken = _hand_to_homebrew(app, adopt, each.inside())
-        except KeyboardInterrupt:
-            # Ctrl-C during a download, which is where most of the time goes.
-            raise Stopped(adopted)
-        if taken:
+        if _hand_to_homebrew(app, adopt, each.inside()):
             adopted += 1
     return adopted
 
