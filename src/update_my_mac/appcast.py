@@ -206,7 +206,7 @@ def offers_newer(app, answer):
     An app names two versions for itself, and a feed may be written against
     either of them.
     """
-    if versions.same_as_any(app.versions_named(), answer.version):
+    if versions.any_version_matches(app.versions_named(), answer.version):
         return False
     return versions.is_newer(answer.version, than=app.version)
 

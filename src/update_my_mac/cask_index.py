@@ -60,8 +60,8 @@ def installs_a_package(cask):
 def as_app_name(token):
     """The app name a cask token would have, if it were named after the app.
 
-    Only good enough to recognise "Google Drive" in google-drive. It is used
-    for casks that name no app at all, where there is nothing better to go on.
+    Turns "some-app" into "some app", which is only good enough for casks that
+    name no app at all, where there is nothing better to go on.
     """
     return token.replace("-", " ").lower()
 
@@ -139,8 +139,8 @@ class CaskIndex:
         name = Path(app_path).name
         found = self.by_app.get(name)
         if found is None:
-            # A cask that ships an installer names no app, so fall back to
-            # its token.
+            # A cask that ships an installer doesn't provide an app name, so
+            # try its token. Anything else is not a match at all.
             found = self.by_app.get(name.removesuffix(".app").lower())
             if not isinstance(found, dict) or not found.get("installs_a_package"):
                 return None
