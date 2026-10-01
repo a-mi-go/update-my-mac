@@ -224,6 +224,15 @@ def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_somethi
     out(f"  [bold]{escape(shell_configs.clear_line(shell, name))}[/]")
 
 
+def finds_command_in_new_terminal(name, calling_pid, env):
+    """False only when a fresh shell of the kind the user runs says it isn't there."""
+    shell = shell_configs.shell_of_process(calling_pid) if calling_pid is not None else None
+    shell = shell or os.path.basename(env.get("SHELL", ""))
+    if shell not in ("zsh", "bash", "fish"):
+        return True
+    return shell_configs.found_in_new_terminal(shell, name, env) is not False
+
+
 def settle_name(args, env, ask, out, err, interactive):
     """(name, definitions to disable), or (None, []) to stop. Changes nothing."""
     name = first_name(args, ask, out, interactive)
@@ -271,14 +280,21 @@ def run(args, ask, out, err, env, interactive, now, install, update_shell):
         link_under_name(name, args.bin_dir, out)
 
     path_fixed = path_missing and fix_path and update_shell()
-    if path_missing and not path_fixed:
+    config_resets_path = path_fixed and not finds_command_in_new_terminal(name, args.calling_pid, env)
+    if config_resets_path:
+        out()
+        out(f"[yellow]A new terminal still won't find '[bold]{name}[/bold]'.[/] Something in your shell config")
+        out("sets PATH from scratch after the line that was just added, for example a line like")
+        out("[bold]export PATH=/usr/local/bin:/usr/bin[/] without the old value. Make it keep the old")
+        out(f"value, or add [bold]{escape(args.bin_dir)}[/] to it.")
+    elif path_missing and not path_fixed:
         out()
         out(f"[yellow]Add {escape(args.bin_dir)} to your PATH[/], or run: [bold]uv tool update-shell[/]")
 
     warn_if_terminal_is_stale(name, args.calling_pid, env, out, now, bool(to_disable))
 
     out()
-    if path_fixed:
+    if path_fixed and not config_resets_path:
         out(f"[green]Done.[/] Open a new terminal, then try: [bold]{name} --check[/]")
     elif path_missing:
         out(f"[yellow]Installed, but '{name}' won't be found until that is on your PATH.[/]")

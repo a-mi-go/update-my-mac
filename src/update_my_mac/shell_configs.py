@@ -201,6 +201,31 @@ def clear_line(shell, name):
     return f"unalias {name} 2>/dev/null; unset -f {name} 2>/dev/null; hash -r"
 
 
+def found_in_new_terminal(shell, name, env):
+    """Whether a fresh interactive shell finds name: True, False, or None if unknown.
+
+    That is what a new terminal tab is. It reads the whole shell config, so a
+    line there that sets PATH from scratch shows up here and not in the config
+    edit that was meant to fix it. Nothing is read from the terminal, and a
+    shell that takes too long, say on a prompt of its own, is just unknown.
+    """
+    if shutil.which(shell, path=env.get("PATH", "")) is None:
+        return None
+    scripts = {
+        "bash": ["bash", "-ic", 'command -v -- "$1"', "_", name],
+        "zsh": ["zsh", "-ic", 'command -v -- "$1"', "_", name],
+        "fish": ["fish", "-ic", "command -sq -- $argv[1]", name],
+    }
+    try:
+        result = subprocess.run(
+            scripts[shell], env=dict(env), stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.returncode == 0
+
+
 def builtin_in(shell, name):
     """Whether shell has a builtin or keyword called name, if shell is installed."""
     if shutil.which(shell) is None:
