@@ -86,7 +86,7 @@ def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
     # brew outdated and --greedy have nothing to say about it ever again.
     item = behind_item(recorded="5.0.6")
 
-    assert item.wrongly_recorded
+    assert item.false_version_recorded
     assert behind_the_recipe.to_reinstall([item]) == ["betterdisplay"]
     assert behind_the_recipe.to_upgrade([item]) == []
 
@@ -94,7 +94,7 @@ def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
 def test_a_cask_homebrew_knows_is_old_only_needs_a_greedy_upgrade():
     item = behind_item(recorded="5.0.5")
 
-    assert not item.wrongly_recorded
+    assert not item.false_version_recorded
     assert behind_the_recipe.to_upgrade([item]) == ["betterdisplay"]
     assert behind_the_recipe.to_reinstall([item]) == []
 
@@ -109,7 +109,7 @@ def test_what_homebrew_wrote_down_is_carried_into_the_finding():
     found = behind_the_recipe.find(apps, Casks(), {"betterdisplay": "5.0.6"})
 
     assert found[0].recorded == "5.0.6"
-    assert found[0].wrongly_recorded
+    assert found[0].false_version_recorded
 
 
 def test_an_app_counted_differently_from_its_recipe_is_not_called_behind():

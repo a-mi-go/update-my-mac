@@ -96,7 +96,7 @@ def _walk_through(behind, run, step):
         for item in behind:
             step.say()
             step.say(f"[bold]{escape(item.app.name)}[/]  {escape(item.version_change())}")
-            if item.wrongly_recorded:
+            if item.false_version_recorded:
                 said.say(
                     "[dim]Homebrew wrote down a version it never installed, so no "
                     "upgrade will touch this one.[/]"

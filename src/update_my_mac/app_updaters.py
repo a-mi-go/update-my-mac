@@ -117,12 +117,7 @@ def read_users_app_settings(bundle_id, shell):
     return exported if isinstance(exported, dict) else {}
 
 
-def _as_day(value):
-    """A date out of whatever Sparkle wrote down, as "2026-09-24".
-
-    It stores a date object, which becomes that day in local time, or a
-    timestamp string such as "2026-09-24T14:40:00Z", which is cut to its date.
-    """
+def _timestamp_to_date(value):
     if isinstance(value, str):
         return value[:10]
     try:
@@ -135,22 +130,22 @@ def detect(app_path, shell, info=None):
     """What the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
-        # Squirrel records nothing, so finding it is all there is.
         return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
 
-    settings = read_users_app_settings(info.get("CFBundleIdentifier", ""), shell)
-    # The user's answer wins over the developer's default.
-    automatic = settings.get(AUTOMATIC_CHECKS)
-    if automatic is None:
-        automatic = info.get(AUTOMATIC_CHECKS)
-
+    users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""), shell)
     return UpdaterStatus(
         kind=SPARKLE,
-        automatic=automatic,
-        installs_silently=bool(settings.get(SILENT_INSTALL)),
-        last_checked=_as_day(settings.get(LAST_CHECK)),
+        automatic=_may_check_automatically(users_answer, info),
+        installs_silently=bool(users_answer.get(SILENT_INSTALL)),
+        last_checked=_timestamp_to_date(users_answer.get(LAST_CHECK)),
         feed_url=info.get(FEED_URL, ""),
     )
+
+
+def _may_check_automatically(users_answer, developers_default):
+    """The user's answer if they gave one, otherwise what the app shipped with."""
+    answer = users_answer.get(AUTOMATIC_CHECKS)
+    return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
 
 
 def group_by_status(apps):

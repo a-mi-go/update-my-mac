@@ -40,8 +40,8 @@ def run_resolve_menu(problems, step=None, interactive=True):
             if chosen == NOT_NOW:
                 break
             if chosen == FIX_EVERYTHING:
-                # Counted one at a time, so a Ctrl-C partway through does not
-                # throw away what the earlier ones already did.
+                # Counted one at a time, so a Ctrl-C keeps what the earlier
+                # ones did.
                 for problem in problems:
                     dealt_with += problem.fix_all(step.inside())
                 break
@@ -50,12 +50,10 @@ def run_resolve_menu(problems, step=None, interactive=True):
         step.say()
         dealt_with += stopped.done
     except KeyboardInterrupt:
-        # A step that knows what it had done turns Ctrl-C into Stopped. One
-        # that does not lets it through as itself.
         step.say()
 
-    # However it ended, a line closes the phase so the update menu below is
-    # not read as part of it.
+    # A line closes the phase, so the update menu below is not read as part
+    # of it.
     step.say()
     step.close_section()
     return dealt_with

@@ -20,8 +20,6 @@ class Copy:
 
     def describe(self):
         named = f"{self.manager}, {self.package or self.path}"
-        # Which copy is newer is the whole question, so the version goes in
-        # the line rather than into a footnote under it.
         return f"{named} {self.version}" if self.version else named
 
 
@@ -116,8 +114,8 @@ def _in_path_order(directories, env):
     """The manager directories, in the order PATH would search them."""
     searched = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
     places = {Path(entry): position for position, entry in enumerate(searched)}
-    # A directory PATH never mentions cannot win, so it goes last.
-    return sorted(directories.items(), key=lambda pair: places.get(pair[1], len(searched)))
+    never_on_path = len(searched)
+    return sorted(directories.items(), key=lambda pair: places.get(pair[1], never_on_path))
 
 
 def find(shell, env=None):

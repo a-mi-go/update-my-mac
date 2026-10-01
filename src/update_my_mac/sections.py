@@ -17,8 +17,11 @@ from update_my_mac import adopt_apps, app_updaters, appcast, versions
 # Info: updates are available, or something could be made better.
 CRITICAL, WARNING, INFO = "critical", "warning", "info"
 
-# What a number counts, when the heading above it does not already say.
 UPDATES = "update available"
+
+
+def _pluralised(noun, count):
+    return noun if count == 1 else f"{noun}s"
 
 
 @dataclass
@@ -37,7 +40,6 @@ class Section:
     title: str
     note: str
     rows: list
-    # Usually one per row, but a doubled command takes a row for each copy.
     count: int = 0
     # What the number counts, left empty where the title already says it.
     counted_as: str = ""
@@ -49,12 +51,8 @@ class Section:
         """The number, and what it counts, in the right number."""
         if not self.counted_as:
             return str(self.count)
-        # Only the noun takes the s: one update available, five updates
-        # available.
         noun, _, rest = self.counted_as.partition(" ")
-        if self.count != 1:
-            noun += "s"
-        return f"{self.count} {noun} {rest}".rstrip()
+        return f"{self.count} {_pluralised(noun, self.count)} {rest}".rstrip()
 
 
 @dataclass
@@ -134,10 +132,8 @@ def _false_version_recorded(findings):
     rows = [
         Row(item.app.name, item.version_change())
         for item in findings.behind
-        if item.wrongly_recorded
+        if item.false_version_recorded
     ]
-    # Homebrew wrote down its recipe's version, not what it put on disk, so
-    # it believes it is finished with these.
     return [
         Section(CRITICAL, "Homebrew thinks these are current",
                 "only a reinstall fetches them", rows)
@@ -173,7 +169,7 @@ def _homebrew_outdated(findings):
     rows += [
         Row(item.app.name, item.version_change(), "needs --greedy")
         for item in findings.behind
-        if not item.wrongly_recorded
+        if not item.false_version_recorded
     ]
     note = "what it reports, and what it overlooks" if findings.behind else ""
     section = Section(WARNING, "Homebrew", note, rows, counted_as=UPDATES)
@@ -219,6 +215,7 @@ def _installed_twice(findings):
         rows += [Row("", copy.describe(), "never used") for copy in duplicate.shadowed]
     return [
         Section(WARNING, "Installed twice", "PATH picks the winner", rows,
+                # One row per copy, so the count cannot come from the rows.
                 count=len(findings.doubled), counted_as="command")
     ]
 
