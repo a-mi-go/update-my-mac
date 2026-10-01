@@ -26,7 +26,7 @@ CHOICES = (
 WALK_CHOICES = (
     (RESTART_THIS_ONE, "restart"),
     (LEAVE_IT_RUNNING, "leave it running"),
-    (CANCEL_WALK, "cancel the walk-through and move on to the next step"),
+    (CANCEL_WALK, "cancel the walk-through"),
 )
 
 

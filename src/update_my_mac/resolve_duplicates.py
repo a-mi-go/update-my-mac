@@ -83,7 +83,7 @@ def _copy_choices(duplicate):
         for copy in duplicate.copies
     ] + [
         (KEEP_BOTH, "leave both"),
-        (CANCEL, "cancel the walk-through and move on to the next step"),
+        (CANCEL, "cancel the walk-through"),
     ]
 
 

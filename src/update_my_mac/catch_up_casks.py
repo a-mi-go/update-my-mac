@@ -108,7 +108,7 @@ def _app_choices(item):
     return [
         (CATCH_UP, f"brew {' '.join(command_for(item))}"),
         (LATER, "leave it for now"),
-        (CANCEL, "cancel the walk-through and move on to the next step"),
+        (CANCEL, "cancel the walk-through"),
     ]
 
 

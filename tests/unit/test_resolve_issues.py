@@ -34,7 +34,7 @@ def test_only_what_turned_up_is_offered():
 
     assert "1) untracked apps" in terminal.text
     assert "2) " + resolve_issues.FIX_EVERYTHING in terminal.text
-    assert "3) " + resolve_issues.NOT_NOW in terminal.text
+    assert f"3) {prompting.WAY_OUT}{resolve_issues.NOT_NOW}" in terminal.text
 
 
 def test_picking_one_opens_its_walk_through():
