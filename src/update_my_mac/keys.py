@@ -1,9 +1,7 @@
 """Answering a menu with the arrow keys, where the terminal allows it.
 
 Typing a number always works and is what a pipe, a scheduled run and every
-test uses. Where someone is sitting in front of a terminal, moving a cursor
-is less work, and the list erases itself afterwards so the transcript keeps
-the answer rather than every option that was not chosen.
+test uses.
 """
 
 import importlib.util
@@ -11,6 +9,7 @@ import sys
 
 POINTER = "❯"
 QMARK = "፧፧፧"
+SEPARATOR = "─" * 24
 
 
 class Unusable(Exception):
@@ -22,12 +21,7 @@ def unusable_message(failure):
 
 
 def available():
-    """Whether the keys can be read at all.
-
-    It needs a terminal at both ends, and the library that reads them. An
-    installation without it types numbers instead: that path is the one
-    everything else uses anyway.
-    """
+    """A terminal at both ends, and the library that reads the keys."""
     if importlib.util.find_spec("questionary") is None:
         return False
     try:
@@ -40,9 +34,7 @@ def _style():
     """Cyan for what the cursor is on, plain for everything else.
 
     Merged onto questionary's own style rather than replacing it, so what it
-    puts there has to be turned off by name: noinherit clears what came
-    before. Its question is already bold and white, which is what a question
-    should look like, so that one is left alone.
+    puts there has to be turned off by name: noinherit clears what came before.
     """
     from questionary import Style
 
@@ -58,20 +50,13 @@ def _style():
 
 
 def _choices(entries):
-    """The entries as choices. A None entry is a line the cursor skips.
-
-    Each choice carries the answer it stands for, so nothing has to be
-    counted back around the line.
-    """
+    """The entries as choices. A None entry is a line the cursor skips."""
     from questionary import Choice, Separator
 
     return [
         Separator(SEPARATOR) if entry is None else Choice(entry[1], value=entry[0])
         for entry in entries
     ]
-
-
-SEPARATOR = "─" * 24
 
 
 def _answer_to(prompt):

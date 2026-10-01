@@ -2,9 +2,9 @@
 
 import argparse
 
-from update_my_mac import __version__, app, environment
-
 from rich.console import Console
+
+from update_my_mac import __version__, app, environment
 
 
 def build_argument_parser(prog=None):
@@ -49,10 +49,10 @@ def main(argv=None, prog=None):
     environment.prepare()
 
     try:
-        return _run(args)
+        return _dispatch(args)
     except KeyboardInterrupt:
-        # Ctrl-C ends the run wherever it arrives. Nothing below catches it,
-        # so a question, a walk-through and a download all stop the same way.
+        # Nothing below catches it, so a question, a walk-through and a
+        # download all stop the same way.
         Console(highlight=False).print(
             "\n[yellow]Stopped.[/] Whatever had already run has run, "
             "nothing new was started."
@@ -60,7 +60,7 @@ def main(argv=None, prog=None):
         return 130
 
 
-def _run(args):
+def _dispatch(args):
     if args.check:
         return app.run_check_mode()
 
