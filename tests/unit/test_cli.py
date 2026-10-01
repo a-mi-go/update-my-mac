@@ -61,3 +61,19 @@ def test_ctrl_c_ends_a_check_the_same_way(monkeypatch):
     monkeypatch.setattr(cli.app, "run_check_mode", interrupt)
 
     assert main(["--check"]) == 130
+
+
+def test_updates_only_goes_straight_to_the_updates(monkeypatch):
+    ran = []
+    monkeypatch.setattr(cli.app, "run_updates_only_mode", lambda: ran.append("updates") or 0)
+    monkeypatch.setattr(cli.app, "run_interactive_mode", lambda: ran.append("full") or 0)
+
+    assert main(["--updates-only"]) == 0
+    assert ran == ["updates"]
+
+
+def test_updates_only_cannot_be_combined_with_another_mode(capsys):
+    with pytest.raises(SystemExit):
+        main(["--updates-only", "--check"])
+
+    assert "not allowed with" in capsys.readouterr().err

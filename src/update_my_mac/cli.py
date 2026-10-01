@@ -30,6 +30,11 @@ def build_argument_parser(prog=None):
         help="unattended mode for scheduled runs: no prompts, notify only",
     )
     modes.add_argument(
+        "--updates-only",
+        action="store_true",
+        help="go straight to the updates: no report, nothing to sort out first",
+    )
+    modes.add_argument(
         "--retry-app",
         action="store_true",
         help="revisit apps you previously chose not to track",
@@ -58,6 +63,9 @@ def main(argv=None, prog=None):
 def _run(args):
     if args.check:
         return app.run_check_mode()
+
+    if args.updates_only:
+        return app.run_updates_only_mode()
 
     if args.retry_app:
         return app.run_retry_app_mode()
