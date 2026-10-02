@@ -87,10 +87,10 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _updates_confirmed(console, ask):
+def _self_update_confirmed(console, ask):
     while True:
         try:
-            said = _confirm_updates(console, ask)
+            said = _ask_for_confirmation(console, ask)
         except KeyboardInterrupt:
             prompting.interrupted(console.print)
             continue
@@ -100,7 +100,7 @@ def _updates_confirmed(console, ask):
         return said
 
 
-def _confirm_updates(console, ask):
+def _ask_for_confirmation(console, ask):
     if keys.available():
         try:
             return bool(keys.confirm("Update them now?"))
@@ -167,7 +167,7 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    if not _updates_confirmed(console, ask):
+    if not _self_update_confirmed(console, ask):
         return []
 
     done, failed = upgrade_managers_themselves(
