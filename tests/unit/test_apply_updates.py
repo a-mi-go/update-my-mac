@@ -379,6 +379,20 @@ def test_a_manager_that_cannot_be_asked_again_says_so():
     assert "Homebrew: could not check again" in printed
 
 
+def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
+    # Whether the upgrade worked is then unknown, and the run says so by
+    # exiting non-zero rather than by claiming success.
+    class SilentShell(RecordingShell):
+        def run_command(self, args, success_exit_codes=(0,), env=None):
+            return CommandResult(False, "", "brew: boom")
+
+    failed = apply_updates.run_upgrade_menu(
+        REPORTS, SilentShell(), quiet_console(), answers("2")
+    )
+
+    assert failed == ["brew"]
+
+
 def test_nothing_is_claimed_after_an_interrupted_run():
     class InterruptedShell(RecordingShell):
         def stream_command(self, args, env=None):

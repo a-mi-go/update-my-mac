@@ -228,15 +228,17 @@ def say_what_happened(console, done, failed):
 
 
 def say_what_changed(console, entries, shell):
-    """An upgrade writes straight to the terminal, so asking again is the only
-    way to know what it did.
-    """
+    """Returns the managers that could not be asked again."""
+    # Asked again rather than taken from the upgrade's own output: a manager
+    # can report success and still leave a package where it was.
     console.print()
+    could_not_confirm = []
     for entry in entries:
         manager = package_managers.by_key(entry.keys[0])
         again = package_managers.check_for_outdated(manager, shell)
         if again is None or again.error_message:
             console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
+            could_not_confirm.append(manager.key)
             continue
 
         remaining = again.outdated_packages
@@ -252,11 +254,12 @@ def say_what_changed(console, entries, shell):
         report.print_as_list_or_grid(
             console, "    ", [report.Item(package) for package in remaining]
         )
+    return could_not_confirm
 
 
 def run_chosen(entries, shell, console):
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]
     _, failed = upgrade_managers(package_keys, shell, console)
-    say_what_changed(console, upgraded, shell)
-    return [key for key, _ in failed]
+    could_not_confirm = say_what_changed(console, upgraded, shell)
+    return [key for key, _ in failed] + could_not_confirm
