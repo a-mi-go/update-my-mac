@@ -37,7 +37,7 @@ def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
 
 
 def remove_shadowed(duplicates, remove, step):
-    """Remove the copies PATH never reaches. Returns how many went."""
+    """Remove the copies PATH never reaches. Returns how many were removed."""
     each = step.inside()
     removed = 0
     for duplicate in duplicates:

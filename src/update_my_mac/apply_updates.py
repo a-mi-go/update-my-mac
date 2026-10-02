@@ -73,8 +73,6 @@ def parse_menu_answer(answer, entries):
 
 
 def print_menu(entries, console):
-    # Numbers in cyan on purpose: rich's highlighter would colour every bracket
-    # and number in a label too.
     def option(number, text):
         console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
 
@@ -113,7 +111,6 @@ def _pick_yes_or_no(console, ask, question, default=False):
     hint = "Y/n" if default else "y/N"
     while True:
         try:
-            # highlight=False, or rich prints the brackets bold.
             console.print(
                 f"[cyan]{keys.QMARK}[/] [bold]{escape(question)}[/] \\[{hint}] ",
                 end="",
