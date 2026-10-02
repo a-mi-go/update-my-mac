@@ -38,10 +38,7 @@ def answered():
 
 
 class Stopped(Exception):
-    """No more input to answer with, which ends the step but not the run.
-
-    Ctrl-C is the other thing, and it ends the run wherever it arrives.
-    """
+    """No more input to answer with. Ctrl-C is the other one, and it ends the run."""
 
 
 def _with_way_out_mark(label, at, total):
@@ -53,17 +50,14 @@ def _without_markup(text):
 
 
 def printer(out):
-    """The given print function, or one onto a fresh console."""
     return out or Console(highlight=False, soft_wrap=True).print
 
 
 class Step:
     """One level of the conversation, and the only way to reach the next.
 
-    A question and the answer to it stand in the same column, with the options
-    between them one step further in. Where that column is, is nobody's
-    business but the step's: a walk-through opened from here gets `inside()`
-    and never learns how deep it ended up.
+    How deep it sits is the step's own business: a walk-through opened from
+    here gets inside() and never learns its depth.
     """
 
     def __init__(self, out=None, ask=input, depth=0, with_keys=None):
@@ -71,11 +65,9 @@ class Step:
         self.ask = ask
         self.depth = depth
         self.margin = STEP * depth
-        # None means "decide from the terminal", which is False in every test.
         self.with_keys = keys.available() if with_keys is None else with_keys
 
     def inside(self):
-        """The step one level in, for whatever this one opens."""
         return Step(self.out, self.ask, self.depth + 1, self.with_keys)
 
     def say(self, text=""):
@@ -89,11 +81,7 @@ class Step:
             raise Stopped
 
     def choose(self, options, question=""):
-        """Offer the (key, label) options and return the key that was picked.
-
-        The question is asked by whatever draws the menu, so that the one
-        that erases itself afterwards takes the question with it.
-        """
+        """The question is passed in so a menu that erases itself takes it along."""
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
@@ -126,13 +114,12 @@ class Step:
 
     def _choose_with_keys(self, options, question):
         entries = list(options)
-        # A line the cursor skips sets the way out apart, the way the numbered
-        # menu uses a mark for it.
+        # A line the cursor skips sets the way out apart.
         entries.insert(len(entries) - 1, None)
 
         picked = keys.pick_one(_without_markup(question), entries)
         if picked is None:
-            # No answer at all, whatever the menu's reason for giving none.
+            # questionary gives None when the menu was aborted.
             raise Stopped
         return picked
 

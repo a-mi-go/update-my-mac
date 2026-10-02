@@ -23,7 +23,6 @@ class MenuEntry:
 
 
 def build_menu(reports):
-    """One entry per manager with something outdated, then the apps."""
     entries = []
     for report in reports:
         if not report.outdated_packages:
@@ -74,8 +73,8 @@ def parse_menu_answer(answer, entries):
 
 
 def print_menu(entries, console):
-    # Numbers in cyan on purpose. Left to rich's highlighter they'd get the same
-    # colour, but so would every bracket and number in a label.
+    # Numbers in cyan on purpose: rich's highlighter would colour every bracket
+    # and number in a label too.
     def option(number, text):
         console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
 
@@ -153,12 +152,10 @@ def upgrade_managers_themselves(manager_keys, shell, console):
 
 
 def upgrade_managers(manager_keys, shell, console):
-    """Upgrade each manager's packages in turn."""
     return _run_each_manager(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
 
 
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
-    """Offer to update the managers, before anything is checked against them."""
     if not manager_updates:
         return []
 
@@ -178,7 +175,6 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
-    """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
     entries = build_menu(reports)
     if not entries:
@@ -229,9 +225,7 @@ def say_what_happened(console, done, failed):
 
 
 def say_what_changed(console, entries, shell):
-    """Ask each manager again, and report the difference.
-
-    An upgrade writes straight to the terminal, so asking again is the only
+    """An upgrade writes straight to the terminal, so asking again is the only
     way to know what it did.
     """
     console.print()
