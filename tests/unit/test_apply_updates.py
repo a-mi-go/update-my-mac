@@ -441,7 +441,7 @@ def test_the_question_is_coloured_rather_than_handed_to_input():
     asked = []
 
     with console.capture() as captured:
-        apply_updates._self_update_confirmed(console, lambda prompt: asked.append(prompt) or "n")
+        apply_updates._confirm_pm_self_update(console, lambda prompt: asked.append(prompt) or "n")
 
     assert asked == [""]
     # 36 is cyan, and the whole question wears it.
@@ -451,13 +451,13 @@ def test_the_question_is_coloured_rather_than_handed_to_input():
 
 def test_the_keys_are_asked_first_where_the_terminal_allows_it(monkeypatch):
     monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
-    monkeypatch.setattr(apply_updates.keys, "confirm", lambda question: True)
+    monkeypatch.setattr(apply_updates.keys, "confirm", lambda question, default: True)
 
-    assert apply_updates._self_update_confirmed(Console(width=80), None)
+    assert apply_updates._confirm_pm_self_update(Console(width=80), None)
 
 
 def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
-    def refuse(question):
+    def refuse(question, default):
         raise apply_updates.keys.Unusable("no terminal capability")
 
     monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
@@ -465,7 +465,7 @@ def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
     console = Console(width=80)
 
     with console.capture() as captured:
-        said = apply_updates._self_update_confirmed(console, lambda prompt: "y")
+        said = apply_updates._confirm_pm_self_update(console, lambda prompt: "y")
 
     assert said
     assert "could not be drawn" in captured.get()
@@ -476,7 +476,7 @@ def test_the_yes_or_no_hint_survives_the_markup():
     console = Console(width=80, no_color=True)
 
     with console.capture() as captured:
-        apply_updates._self_update_confirmed(console, lambda prompt: "n")
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
 
     assert "[y/N]" in captured.get()
 
@@ -486,7 +486,7 @@ def test_the_question_is_bold_and_the_marker_coloured():
     console = Console(width=80, force_terminal=True)
 
     with console.capture() as captured:
-        apply_updates._self_update_confirmed(console, lambda prompt: "n")
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
 
     # The question is bold, the marker is cyan, and the hint is neither:
     # dimmed it was barely readable.
@@ -496,6 +496,16 @@ def test_the_question_is_bold_and_the_marker_coloured():
     assert "\x1b[2m" not in printed
 
 
+def test_a_question_that_defaults_to_yes_says_so_and_takes_an_empty_answer():
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        said = apply_updates._pick_yes_or_no(console, lambda prompt: "", "Keep it?", default=True)
+
+    assert said
+    assert "[Y/n]" in captured.get()
+
+
 def test_a_line_is_broken_after_the_answer():
     # The question is printed without a line break, because the answer is
     # typed on the same line. In a terminal the Enter that ends the answer
@@ -503,7 +513,7 @@ def test_a_line_is_broken_after_the_answer():
     console = Console(width=80, no_color=True)
 
     with console.capture() as captured:
-        apply_updates._self_update_confirmed(console, lambda prompt: "n")
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
 
     assert captured.get().endswith("\n")
     assert captured.get().count("\n") == 1

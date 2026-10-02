@@ -86,40 +86,46 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _self_update_confirmed(console, ask):
+def _confirm_pm_self_update(console, ask):
     while True:
         try:
-            said = _ask_for_confirmation(console, ask)
+            said = _pick_yes_or_no(console, ask, "Update them now?")
         except KeyboardInterrupt:
             prompting.interrupted(console.print)
             continue
-        prompting.answered()
+        except prompting.Stopped:
+            console.print("\nNothing updated.")
+            said = False
+        else:
+            prompting.answered()
         # A blank line, or the answer and what follows run together.
         console.print()
         return said
 
 
-def _ask_for_confirmation(console, ask):
+def _pick_yes_or_no(console, ask, question, default=False):
     if keys.available():
         try:
-            return bool(keys.confirm("Update them now?"))
+            return bool(keys.confirm(question, default=default))
         except keys.Unusable as failure:
             console.print(keys.unusable_message(failure))
 
+    hint = "Y/n" if default else "y/N"
     while True:
         try:
             # highlight=False, or rich prints the brackets bold.
             console.print(
-                f"[cyan]{keys.QMARK}[/] [bold]Update them now?[/] \\[y/N] ",
+                f"[cyan]{keys.QMARK}[/] [bold]{escape(question)}[/] \\[{hint}] ",
                 end="",
                 highlight=False,
             )
             answer = ask("").strip().lower()
         except EOFError:
-            console.print("\nNothing updated.")
-            return False
+            raise prompting.Stopped
 
-        if answer in ("", "n", "no"):
+        if answer == "":
+            return default
+        if answer in ("n", "no"):
             return False
         if answer in ("y", "yes"):
             return True
@@ -164,7 +170,7 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    if not _self_update_confirmed(console, ask):
+    if not _confirm_pm_self_update(console, ask):
         return []
 
     done, failed = upgrade_managers_themselves(
