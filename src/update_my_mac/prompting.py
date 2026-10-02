@@ -19,22 +19,20 @@ STEP = "  "
 CLOSING_WIDTH = 84
 
 
-# Once is a warning, twice in a row ends the run. An answer in between clears
-# it, because one press is easy to hit by accident.
-_warned = False
+_pressed_ctrl_c = False
 
 
 def interrupted(say):
-    global _warned
-    if _warned:
+    global _pressed_ctrl_c
+    if _pressed_ctrl_c:
         raise KeyboardInterrupt
-    _warned = True
+    _pressed_ctrl_c = True
     say("[yellow]Press Ctrl-C again to stop the run.[/]")
 
 
 def answered():
-    global _warned
-    _warned = False
+    global _pressed_ctrl_c
+    _pressed_ctrl_c = False
 
 
 class Stopped(Exception):
@@ -54,11 +52,7 @@ def printer(out):
 
 
 class Step:
-    """One level of the conversation, and the only way to reach the next.
-
-    How deep it sits is the step's own business: a walk-through opened from
-    here gets inside() and never learns its depth.
-    """
+    """One level of the conversation, and the only way to reach the next."""
 
     def __init__(self, out=None, ask=input, depth=0, with_keys=None):
         self.out = printer(out)
