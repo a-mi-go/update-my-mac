@@ -1,7 +1,5 @@
-"""Answering a menu with the arrow keys, where the terminal allows it.
-
-Typing a number always works and is what a pipe, a scheduled run and every
-test uses.
+"""Answering a menu with the arrow keys. Without a terminal, the numbered
+menu in prompting.py is used instead.
 """
 
 import importlib.util
@@ -21,7 +19,6 @@ def unusable_message(failure):
 
 
 def available():
-    """A terminal at both ends, and the library that reads the keys."""
     if importlib.util.find_spec("questionary") is None:
         return False
     try:
@@ -31,13 +28,10 @@ def available():
 
 
 def _style():
-    """Cyan for what the cursor is on, plain for everything else.
-
-    Every row starts with noinherit because questionary merges this style onto
-    its own defaults instead of replacing them.
-    """
     from questionary import Style
 
+    # Every row needs noinherit: questionary merges this onto its own defaults
+    # instead of replacing them.
     return Style([
         ("qmark", "noinherit fg:cyan"),
         ("instruction", "noinherit"),
@@ -50,7 +44,7 @@ def _style():
 
 
 def _choices(entries):
-    """The entries as choices. A None entry is a line the cursor skips."""
+    """A None entry becomes a line the cursor skips."""
     from questionary import Choice, Separator
 
     return [
@@ -60,10 +54,7 @@ def _choices(entries):
 
 
 def _answer_to(prompt):
-    """The answer, or Unusable when questionary could not ask at all.
-
-    A Ctrl-C is a BaseException, so it passes this by and ends the run.
-    """
+    # A Ctrl-C is a BaseException, so it passes this by and ends the run.
     try:
         return prompt.unsafe_ask()
     except Exception as failure:
@@ -71,7 +62,6 @@ def _answer_to(prompt):
 
 
 def pick_one(question, entries):
-    """The answer that was chosen, or None when the person backed out."""
     import questionary
 
     return _answer_to(questionary.select(
@@ -85,7 +75,6 @@ def pick_one(question, entries):
 
 
 def confirm(question, default=False):
-    """Yes or no, or None when the person backed out."""
     import questionary
 
     return _answer_to(questionary.confirm(
@@ -94,7 +83,6 @@ def confirm(question, default=False):
 
 
 def pick_several(question, entries):
-    """The answers that were chosen, or None when the person backed out."""
     import questionary
 
     return _answer_to(questionary.checkbox(
