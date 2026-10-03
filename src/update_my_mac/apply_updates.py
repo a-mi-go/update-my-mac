@@ -188,7 +188,7 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
                 continue
             except keys.Unusable as failure:
                 console.print(keys.unusable_message(failure))
-                break
+                break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
             return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
 
