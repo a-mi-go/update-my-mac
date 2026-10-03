@@ -50,3 +50,49 @@ def test_updates_only_asks_the_managers_and_nothing_else(monkeypatch):
 
     assert app.run_updates_only_mode() == 0
     assert looked == []
+
+
+def behind(key, error_message=""):
+    return ManagerUpdate(key, key, "a newer one exists", error_message)
+
+
+def test_a_manager_that_refreshed_drops_out_of_the_report():
+    still = app._managers_still_behind([behind("brew"), behind("npm")], ["brew"])
+
+    assert [one.key for one in still] == ["npm"]
+
+
+def test_a_manager_whose_check_failed_stays_even_after_it_refreshed():
+    still = app._managers_still_behind([behind("brew", "boom")], ["brew"])
+
+    assert [one.key for one in still] == ["brew"]
+
+
+def test_declining_the_self_update_leaves_every_manager_in_the_report():
+    still = app._managers_still_behind([behind("brew"), behind("npm")], [])
+
+    assert [one.key for one in still] == ["brew", "npm"]
+
+
+def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
+    # The answer has to reach the exit code, or a manager nobody could ask
+    # would read as nothing to do.
+    for name in ("find_untracked", "find_all", "owned_by_someone_else"):
+        monkeypatch.setattr(app.installed_apps, name, lambda *a, **k: [])
+    monkeypatch.setattr(app.appcast, "check", lambda *a, **k: {})
+    monkeypatch.setattr(app.cask_index, "load", lambda *a, **k: {})
+    monkeypatch.setattr(app, "shell", QuietShell())
+    monkeypatch.setattr(app.package_managers, "check_managers_themselves",
+                        lambda shell, installed: [behind("brew", "boom")])
+
+    assert app.run_check_mode() == 1
+
+
+def test_updates_only_reports_a_manager_nobody_could_ask(monkeypatch):
+    monkeypatch.setattr(app, "shell", QuietShell())
+    monkeypatch.setattr(app.package_managers, "check_managers_themselves",
+                        lambda shell, installed: [behind("brew", "boom")])
+    monkeypatch.setattr(app.apply_updates, "run_manager_menu",
+                        lambda *a, **k: app.apply_updates.ManagerRun())
+
+    assert app.run_updates_only_mode() == 1
