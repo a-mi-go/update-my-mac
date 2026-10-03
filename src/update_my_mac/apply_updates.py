@@ -73,14 +73,10 @@ def parse_menu_answer(answer, entries):
 
 
 def print_menu(entries, console):
-    def option(number, text):
-        console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
-
     console.print("\nWhat should be updated?")
-    option(1, "Everything")
-    for number, entry in enumerate(entries, start=2):
-        option(number, entry.label)
-    option(len(entries) + 2, "Nothing (Exit)")
+    labels = ["Everything"] + [entry.label for entry in entries] + ["Nothing (Exit)"]
+    for number, label in enumerate(labels, start=1):
+        console.print(f"  [bold cyan]{number})[/] {escape(label)}", highlight=False)
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
