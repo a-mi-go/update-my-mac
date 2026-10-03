@@ -343,10 +343,9 @@ def run_updates_only_mode():
     with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
         reports = package_managers.check_installed(shell)
 
+    still_behind = _managers_still_behind(managers_behind, managers.refreshed)
     failed = managers.failed + apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(
-        reports, _managers_still_behind(managers_behind, managers.refreshed)
-    )
+    return 1 if failed else _exit_code(reports, still_behind)
 
 
 def run_retry_app_mode():
