@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from update_my_mac import behind_the_recipe, catch_up_casks
 from update_my_mac.cask_index import Cask
 from update_my_mac.installed_apps import InstalledApp
@@ -116,27 +118,22 @@ def test_without_a_terminal_nothing_is_asked():
     assert terminal.text == ""
 
 
-def test_ctrl_c_stops_without_crashing():
+def test_ctrl_c_is_left_to_end_the_run():
     terminal = Terminal(then=KeyboardInterrupt)
 
-    assert catch_up_casks.run_catch_up_menu([item()], Brew(), terminal.step) == 0
+    with pytest.raises(KeyboardInterrupt):
+        catch_up_casks.run_catch_up_menu([item()], Brew(), terminal.step)
 
 
-def test_a_group_that_went_through_before_ctrl_c_still_counts():
-    # The reinstall group finished, the greedy upgrade was interrupted. What
-    # already ran decides whether the run checks the managers again.
+def test_ctrl_c_during_a_command_ends_the_run():
     ran = []
 
     def brew(command):
         ran.append(command[0])
-        if len(ran) == 2:
-            raise KeyboardInterrupt
-        return 0
+        raise KeyboardInterrupt
 
     terminal = Terminal(ALL)
-    done = catch_up_casks.run_catch_up_menu(
-        [item("BetterDisplay"), item("ChatGPT", recorded="1.0")], brew, terminal.step
-    )
 
-    assert ran == ["reinstall", "upgrade"]
-    assert done == 1
+    with pytest.raises(KeyboardInterrupt):
+        catch_up_casks.run_catch_up_menu([item("BetterDisplay")], brew, terminal.step)
+    assert ran == ["reinstall"]

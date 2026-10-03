@@ -1,6 +1,6 @@
 """The indenting and the numbering that every walk-through is built out of."""
 
-from update_my_mac.prompting import STEP, Step, Stopped
+from update_my_mac.prompting import STEP, WAY_OUT, Step, Stopped
 
 from fake_terminal import Terminal
 
@@ -31,7 +31,7 @@ def test_the_options_stand_one_step_inside_the_question():
 
     Step(terminal.out, terminal.ask).choose([("a", "one"), ("b", "two")])
 
-    assert terminal.lines[:3] == [f"{STEP}1) one", f"{STEP}-----", f"{STEP}2) two"]
+    assert terminal.lines[:2] == [f"{STEP}1) one", f"{STEP}2) {WAY_OUT}two"]
 
 
 def test_the_prompt_stands_in_the_column_the_question_does():
@@ -86,3 +86,56 @@ def test_a_menu_with_nothing_in_it_is_a_mistake():
     except ValueError:
         return
     raise AssertionError("an empty menu should not be offered")
+
+
+def test_the_menu_asks_the_question_it_was_given():
+    terminal = Terminal("1")
+
+    chosen = terminal.step.choose([("a", "one"), ("b", "two")], "[bold]Which one?[/]")
+
+    assert chosen == "a"
+    assert terminal.lines[0] == "Which one?"
+
+
+def interrupting(*answers):
+    """A terminal that presses Ctrl-C before each of these answers."""
+    given = list(answers)
+
+    def ask(_prompt):
+        answer = given.pop(0)
+        if answer is INTERRUPT:
+            raise KeyboardInterrupt
+        return answer
+
+    return ask
+
+
+INTERRUPT = object()
+
+
+def test_the_first_ctrl_c_only_warns():
+    terminal = Terminal()
+    step = Step(terminal.out, interrupting(INTERRUPT, "1"))
+
+    assert step.choose([("a", "one"), ("b", "two")]) == "a"
+    assert "Press Ctrl-C again" in terminal.text
+
+
+def test_the_second_ctrl_c_in_a_row_ends_the_run():
+    step = Step(Terminal().out, interrupting(INTERRUPT, INTERRUPT))
+
+    try:
+        step.choose([("a", "one"), ("b", "two")])
+    except KeyboardInterrupt:
+        return
+    raise AssertionError("the second one should have been left to end the run")
+
+
+def test_an_answer_in_between_clears_the_warning():
+    # One Ctrl-C is easy to hit by accident; an answer says it was not meant.
+    terminal = Terminal()
+    step = Step(terminal.out, interrupting(INTERRUPT, "1", INTERRUPT, "2"))
+
+    assert step.choose([("a", "one"), ("b", "two")]) == "a"
+    assert step.choose([("a", "one"), ("b", "two")]) == "b"
+    assert terminal.text.count("Press Ctrl-C again") == 2

@@ -199,9 +199,9 @@ def test_no_more_input_stops_instead_of_crashing(tmp_path):
     assert not (tmp_path / "apps.json").exists()
 
 
-def test_ctrl_c_partway_keeps_what_was_decided(tmp_path):
+def test_running_out_of_input_partway_keeps_what_was_decided(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal(IGNORE, then=KeyboardInterrupt)
+    terminal = Terminal(IGNORE, then=EOFError)
 
     dealt_with = track_apps.run_untracked_menu(
         [app("First"), app("Second")], decisions, terminal.step
@@ -211,13 +211,13 @@ def test_ctrl_c_partway_keeps_what_was_decided(tmp_path):
     assert decisions_in(tmp_path).ignored_names() == ["First"]
 
 
-def test_ctrl_c_while_revisiting_changes_nothing(tmp_path):
+def test_running_out_of_input_while_revisiting_changes_nothing(tmp_path):
     decisions = decisions_in(tmp_path)
     decisions.ignore("Alpha", "1.0")
     decisions.save()
 
     brought_back = track_apps.run_revisit_menu(
-        decisions, Terminal(then=KeyboardInterrupt).step
+        decisions, Terminal(then=EOFError).step
     )
 
     assert brought_back == 0

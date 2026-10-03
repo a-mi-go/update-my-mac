@@ -121,7 +121,7 @@ def test_the_menu_asks_what_to_do_with_them(tmp_path):
     assert "What should we do with them?" in terminal.text
     assert "1) restart all" in terminal.text
     assert "2) decide for each" in terminal.text
-    assert "3) nothing" in terminal.text
+    assert f"3) {prompting.WAY_OUT}nothing" in terminal.text
     # The old walk-through wording is what this question replaced.
     assert "Going through" not in terminal.text
 
@@ -174,7 +174,7 @@ def test_going_through_them_one_at_a_time(tmp_path):
     assert restarted == ["Thing"]
     assert "1) restart" in terminal.text
     assert "2) leave it running" in terminal.text
-    assert "3) cancel the walk-through" in terminal.text
+    assert f"3) {prompting.WAY_OUT}cancel the walk-through" in terminal.text
 
 
 def test_a_restart_that_worked_is_green_and_one_that_did_not_is_red(tmp_path):

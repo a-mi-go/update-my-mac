@@ -6,6 +6,8 @@ from rich.console import Console
 from rich.markup import escape
 
 from update_my_mac import package_managers, report
+from update_my_mac import keys
+from update_my_mac import prompting
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -21,7 +23,6 @@ class MenuEntry:
 
 
 def build_menu(reports):
-    """One entry per manager with something outdated, then the apps."""
     entries = []
     for report in reports:
         if not report.outdated_packages:
@@ -72,52 +73,88 @@ def parse_menu_answer(answer, entries):
 
 
 def print_menu(entries, console):
-    # Numbers in cyan on purpose. Left to rich's highlighter they'd get the same
-    # colour, but so would every bracket and number in a label.
-    def option(number, text):
-        console.print(f"  [bold cyan]{number})[/] {escape(text)}", highlight=False)
-
     console.print("\nWhat should be updated?")
-    option(1, "Everything")
-    for number, entry in enumerate(entries, start=2):
-        option(number, entry.label)
-    option(len(entries) + 2, "Nothing (Exit)")
+    labels = ["Everything"] + [entry.label for entry in entries] + ["Nothing (Exit)"]
+    for number, label in enumerate(labels, start=1):
+        console.print(f"  [bold cyan]{number})[/] {escape(label)}", highlight=False)
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _run_each(keys, shell, console, announce, run_one):
-    """What went through, what went badly, and whether Ctrl-C ended the run."""
+def _confirm_pm_self_update(console, ask):
+    while True:
+        try:
+            said = _pick_yes_or_no(console, ask, "Update them now?")
+        except KeyboardInterrupt:
+            prompting.interrupted(console.print)
+            continue
+        except prompting.Stopped:
+            console.print("\nNothing updated.")
+            said = False
+        else:
+            prompting.answered()
+        # A blank line, or the answer and what follows run together.
+        console.print()
+        return said
+
+
+def _pick_yes_or_no(console, ask, question, default=False):
+    if keys.available():
+        try:
+            return bool(keys.confirm(question, default=default))
+        except keys.Unusable as failure:
+            console.print(keys.unusable_message(failure))
+
+    hint = "Y/n" if default else "y/N"
+    while True:
+        try:
+            console.print(
+                f"[cyan]{keys.QMARK}[/] [bold]{escape(question)}[/] \\[{hint}] ",
+                end="",
+                highlight=False,
+            )
+            answer = ask("").strip().lower()
+        except EOFError:
+            raise prompting.Stopped
+
+        if answer == "":
+            return default
+        if answer in ("n", "no"):
+            return False
+        if answer in ("y", "yes"):
+            return True
+        console.print("[yellow]Didn't catch that.[/]")
+
+
+def pick_what_to_update(entries, pick=keys.pick_several):
+    """A multiple choice: the entries that were picked, or CANCEL."""
+    picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
+    return picked or CANCEL
+
+
+def _run_each_manager(manager_keys, shell, console, announce, run_one):
     done, failed = [], []
-    for key in keys:
+    for key in manager_keys:
         manager = package_managers.by_key(key)
         console.print(f"\n[bold]{announce} {manager.label}[/]")
-        try:
-            exit_code = run_one(manager, shell)
-        except KeyboardInterrupt:
-            # Ctrl-C reaches us too, and has to stop the whole queue.
-            console.print(f"\n[yellow]Stopped during {manager.label}.[/]")
-            return done, failed + [(key, "stopped")], True
-
+        exit_code = run_one(manager, shell)
         if exit_code != 0:
             console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
             failed.append((key, f"exited with {exit_code}"))
         else:
             done.append(key)
-    return done, failed, False
+    return done, failed
 
 
-def upgrade_managers_themselves(keys, shell, console):
+def upgrade_managers_themselves(manager_keys, shell, console):
     """Update the managers first, so the upgrades after them use current tools."""
-    return _run_each(keys, shell, console, "Updating", package_managers.upgrade_self)
+    return _run_each_manager(manager_keys, shell, console, "Updating", package_managers.upgrade_self)
 
 
-def upgrade_managers(keys, shell, console):
-    """Upgrade each manager's packages in turn."""
-    return _run_each(keys, shell, console, "Upgrading", package_managers.upgrade)
+def upgrade_managers(manager_keys, shell, console):
+    return _run_each_manager(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
 
 
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
-    """Offer to update the managers, before anything is checked against them."""
     if not manager_updates:
         return []
 
@@ -126,20 +163,10 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    while True:
-        try:
-            answer = ask("Update them now? [y/N] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            console.print("\nNothing updated.")
-            return []
+    if not _confirm_pm_self_update(console, ask):
+        return []
 
-        if answer in ("", "n", "no"):
-            return []
-        if answer in ("y", "yes"):
-            break
-        console.print("[yellow]Didn't catch that.[/]")
-
-    done, failed, _ = upgrade_managers_themselves(
+    done, failed = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
     )
     say_what_happened(console, done, failed)
@@ -147,18 +174,30 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
-    """Offer the update and run what was chosen. Returns what failed."""
     console = console or Console()
     entries = build_menu(reports)
     if not entries:
         return []
 
+    if keys.available():
+        while True:
+            try:
+                chosen = pick_what_to_update(entries)
+            except KeyboardInterrupt:
+                prompting.interrupted(console.print)
+                continue
+            except keys.Unusable as failure:
+                console.print(keys.unusable_message(failure))
+                break  # out of this loop only: the numbered menu below takes over
+            prompting.answered()
+            return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
+
     while True:
         print_menu(entries, console)
         try:
             answer = ask("> ")
-        except (EOFError, KeyboardInterrupt):
-            # No terminal, or Ctrl-C. Silence is not consent to upgrade.
+        except EOFError:
+            # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
             return []
 
@@ -185,17 +224,17 @@ def say_what_happened(console, done, failed):
 
 
 def say_what_changed(console, entries, shell):
-    """Ask each manager again, and report the difference.
-
-    An upgrade writes straight to the terminal, so asking again is the only
-    way to know what it did.
-    """
+    """Returns the managers that could not be asked again."""
+    # Asked again rather than taken from the upgrade's own output: a manager
+    # can report success and still leave a package where it was.
     console.print()
+    could_not_confirm = []
     for entry in entries:
         manager = package_managers.by_key(entry.keys[0])
         again = package_managers.check_for_outdated(manager, shell)
         if again is None or again.error_message:
             console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
+            could_not_confirm.append(manager.key)
             continue
 
         remaining = again.outdated_packages
@@ -211,12 +250,12 @@ def say_what_changed(console, entries, shell):
         report.print_as_list_or_grid(
             console, "    ", [report.Item(package) for package in remaining]
         )
+    return could_not_confirm
 
 
 def run_chosen(entries, shell, console):
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]
-    _, failed, stopped = upgrade_managers(package_keys, shell, console)
-    if not stopped:
-        say_what_changed(console, upgraded, shell)
-    return [key for key, _ in failed]
+    _, failed = upgrade_managers(package_keys, shell, console)
+    could_not_confirm = say_what_changed(console, upgraded, shell)
+    return [key for key, _ in failed] + could_not_confirm

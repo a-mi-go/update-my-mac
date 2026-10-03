@@ -26,7 +26,7 @@ CHOICES = (
 WALK_CHOICES = (
     (RESTART_THIS_ONE, "restart"),
     (LEAVE_IT_RUNNING, "leave it running"),
-    (CANCEL_WALK, "cancel the walk-through and move on to the next step"),
+    (CANCEL_WALK, "cancel the walk-through"),
 )
 
 
@@ -69,8 +69,7 @@ def run_restart_menu(apps, restart_one, step=None, interactive=True):
 
     step.say()
     try:
-        step.say("[bold]What should we do with them?[/]")
-        chosen = step.choose(CHOICES)
+        chosen = step.choose(CHOICES, "[bold]What should we do with them?[/]")
         if chosen == RESTART_ALL:
             return _restart_all(apps, restart_one, step)
         if chosen == DECIDE_FOR_EACH:
@@ -99,7 +98,7 @@ def _walk_through(apps, restart_one, step):
         for app in apps:
             step.say()
             step.say(f"[bold]{escape(app.describe())}[/]")
-            chosen = step.choose(WALK_CHOICES)
+            chosen = step.choose(WALK_CHOICES, "[bold]What should we do with it?[/]")
             if chosen == CANCEL_WALK:
                 break
             if chosen == RESTART_THIS_ONE and _restart_one(app, restart_one, said):

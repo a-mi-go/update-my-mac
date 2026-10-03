@@ -42,15 +42,13 @@ def run_catch_up_menu(behind, run, step=None, interactive=True):
 
     step.say()
     try:
-        step.say("[bold]What should we do with them?[/]")
-        chosen = step.choose(_choices(behind))
+        chosen = step.choose(_choices(behind), "[bold]What should we do with them?[/]")
         if chosen == CATCH_UP_ALL:
             return catch_up_all(behind, run, step)
         if chosen == DECIDE_FOR_EACH:
             return _walk_through(behind, run, step.inside())
-    except Stopped as stopped:
+    except Stopped:
         step.say()
-        return stopped.done
     return 0
 
 
@@ -66,19 +64,14 @@ def catch_up_all(behind, run, step):
     """Run the grouped commands. Returns how many apps they covered.
 
     A command that fails does not stop the rest, because one group failing
-    says nothing about the other. Ctrl-C does stop it, and takes the count so
-    far with it rather than losing the group that already went through.
+    says nothing about the other. Ctrl-C ends the whole run, here as anywhere.
     """
     each = step.inside()
     done = 0
     for command in commands_for(behind):
         each.say()
         each.say(f"[bold]brew {escape(' '.join(command))}[/]")
-        try:
-            ran = _run_one(command, run, each.inside())
-        except Stopped:
-            raise Stopped(done)
-        if ran:
+        if _run_one(command, run, each.inside()):
             done += _how_many_apps(command)
     return done
 
@@ -101,7 +94,7 @@ def _walk_through(behind, run, step):
                     "[dim]Homebrew wrote down a version it never installed, so no "
                     "upgrade will touch this one.[/]"
                 )
-            chosen = step.choose(_app_choices(item))
+            chosen = step.choose(_app_choices(item), "[bold]What should we do with it?[/]")
             if chosen == CANCEL:
                 break
             if chosen == CATCH_UP and _run_one(command_for(item), run, said):
@@ -115,16 +108,12 @@ def _app_choices(item):
     return [
         (CATCH_UP, f"brew {' '.join(command_for(item))}"),
         (LATER, "leave it for now"),
-        (CANCEL, "cancel the walk-through and move on to the next step"),
+        (CANCEL, "cancel the walk-through"),
     ]
 
 
 def _run_one(command, run, step):
-    try:
-        exit_code = run(command)
-    except KeyboardInterrupt:
-        step.say("[yellow]Stopped.[/]")
-        raise Stopped
+    exit_code = run(command)
 
     if exit_code != 0:
         step.say(f"[yellow]That exited with {exit_code}.[/]")
