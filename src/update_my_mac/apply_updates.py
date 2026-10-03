@@ -5,9 +5,7 @@ from dataclasses import dataclass, field
 from rich.console import Console
 from rich.markup import escape
 
-from update_my_mac import package_managers, report
-from update_my_mac import keys
-from update_my_mac import prompting
+from update_my_mac import keys, package_managers, prompting, report
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -154,9 +152,15 @@ def upgrade_managers(manager_keys, shell, console):
     return _run_each_manager(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
 
 
+@dataclass
+class ManagerRun:
+    refreshed: list = field(default_factory=list)
+    failed: list = field(default_factory=list)
+
+
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
     if not manager_updates:
-        return []
+        return ManagerRun()
 
     console = console or Console()
     named = ", ".join(update.label for update in manager_updates)
@@ -164,13 +168,13 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
     if not _confirm_pm_self_update(console, ask):
-        return []
+        return ManagerRun()
 
     done, failed = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
     )
     say_what_happened(console, done, failed)
-    return [key for key, _ in failed]
+    return ManagerRun(done, [key for key, _ in failed])
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
