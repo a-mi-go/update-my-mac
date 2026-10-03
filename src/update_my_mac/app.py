@@ -127,8 +127,7 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
     label = (
         f"yes, get those apps back on track "
         f"({known} of {len(troubled)} can go to Homebrew)" if known
-        else f"yes, go through the {len(troubled)} apps nobody tracks "
-             f"(none of them can go to Homebrew)"
+        else f"yes, go through the apps nobody tracks ({len(troubled)})"
     )
     return _problem(
         label,
@@ -316,6 +315,24 @@ def run_interactive_mode():
 
     failed += apply_updates.run_upgrade_menu(reports, shell)
     return 1 if failed else _exit_code(reports, findings.manager_updates)
+
+
+def run_updates_only_mode():
+    console = Console(highlight=False)
+    installed = package_managers.installed_managers(shell)
+
+    with console.status(f"[dim]asking {len(installed)} managers about themselves[/]",
+                        spinner=SPINNER):
+        manager_updates = package_managers.check_managers_themselves(shell, installed)
+
+    failed = apply_updates.run_manager_menu(manager_updates, shell)
+
+    # Only now, so a manager that just updated itself is the one answering.
+    with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
+        reports = package_managers.check_installed(shell)
+
+    failed += apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(reports, manager_updates)
 
 
 def run_retry_app_mode():

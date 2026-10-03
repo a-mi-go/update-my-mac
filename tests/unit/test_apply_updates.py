@@ -1,3 +1,4 @@
+import pytest
 from rich.console import Console
 
 from update_my_mac import apply_updates
@@ -200,13 +201,15 @@ def test_no_terminal_cancels_instead_of_crashing():
     assert shell.streamed == []
 
 
-def test_ctrl_c_cancels_instead_of_crashing():
+def test_ctrl_c_at_the_menu_ends_the_run():
+    # Nothing below the top catches it, so it leaves through here.
     shell = RecordingShell()
-    failed = apply_updates.run_upgrade_menu(
-        REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
-    )
 
-    assert failed == []
+    with pytest.raises(KeyboardInterrupt):
+        apply_updates.run_upgrade_menu(
+            REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
+        )
+
     assert shell.streamed == []
 
 
@@ -216,7 +219,7 @@ def test_a_failed_upgrade_is_reported_back():
     assert run(shell, "1") == ["brew", "npm"]
 
 
-def test_ctrl_c_during_an_upgrade_stops_the_rest():
+def test_ctrl_c_during_an_upgrade_ends_the_run():
     class InterruptedShell(RecordingShell):
         def stream_command(self, args, env=None):
             self.streamed.append(args)
@@ -224,7 +227,10 @@ def test_ctrl_c_during_an_upgrade_stops_the_rest():
 
     shell = InterruptedShell()
 
-    assert run(shell, "1") == ["brew"]
+    with pytest.raises(KeyboardInterrupt):
+        run(shell, "1")
+
+    # The one it was in the middle of, and nothing after it.
     assert shell.streamed == [["/fake/brew", "upgrade"]]
 
 
@@ -373,19 +379,35 @@ def test_a_manager_that_cannot_be_asked_again_says_so():
     assert "Homebrew: could not check again" in printed
 
 
+def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
+    # Whether the upgrade worked is then unknown, and the run says so by
+    # exiting non-zero rather than by claiming success.
+    class SilentShell(RecordingShell):
+        def run_command(self, args, success_exit_codes=(0,), env=None):
+            return CommandResult(False, "", "brew: boom")
+
+    failed = apply_updates.run_upgrade_menu(
+        REPORTS, SilentShell(), quiet_console(), answers("2")
+    )
+
+    assert failed == ["brew"]
+
+
 def test_nothing_is_claimed_after_an_interrupted_run():
     class InterruptedShell(RecordingShell):
         def stream_command(self, args, env=None):
             raise KeyboardInterrupt
 
-    printed = printed_by(
-        lambda console: apply_updates.run_upgrade_menu(
-            REPORTS, InterruptedShell(), console, answers("1")
-        )
-    )
+    console = Console(width=100, no_color=True)
+    with console.capture() as captured:
+        with pytest.raises(KeyboardInterrupt):
+            apply_updates.run_upgrade_menu(
+                REPORTS, InterruptedShell(), console, answers("1")
+            )
 
     # The menu itself says "What should be updated?", so look for the closing
     # lines rather than the word.
+    printed = captured.get()
     assert "1 updated" not in printed
     assert "still outdated" not in printed
 
@@ -399,3 +421,130 @@ def test_the_manager_step_closes_the_same_way():
     )
 
     assert "Homebrew: exited with 2" in printed
+
+
+def test_picking_several_needs_no_everything_or_nothing_option():
+    entries = apply_updates.build_menu([
+        ManagerReport("brew", "Homebrew", ["git  1 → 2"]),
+        ManagerReport("mas", "Mac App Store", ["Xcode  1 → 2"]),
+    ])
+    asked = []
+
+    def pick(question, choices):
+        asked.append((question, [label for _, label in choices]))
+        return [choices[1][0]]
+
+    chosen = apply_updates.pick_what_to_update(entries, pick=pick)
+
+    assert [entry.label for entry in chosen] == ["Mac App Store (1 app)"]
+    assert asked[0][0] == "What should be updated?"
+    assert "Everything" not in asked[0][1]
+
+
+def test_backing_out_of_the_multi_select_updates_nothing():
+    entries = apply_updates.build_menu([ManagerReport("brew", "Homebrew", ["git  1 → 2"])])
+
+    chosen = apply_updates.pick_what_to_update(entries, pick=lambda question, choices: None)
+
+    assert chosen == apply_updates.CANCEL
+
+
+def test_the_question_is_coloured_rather_than_handed_to_input():
+    # input() writes its prompt raw, so markup there would be shown as text.
+    console = Console(width=80, force_terminal=True)
+    asked = []
+
+    with console.capture() as captured:
+        apply_updates._confirm_pm_self_update(console, lambda prompt: asked.append(prompt) or "n")
+
+    assert asked == [""]
+    # 36 is cyan, and the whole question wears it.
+    assert "\x1b[36m" in captured.get()
+    assert "Update them now?" in captured.get()
+
+
+def test_the_keys_are_asked_first_where_the_terminal_allows_it(monkeypatch):
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates.keys, "confirm", lambda question, default: True)
+
+    assert apply_updates._confirm_pm_self_update(Console(width=80), None)
+
+
+def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
+    def refuse(question, default):
+        raise apply_updates.keys.Unusable("no terminal capability")
+
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates.keys, "confirm", refuse)
+    console = Console(width=80)
+
+    with console.capture() as captured:
+        said = apply_updates._confirm_pm_self_update(console, lambda prompt: "y")
+
+    assert said
+    assert "could not be drawn" in captured.get()
+
+
+def test_a_main_menu_that_will_not_draw_falls_back_to_the_numbered_one(monkeypatch):
+    def refuse(entries):
+        raise apply_updates.keys.Unusable("no terminal capability")
+
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates, "pick_what_to_update", refuse)
+    shell = RecordingShell()
+    console = Console(width=200)
+
+    with console.capture() as captured:
+        apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("1"))
+
+    assert "could not be drawn" in captured.get()
+    assert "Homebrew (1 package)" in captured.get()
+    assert shell.streamed, "the answer to the numbered menu was acted on"
+
+
+def test_the_yes_or_no_hint_survives_the_markup():
+    # rich reads [y/N] as a style and swallows it unless the bracket is escaped.
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
+
+    assert "[y/N]" in captured.get()
+
+
+def test_the_question_is_bold_and_the_marker_coloured():
+    # rich's own highlighter picks brackets out of a line and bolds them.
+    console = Console(width=80, force_terminal=True)
+
+    with console.capture() as captured:
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
+
+    # The question is bold, the marker is cyan, and the hint is neither:
+    # dimmed it was barely readable.
+    printed = captured.get()
+    assert "\x1b[1mUpdate them now?" in printed
+    assert "\x1b[36m" in printed
+    assert "\x1b[2m" not in printed
+
+
+def test_a_question_that_defaults_to_yes_says_so_and_takes_an_empty_answer():
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        said = apply_updates._pick_yes_or_no(console, lambda prompt: "", "Keep it?", default=True)
+
+    assert said
+    assert "[Y/n]" in captured.get()
+
+
+def test_a_line_is_broken_after_the_answer():
+    # The question is printed without a line break, because the answer is
+    # typed on the same line. In a terminal the Enter that ends the answer
+    # breaks it; here nothing does, so this is the one that gets printed.
+    console = Console(width=80, no_color=True)
+
+    with console.capture() as captured:
+        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
+
+    assert captured.get().endswith("\n")
+    assert captured.get().count("\n") == 1

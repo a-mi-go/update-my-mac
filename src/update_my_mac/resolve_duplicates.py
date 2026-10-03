@@ -26,35 +26,25 @@ def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
 
     step.say()
     try:
-        step.say("[bold]What should we do with them?[/]")
-        chosen = step.choose(CHOICES)
+        chosen = step.choose(CHOICES, "[bold]What should we do with them?[/]")
         if chosen == REMOVE_SHADOWED:
             return remove_shadowed(duplicates, remove, step)
         if chosen == DECIDE_FOR_EACH:
             return _walk_through(duplicates, remove, step.inside())
-    except Stopped as stopped:
+    except Stopped:
         step.say()
-        return stopped.done
     return 0
 
 
 def remove_shadowed(duplicates, remove, step):
-    """Remove the copies PATH never reaches. Returns how many went.
-
-    Ctrl-C takes the count so far with it, because a copy already removed
-    stays removed.
-    """
+    """Remove the copies PATH never reaches. Returns how many were removed."""
     each = step.inside()
     removed = 0
     for duplicate in duplicates:
         for copy in duplicate.shadowed:
             each.say()
             each.say(f"[bold]{escape(duplicate.command)}[/]")
-            try:
-                gone = _remove_one(copy, remove, each.inside())
-            except Stopped:
-                raise Stopped(removed)
-            if gone:
+            if _remove_one(copy, remove, each.inside()):
                 removed += 1
     return removed
 
@@ -74,7 +64,7 @@ def _walk_through(duplicates, remove, step):
             for copy in duplicate.shadowed:
                 said.say(f"never used: {escape(copy.describe())}")
 
-            chosen = step.choose(_copy_choices(duplicate))
+            chosen = step.choose(_copy_choices(duplicate), "[bold]What should we do with it?[/]")
             if chosen == CANCEL:
                 break
             if chosen == KEEP_BOTH:
@@ -93,7 +83,7 @@ def _copy_choices(duplicate):
         for copy in duplicate.copies
     ] + [
         (KEEP_BOTH, "leave both"),
-        (CANCEL, "cancel the walk-through and move on to the next step"),
+        (CANCEL, "cancel the walk-through"),
     ]
 
 
@@ -103,11 +93,7 @@ def _remove_one(copy, remove, step):
         return False
 
     step.say(f"Removing {escape(copy.package)}")
-    try:
-        exit_code = remove(copy)
-    except KeyboardInterrupt:
-        step.say("[yellow]Stopped.[/]")
-        raise Stopped
+    exit_code = remove(copy)
 
     if exit_code != 0:
         step.say(f"[yellow]That exited with {exit_code}.[/]")

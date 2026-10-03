@@ -45,15 +45,13 @@ def run_untracked_menu(
             # walk-through has its own way out.
             ignored, adopted = walk()
         else:
-            step.say("[bold]What should we do with them?[/]")
-            chosen = step.choose(choices)
+            chosen = step.choose(choices, "[bold]What should we do with them?[/]")
             if chosen == ADOPT_ALL:
                 adopted = adopt_all(found, adopt, step)
             elif chosen == DECIDE_FOR_EACH:
                 ignored, adopted = walk()
-    except Stopped as stopped:
+    except Stopped:
         step.say()
-        adopted += stopped.done
 
     if ignored and not decisions.save():
         _say_it_was_not_written(decisions, step)
@@ -127,12 +125,7 @@ def adopt_all(found, adopt, step):
             continue
         each.say()
         each.say(f"[bold]{escape(app.name)}[/]")
-        try:
-            taken = _hand_to_homebrew(app, adopt, each.inside())
-        except KeyboardInterrupt:
-            # Ctrl-C during a download, which is where most of the time goes.
-            raise Stopped(adopted)
-        if taken:
+        if _hand_to_homebrew(app, adopt, each.inside()):
             adopted += 1
     return adopted
 
@@ -171,7 +164,10 @@ def _ask_about(app, cask, adopt, open_url, open_app, offered, step):
     _say_what_is_known(app, cask, answer, said)
 
     while True:
-        chosen = step.choose(_app_choices(app, cask, adopt, site, can_ask_the_app and not answer.error))
+        chosen = step.choose(
+            _app_choices(app, cask, adopt, site, can_ask_the_app and not answer.error),
+            "[bold]What should we do with it?[/]",
+        )
         # Only a handover settles anything. Looking at a website or starting
         # the app leaves it exactly as undecided as it was.
         if chosen == WEBSITE:
@@ -225,7 +221,7 @@ def _app_choices(app, cask, adopt, site, can_ask_the_app):
         choices.append((WEBSITE, f"download and install manually from {site}"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
     choices.append((LATER, "leave it for now"))
-    choices.append((CANCEL, "cancel the walk-through and move on to the next step"))
+    choices.append((CANCEL, "cancel the walk-through"))
     return choices
 
 

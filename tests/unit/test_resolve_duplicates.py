@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from rich.text import Text
 
 from update_my_mac import resolve_duplicates
@@ -116,10 +117,11 @@ def test_no_terminal_means_nothing_is_asked():
     assert terminal.text == ""
 
 
-def test_ctrl_c_stops_without_crashing():
+def test_ctrl_c_is_left_to_end_the_run():
     terminal = Terminal(then=KeyboardInterrupt)
 
-    assert resolve_duplicates.run_duplicate_menu([doubled()], Remover(), terminal.step) == 0
+    with pytest.raises(KeyboardInterrupt):
+        resolve_duplicates.run_duplicate_menu([doubled()], Remover(), terminal.step)
 
 
 def test_every_copy_that_never_runs_can_go_in_one_step():
@@ -145,20 +147,13 @@ def test_doing_nothing_asks_about_no_command_at_all():
     assert "runs now" not in terminal.text
 
 
-def test_a_copy_removed_before_ctrl_c_still_counts():
+def test_ctrl_c_during_a_removal_ends_the_run():
     class Interrupting(Remover):
         def __call__(self, copy):
             super().__call__(copy)
-            if len(self.removed) == 2:
-                raise KeyboardInterrupt
-            return 0
+            raise KeyboardInterrupt
 
-    remover = Interrupting()
     terminal = Terminal(DROP_SHADOWED)
 
-    removed = resolve_duplicates.run_duplicate_menu(
-        [doubled(), doubled()], remover, terminal.step
-    )
-
-    assert len(remover.removed) == 2
-    assert removed == 1
+    with pytest.raises(KeyboardInterrupt):
+        resolve_duplicates.run_duplicate_menu([doubled()], Interrupting(), terminal.step)
