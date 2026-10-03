@@ -86,3 +86,13 @@ def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
                         lambda shell, installed: [behind("brew", "boom")])
 
     assert app.run_check_mode() == 1
+
+
+def test_updates_only_reports_a_manager_nobody_could_ask(monkeypatch):
+    monkeypatch.setattr(app, "shell", QuietShell())
+    monkeypatch.setattr(app.package_managers, "check_managers_themselves",
+                        lambda shell, installed: [behind("brew", "boom")])
+    monkeypatch.setattr(app.apply_updates, "run_manager_menu",
+                        lambda *a, **k: app.apply_updates.ManagerRun())
+
+    assert app.run_updates_only_mode() == 1
