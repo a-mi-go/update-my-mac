@@ -485,6 +485,23 @@ def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
     assert "could not be drawn" in captured.get()
 
 
+def test_a_main_menu_that_will_not_draw_falls_back_to_the_numbered_one(monkeypatch):
+    def refuse(entries):
+        raise apply_updates.keys.Unusable("no terminal capability")
+
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates, "pick_what_to_update", refuse)
+    shell = RecordingShell()
+    console = Console(width=200)
+
+    with console.capture() as captured:
+        apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("1"))
+
+    assert "could not be drawn" in captured.get()
+    assert "Homebrew (1 package)" in captured.get()
+    assert shell.streamed, "the answer to the numbered menu was acted on"
+
+
 def test_the_yes_or_no_hint_survives_the_markup():
     # rich reads [y/N] as a style and swallows it unless the bracket is escaped.
     console = Console(width=80, no_color=True)
