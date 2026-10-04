@@ -156,6 +156,7 @@ def upgrade_managers(manager_keys, shell, console):
 class ManagerRun:
     refreshed: list = field(default_factory=list)
     failed: list = field(default_factory=list)
+    behind: list = field(default_factory=list)
 
 
 def run_manager_menu(manager_updates, shell, console=None, ask=input):
@@ -168,13 +169,16 @@ def run_manager_menu(manager_updates, shell, console=None, ask=input):
     console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
     if not _confirm_pm_self_update(console, ask):
-        return ManagerRun()
+        return ManagerRun(behind=manager_updates)
 
     done, failed = upgrade_managers_themselves(
         [update.key for update in manager_updates], shell, console
     )
     say_what_happened(console, done, failed)
-    return ManagerRun(done, [key for key, _ in failed])
+    # One whose check could not run stays behind, because nobody answered that
+    # question either way.
+    still = [one for one in manager_updates if one.error_message or one.key not in done]
+    return ManagerRun(done, [key for key, _ in failed], still)
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
