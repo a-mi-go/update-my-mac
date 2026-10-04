@@ -248,8 +248,8 @@ def _untracked_apps(decisions):
 
 def run_check_mode():
     installed = package_managers.installed_managers(shell)
-    managers_behind = _ask_the_managers_about_themselves(installed)
-    findings = _check_the_mac(installed, app_decisions.load(), managers_behind)
+    behind = _ask_the_managers_about_themselves(installed)
+    findings = _check_the_mac(installed, app_decisions.load(), behind)
     report.print_report(findings)
     return _exit_code(findings.reports, findings.manager_updates)
 
@@ -261,11 +261,6 @@ def _ask_the_managers_about_themselves(installed, console=None):
         spinner=SPINNER,
     ):
         return package_managers.check_managers_themselves(shell, installed)
-
-
-def _managers_still_behind(behind, refreshed):
-    """One whose check could not run stays, because nobody answered that question."""
-    return [one for one in behind if one.error_message or one.key not in refreshed]
 
 
 def _check_the_mac(installed, decisions, manager_updates=(), console=None):
@@ -307,12 +302,10 @@ def run_interactive_mode():
     installed = package_managers.installed_managers(shell)
     decisions = app_decisions.load()
 
-    managers_behind = _ask_the_managers_about_themselves(installed)
-    managers = apply_updates.run_manager_menu(managers_behind, shell)
-
-    findings = _check_the_mac(
-        installed, decisions, _managers_still_behind(managers_behind, managers.refreshed)
+    managers = apply_updates.run_manager_menu(
+        _ask_the_managers_about_themselves(installed), shell
     )
+    findings = _check_the_mac(installed, decisions, managers.behind)
     report.print_report(findings)
 
     # Resolving issues first, so the update menu below lists what is left.
@@ -337,15 +330,15 @@ def run_updates_only_mode():
     console = Console(highlight=False)
     installed = package_managers.installed_managers(shell)
 
-    managers_behind = _ask_the_managers_about_themselves(installed, console)
-    managers = apply_updates.run_manager_menu(managers_behind, shell)
+    managers = apply_updates.run_manager_menu(
+        _ask_the_managers_about_themselves(installed, console), shell
+    )
 
     with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
         reports = package_managers.check_installed(shell)
 
-    still_behind = _managers_still_behind(managers_behind, managers.refreshed)
     failed = managers.failed + apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(reports, still_behind)
+    return 1 if failed else _exit_code(reports, managers.behind)
 
 
 def run_retry_app_mode():

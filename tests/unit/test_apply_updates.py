@@ -537,3 +537,26 @@ def test_a_line_is_broken_after_the_answer():
 
     assert captured.get().endswith("\n")
     assert captured.get().count("\n") == 1
+
+
+def test_a_manager_that_refreshed_is_no_longer_behind():
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, RecordingShell(), quiet_console(),
+                                         answers("y"))
+
+    assert run.behind == []
+
+
+def test_declining_leaves_every_manager_behind():
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, RecordingShell(), quiet_console(),
+                                         answers("n"))
+
+    assert run.behind == MANAGER_UPDATES
+
+
+def test_a_manager_nobody_could_ask_stays_behind_even_once_it_refreshed():
+    could_not_ask = [ManagerUpdate("brew", "Homebrew", "", "brew: boom")]
+    run = apply_updates.run_manager_menu(could_not_ask, RecordingShell(), quiet_console(),
+                                         answers("y"))
+
+    assert run.refreshed == ["brew"]
+    assert run.behind == could_not_ask
