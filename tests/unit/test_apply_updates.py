@@ -263,15 +263,16 @@ def test_no_manager_update_means_no_question():
         asked.append(prompt)
         return "y"
 
-    assert apply_updates.run_manager_menu([], shell, quiet_console(), record) == []
+    assert apply_updates.run_manager_menu([], shell, quiet_console(), record).failed == []
     assert asked == []
 
 
 def test_saying_yes_updates_every_manager_that_is_behind():
     shell = RecordingShell()
-    failed = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("y"))
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("y"))
 
-    assert failed == []
+    assert run.failed == []
+    assert run.refreshed == ["brew", "npm"]
     assert shell.streamed == [
         ["/fake/brew", "update"],
         ["/fake/npm", "install", "-g", "npm@latest"],
@@ -280,9 +281,11 @@ def test_saying_yes_updates_every_manager_that_is_behind():
 
 def test_anything_but_yes_leaves_the_managers_alone():
     shell = RecordingShell()
-    failed = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers(""))
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers(""))
 
-    assert failed == []
+    assert run.failed == []
+    # Declining is not the same as every manager being up to date.
+    assert run.refreshed == []
     assert shell.streamed == []
 
 
@@ -295,18 +298,19 @@ def test_no_terminal_leaves_the_managers_alone():
 
 def test_a_manager_that_fails_to_update_is_reported_back():
     shell = RecordingShell(exit_code=2)
-    failed = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("yes"))
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("yes"))
 
-    assert failed == ["brew", "npm"]
+    assert run.failed == ["brew", "npm"]
+    assert run.refreshed == []
 
 
 def test_the_manager_question_asks_again_when_it_is_not_understood():
     shell = RecordingShell()
-    failed = apply_updates.run_manager_menu(
+    run = apply_updates.run_manager_menu(
         MANAGER_UPDATES, shell, quiet_console(), answers("maybe", "y")
     )
 
-    assert failed == []
+    assert run.failed == []
     assert shell.streamed == [
         ["/fake/brew", "update"],
         ["/fake/npm", "install", "-g", "npm@latest"],
@@ -316,7 +320,9 @@ def test_the_manager_question_asks_again_when_it_is_not_understood():
 def test_saying_no_outright_leaves_them_alone():
     shell = RecordingShell()
 
-    assert apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("n")) == []
+    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("n"))
+
+    assert run.failed == []
     assert shell.streamed == []
 
 
