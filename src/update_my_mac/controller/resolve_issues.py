@@ -7,7 +7,7 @@ together, and only the kinds that actually turned up.
 
 from dataclasses import dataclass
 
-from update_my_mac.prompting import Step, Stopped
+from update_my_mac.view.prompting import Step, Stopped
 
 QUESTION = "[bold]Should we sort things out before updating?[/]"
 FIX_EVERYTHING = "yes, just fix everything, I trust you"

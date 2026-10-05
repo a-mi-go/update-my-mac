@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from rich.console import Console
 from rich.markup import escape
 
-from update_my_mac import keys, package_managers, prompting, report
+from update_my_mac.view import keys
+from update_my_mac import managers
+from update_my_mac.view import prompting
+from update_my_mac.view import report
 
 CANCEL = "cancel"
 PACKAGES = "packages"
@@ -26,7 +29,7 @@ def build_menu(reports):
         if not report.outdated_packages:
             continue
         count = len(report.outdated_packages)
-        counted_as = package_managers.by_key(report.manager).counted_as
+        counted_as = managers.by_key(report.manager).counted_as
         entries.append(
             MenuEntry(
                 PACKAGES,
@@ -132,7 +135,7 @@ def pick_what_to_update(entries, pick=keys.pick_several):
 def _run_each_manager(manager_keys, shell, console, announce, run_one):
     done, failed = [], []
     for key in manager_keys:
-        manager = package_managers.by_key(key)
+        manager = managers.by_key(key)
         console.print(f"\n[bold]{announce} {manager.label}[/]")
         exit_code = run_one(manager, shell)
         if exit_code != 0:
@@ -145,11 +148,11 @@ def _run_each_manager(manager_keys, shell, console, announce, run_one):
 
 def upgrade_managers_themselves(manager_keys, shell, console):
     """Update the managers first, so the upgrades after them use current tools."""
-    return _run_each_manager(manager_keys, shell, console, "Updating", package_managers.upgrade_self)
+    return _run_each_manager(manager_keys, shell, console, "Updating", managers.upgrade_self)
 
 
 def upgrade_managers(manager_keys, shell, console):
-    return _run_each_manager(manager_keys, shell, console, "Upgrading", package_managers.upgrade)
+    return _run_each_manager(manager_keys, shell, console, "Upgrading", managers.upgrade)
 
 
 @dataclass
@@ -225,10 +228,10 @@ def say_what_happened(console, done, failed):
 
     console.print()
     if done:
-        names = ", ".join(package_managers.by_key(key).label for key in done)
+        names = ", ".join(managers.by_key(key).label for key in done)
         console.print(f"[green]Updated[/]: {escape(names)}")
     for key, why in failed:
-        console.print(f"[yellow]{escape(package_managers.by_key(key).label)}: {why}[/]")
+        console.print(f"[yellow]{escape(managers.by_key(key).label)}: {why}[/]")
 
 
 def say_what_changed(console, entries, shell):
@@ -238,8 +241,8 @@ def say_what_changed(console, entries, shell):
     console.print()
     could_not_confirm = []
     for entry in entries:
-        manager = package_managers.by_key(entry.keys[0])
-        again = package_managers.check_for_outdated(manager, shell)
+        manager = managers.by_key(entry.keys[0])
+        again = managers.check_for_outdated(manager, shell)
         if again is None or again.error_message:
             console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
             could_not_confirm.append(manager.key)

@@ -6,7 +6,8 @@ import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from update_my_mac import app_updaters, versions
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import versions
 
 APP_DIRECTORIES = ("/Applications", "~/Applications")
 

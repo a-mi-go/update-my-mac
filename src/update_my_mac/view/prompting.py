@@ -5,7 +5,7 @@ from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac import keys
+from update_my_mac.view import keys
 
 # Marked rather than set below a line, because a separator is a row of its own
 # and a cursor can land on it.

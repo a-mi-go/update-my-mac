@@ -4,7 +4,8 @@ import pytest
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac import resolve_issues, prompting
+from update_my_mac.controller import resolve_issues
+from update_my_mac.view import prompting
 from fake_terminal import Terminal
 
 

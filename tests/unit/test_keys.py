@@ -1,6 +1,7 @@
 """Answering a menu with the arrow keys, and not doing so anywhere else."""
 
-from update_my_mac import keys, prompting
+from update_my_mac.view import keys
+from update_my_mac.view import prompting
 
 from fake_terminal import Terminal
 

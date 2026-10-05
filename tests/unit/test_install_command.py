@@ -4,7 +4,8 @@ import time
 import pytest
 from rich.text import Text
 
-from update_my_mac import install_command, shell_configs
+from update_my_mac import install_command
+from update_my_mac import shell_configs
 from fake_terminal import Terminal
 
 

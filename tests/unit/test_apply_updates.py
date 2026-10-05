@@ -1,10 +1,10 @@
 import pytest
 from rich.console import Console
 
-from update_my_mac import apply_updates
-from update_my_mac.apply_updates import CANCEL
-from update_my_mac.package_managers import ManagerReport, ManagerUpdate
-from update_my_mac.shell import CommandResult
+from update_my_mac.controller import apply_updates
+from update_my_mac.controller.apply_updates import CANCEL
+from update_my_mac.managers import ManagerReport, ManagerUpdate
+from update_my_mac.system.shell import CommandResult
 
 REPORTS = [
     ManagerReport("mas", "Mac App Store", []),

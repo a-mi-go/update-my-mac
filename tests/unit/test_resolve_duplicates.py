@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
-from update_my_mac import resolve_duplicates
-from update_my_mac.duplicate_installations import Copy, Duplicate
+from update_my_mac.controller import resolve_duplicates
+from update_my_mac.checks.duplicate_installations import Copy, Duplicate
 from fake_terminal import Terminal
 
 

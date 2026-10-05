@@ -9,8 +9,8 @@ import time
 
 from rich.markup import escape
 
-from update_my_mac import app_updaters
-from update_my_mac.prompting import Step, Stopped
+from update_my_mac.checks import app_updaters
+from update_my_mac.view.prompting import Step, Stopped
 
 WAIT_SECONDS = 20
 LOOK_AGAIN_EVERY = 0.5

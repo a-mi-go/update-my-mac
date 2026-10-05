@@ -2,9 +2,9 @@ import json
 import plistlib
 from pathlib import Path
 
-from update_my_mac import installed_apps
-from update_my_mac.installed_apps import InstalledApp
-from update_my_mac.shell import CommandResult
+from update_my_mac.checks import installed_apps
+from update_my_mac.checks.installed_apps import InstalledApp
+from update_my_mac.system.shell import CommandResult
 
 
 class FakeShell:

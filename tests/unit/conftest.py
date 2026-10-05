@@ -4,7 +4,7 @@ make the next test's first press count as the second."""
 
 import pytest
 
-from update_my_mac import prompting
+from update_my_mac.view import prompting
 
 
 @pytest.fixture(autouse=True)

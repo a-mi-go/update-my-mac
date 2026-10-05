@@ -1,7 +1,7 @@
 """The exit status, which is the only thing a scheduled caller can read."""
 
-from update_my_mac import app
-from update_my_mac.package_managers import ManagerReport, ManagerUpdate
+from update_my_mac.controller import app
+from update_my_mac.managers import ManagerReport, ManagerUpdate
 
 
 def test_outdated_packages_are_not_a_failure():
@@ -45,7 +45,7 @@ def test_updates_only_asks_the_managers_and_nothing_else(monkeypatch):
         monkeypatch.setattr(app.installed_apps, name,
                             lambda *a, **k: looked.append(name) or [])
     monkeypatch.setattr(app.appcast, "check", lambda *a, **k: looked.append("feeds") or {})
-    monkeypatch.setattr(app.cask_index, "load", lambda *a, **k: looked.append("casks") or {})
+    monkeypatch.setattr(app.casks, "load", lambda *a, **k: looked.append("casks") or {})
     monkeypatch.setattr(app, "shell", QuietShell())
 
     assert app.run_updates_only_mode() == 0
@@ -62,9 +62,9 @@ def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
     for name in ("find_untracked", "find_all", "owned_by_someone_else"):
         monkeypatch.setattr(app.installed_apps, name, lambda *a, **k: [])
     monkeypatch.setattr(app.appcast, "check", lambda *a, **k: {})
-    monkeypatch.setattr(app.cask_index, "load", lambda *a, **k: {})
+    monkeypatch.setattr(app.casks, "load", lambda *a, **k: {})
     monkeypatch.setattr(app, "shell", QuietShell())
-    monkeypatch.setattr(app.package_managers, "check_managers_themselves",
+    monkeypatch.setattr(app.managers, "check_managers_themselves",
                         lambda shell, installed: [behind("brew", "boom")])
 
     assert app.run_check_mode() == 1
@@ -72,7 +72,7 @@ def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
 
 def test_updates_only_reports_a_manager_nobody_could_ask(monkeypatch):
     monkeypatch.setattr(app, "shell", QuietShell())
-    monkeypatch.setattr(app.package_managers, "check_managers_themselves",
+    monkeypatch.setattr(app.managers, "check_managers_themselves",
                         lambda shell, installed: [behind("brew", "boom")])
     monkeypatch.setattr(app.apply_updates, "run_manager_menu",
                         lambda *a, **k: app.apply_updates.ManagerRun(

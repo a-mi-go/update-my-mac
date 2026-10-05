@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from update_my_mac import installed_apps
+from update_my_mac.checks import installed_apps
 from update_my_mac.shell_configs import parse_elapsed
 
 # A bundle written at about the moment the app started is the app being

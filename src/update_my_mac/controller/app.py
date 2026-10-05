@@ -4,26 +4,24 @@ import functools
 
 from rich.console import Console
 
-from update_my_mac import (
-    adopt_apps,
-    sections,
-    appcast,
-    resolve_issues,
-    behind_the_recipe,
-    catch_up_casks,
-    duplicate_installations,
-    app_decisions,
-    apply_updates,
-    cask_index,
-    installed_apps,
-    package_managers,
-    report,
-    resolve_duplicates,
-    restart_apps,
-    running_apps,
-    shell,
-    track_apps,
-)
+from update_my_mac.managers.homebrew import adopting
+from update_my_mac.checks import app_decisions
+from update_my_mac.checks import appcast
+from update_my_mac.controller import apply_updates
+from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.managers.homebrew import casks
+from update_my_mac.controller import catch_up_casks
+from update_my_mac.checks import duplicate_installations
+from update_my_mac.checks import installed_apps
+from update_my_mac import managers
+from update_my_mac.view import report
+from update_my_mac.controller import resolve_duplicates
+from update_my_mac.controller import resolve_issues
+from update_my_mac.controller import restart_apps
+from update_my_mac.checks import running_apps
+from update_my_mac.view import sections
+from update_my_mac.system import shell
+from update_my_mac.controller import track_apps
 
 
 SPINNER = "dots"
@@ -46,7 +44,7 @@ def _casks():
     It is 400K of JSON on disk and four steps of a run want to look something
     up in it.
     """
-    return cask_index.load()
+    return casks.load()
 
 
 def _website_and_cask():
@@ -61,7 +59,7 @@ def _behind_the_recipe(reports):
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
-        package_managers.recorded_cask_versions(shell),
+        managers.recorded_cask_versions(shell),
         already_reported=named,
     )
 
@@ -198,7 +196,7 @@ def _removal():
 
 def _adoption(cask_for):
     def adopt(app):
-        return adopt_apps.hand_to_homebrew(app, cask_for(app), shell)
+        return adopting.hand_to_homebrew(app, cask_for(app), shell)
 
     return adopt
 
@@ -247,7 +245,7 @@ def _untracked_apps(decisions):
 
 
 def run_check_mode():
-    installed = package_managers.installed_managers(shell)
+    installed = managers.installed_managers(shell)
     behind = _ask_the_managers_about_themselves(installed)
     findings = _check_the_mac(installed, app_decisions.load(), behind)
     report.print_report(findings)
@@ -260,7 +258,7 @@ def _ask_the_managers_about_themselves(installed, console=None):
         "[dim]asking the package managers if they need an update themselves[/]",
         spinner=SPINNER,
     ):
-        return package_managers.check_managers_themselves(shell, installed)
+        return managers.check_managers_themselves(shell, installed)
 
 
 def _check_the_mac(installed, decisions, manager_updates=(), console=None):
@@ -273,7 +271,7 @@ def _check_the_mac(installed, decisions, manager_updates=(), console=None):
             spinner.update(f"[dim]{what}[/]")
 
         now("asking each manager what is outdated")
-        findings.reports = package_managers.check_installed(shell)
+        findings.reports = managers.check_installed(shell)
 
         now("looking for apps no manager tracks")
         listed, findings.left_alone = _untracked_apps(decisions)
@@ -299,13 +297,13 @@ def _check_the_mac(installed, decisions, manager_updates=(), console=None):
 
 
 def run_interactive_mode():
-    installed = package_managers.installed_managers(shell)
+    installed = managers.installed_managers(shell)
     decisions = app_decisions.load()
 
-    managers = apply_updates.run_manager_menu(
+    self_update = apply_updates.run_manager_menu(
         _ask_the_managers_about_themselves(installed), shell
     )
-    findings = _check_the_mac(installed, decisions, managers.behind)
+    findings = _check_the_mac(installed, decisions, self_update.behind)
     report.print_report(findings)
 
     # Resolving issues first, so the update menu below lists what is left.
@@ -319,26 +317,26 @@ def run_interactive_mode():
     reports = findings.reports
     if resolved:
         # Resolving an issue changes what is outdated, so ask again.
-        reports = package_managers.check_installed(shell)
+        reports = managers.check_installed(shell)
         report.print_outdated_summary(reports)
 
-    failed = managers.failed + apply_updates.run_upgrade_menu(reports, shell)
+    failed = self_update.failed + apply_updates.run_upgrade_menu(reports, shell)
     return 1 if failed else _exit_code(reports, findings.manager_updates)
 
 
 def run_updates_only_mode():
     console = Console(highlight=False)
-    installed = package_managers.installed_managers(shell)
+    installed = managers.installed_managers(shell)
 
-    managers = apply_updates.run_manager_menu(
+    self_update = apply_updates.run_manager_menu(
         _ask_the_managers_about_themselves(installed, console), shell
     )
 
     with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
-        reports = package_managers.check_installed(shell)
+        reports = managers.check_installed(shell)
 
-    failed = managers.failed + apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(reports, managers.behind)
+    failed = self_update.failed + apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(reports, self_update.behind)
 
 
 def run_retry_app_mode():
