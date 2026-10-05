@@ -6,8 +6,9 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac import prompting, restart_apps
-from update_my_mac.running_apps import StillRunningOld
+from update_my_mac.view import prompting
+from update_my_mac.controller import restart_apps
+from update_my_mac.checks.running_apps import StillRunningOld
 from fake_terminal import Terminal
 
 WIDTH = 60

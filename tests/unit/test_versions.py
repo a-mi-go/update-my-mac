@@ -1,6 +1,6 @@
 """Comparing versions nobody numbered the same way."""
 
-from update_my_mac import versions
+from update_my_mac.checks import versions
 
 
 def test_a_build_number_after_a_comma_is_the_same_release():

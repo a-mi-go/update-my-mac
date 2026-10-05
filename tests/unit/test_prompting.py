@@ -1,6 +1,6 @@
 """The indenting and the numbering that every walk-through is built out of."""
 
-from update_my_mac.prompting import STEP, WAY_OUT, Step, Stopped
+from update_my_mac.view.prompting import STEP, WAY_OUT, Step, Stopped
 
 from fake_terminal import Terminal
 

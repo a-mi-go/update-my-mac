@@ -1,4 +1,4 @@
-from update_my_mac import shell
+from update_my_mac.system import shell
 
 
 def test_only_web_addresses_are_opened():

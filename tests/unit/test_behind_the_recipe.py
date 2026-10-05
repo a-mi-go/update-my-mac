@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from update_my_mac import behind_the_recipe
-from update_my_mac.cask_index import Cask, CaskIndex
-from update_my_mac.installed_apps import InstalledApp
+from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.managers.homebrew.casks import Cask, CaskIndex
+from update_my_mac.checks.installed_apps import InstalledApp
 
 
 def app(name, version):

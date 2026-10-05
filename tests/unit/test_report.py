@@ -2,10 +2,14 @@ from pathlib import Path
 
 from rich.console import Console
 
-from update_my_mac import __version__, app_updaters, appcast, report, sections
-from update_my_mac.app_updaters import UpdaterStatus
-from update_my_mac.installed_apps import InstalledApp
-from update_my_mac.package_managers import ManagerReport, ManagerUpdate
+from update_my_mac import __version__
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.view import report
+from update_my_mac.view import sections
+from update_my_mac.checks.app_updaters import UpdaterStatus
+from update_my_mac.checks.installed_apps import InstalledApp
+from update_my_mac.managers import ManagerReport, ManagerUpdate
 
 
 def rendered(reports):

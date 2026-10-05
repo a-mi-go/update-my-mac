@@ -9,7 +9,9 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
-from update_my_mac import installed_apps, package_managers, versions
+from update_my_mac.checks import installed_apps
+from update_my_mac import managers
+from update_my_mac.checks import versions
 
 
 SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
@@ -109,15 +111,15 @@ def hand_to_homebrew(app, cask, shell):
         return False, "Homebrew is not installed."
 
     if can_adopt(app, cask):
-        exit_code = package_managers.adopt_cask(cask.token, shell)
+        exit_code = managers.adopt_cask(cask.token, shell)
     else:
         # Any other version, ahead or behind, has to be downloaded and put in
         # place, because --adopt takes nothing but an identical copy.
-        exit_code = package_managers.install_cask_over(cask.token, shell)
+        exit_code = managers.install_cask_over(cask.token, shell)
     if exit_code != 0:
         return False, f"Homebrew could not take it over, {cask.token} exited with {exit_code}."
 
-    recorded = package_managers.recorded_cask_version(cask.token, shell)
+    recorded = managers.recorded_cask_version(cask.token, shell)
     on_disk = installed_apps.read_version(app.path)
     if recorded and not versions.same(on_disk, recorded):
         return False, (

@@ -2,10 +2,13 @@ from pathlib import Path
 
 from rich.text import Text
 
-from update_my_mac import app_decisions, app_updaters, appcast, track_apps
-from update_my_mac.cask_index import Cask
-from update_my_mac.app_updaters import UpdaterStatus
-from update_my_mac.installed_apps import InstalledApp
+from update_my_mac.checks import app_decisions
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.controller import track_apps
+from update_my_mac.managers.homebrew.casks import Cask
+from update_my_mac.checks.app_updaters import UpdaterStatus
+from update_my_mac.checks.installed_apps import InstalledApp
 from fake_terminal import Terminal
 
 

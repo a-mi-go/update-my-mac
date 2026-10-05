@@ -11,7 +11,7 @@ not an upgrade.
 
 from dataclasses import dataclass
 
-from update_my_mac import versions
+from update_my_mac.checks import versions
 
 
 @dataclass

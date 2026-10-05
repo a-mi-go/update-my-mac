@@ -6,7 +6,7 @@ uninstall that was picked.
 
 from rich.markup import escape
 
-from update_my_mac.prompting import Step, Stopped
+from update_my_mac.view.prompting import Step, Stopped
 
 REMOVE_SHADOWED, DECIDE_FOR_EACH, NOTHING = "shadowed", "decide for each", "nothing"
 KEEP_BOTH, CANCEL = "keep both", "cancel"

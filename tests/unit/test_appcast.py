@@ -4,9 +4,10 @@ import json
 import urllib.error
 from pathlib import Path
 
-from update_my_mac import app_updaters, appcast
-from update_my_mac.app_updaters import UpdaterStatus
-from update_my_mac.installed_apps import InstalledApp
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.checks.app_updaters import UpdaterStatus
+from update_my_mac.checks.installed_apps import InstalledApp
 
 FEED = "https://appish.app/dockish/appcast.xml"
 

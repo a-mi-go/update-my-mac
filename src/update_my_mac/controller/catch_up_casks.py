@@ -7,8 +7,8 @@ way the app sits there, older than the recipe, and nothing says so.
 
 from rich.markup import escape
 
-from update_my_mac import behind_the_recipe
-from update_my_mac.prompting import Step, Stopped
+from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.view.prompting import Step, Stopped
 
 CATCH_UP_ALL, DECIDE_FOR_EACH, NOTHING = "all", "decide for each", "nothing"
 CATCH_UP, LATER, CANCEL = "catch up", "later", "cancel"

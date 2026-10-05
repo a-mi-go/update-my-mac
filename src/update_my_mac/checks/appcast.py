@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 
-from update_my_mac import versions
+from update_my_mac.checks import versions
 
 SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 # A failure is asked about again far sooner than an answer, because a quiet

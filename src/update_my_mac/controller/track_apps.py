@@ -2,8 +2,11 @@
 
 from rich.markup import escape
 
-from update_my_mac import adopt_apps, app_updaters, appcast, versions
-from update_my_mac.prompting import Step, Stopped
+from update_my_mac.managers.homebrew import adopting
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.checks import versions
+from update_my_mac.view.prompting import Step, Stopped
 
 ADOPT_ALL, DECIDE_FOR_EACH, NOTHING = "adopt all", "decide for each", "nothing"
 ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"
@@ -81,7 +84,7 @@ def known_to_homebrew(found):
     Going back a version is a way in too, so an app counts here even when it
     is left out of the step that hands over several at once.
     """
-    return sum(1 for app, cask in found if adopt_apps.can_take_over(app, cask))
+    return sum(1 for app, cask in found if adopting.can_take_over(app, cask))
 
 
 def ready_for_homebrew(found):
@@ -93,7 +96,7 @@ def ready_for_homebrew(found):
     """
     return sum(
         1 for app, cask in found
-        if adopt_apps.can_take_over(app, cask) and not adopt_apps.would_downgrade(app, cask)
+        if adopting.can_take_over(app, cask) and not adopting.would_downgrade(app, cask)
     )
 
 
@@ -121,7 +124,7 @@ def adopt_all(found, adopt, step):
     for app, cask in found:
         # A downgrade is never done in bulk. It is a deliberate answer about
         # one app, not something to sweep up with the rest.
-        if not adopt_apps.can_take_over(app, cask) or adopt_apps.would_downgrade(app, cask):
+        if not adopting.can_take_over(app, cask) or adopting.would_downgrade(app, cask):
             continue
         each.say()
         each.say(f"[bold]{escape(app.name)}[/]")
@@ -194,7 +197,7 @@ def _ask_the_app_itself(app, open_app, step):
 def _say_what_is_known(app, cask, answer, step):
     """Everything this Mac has to say about an app, before the options."""
     told = []
-    standing = adopt_apps.homebrew_note(app, cask)
+    standing = adopting.homebrew_note(app, cask)
     if standing:
         told.append(standing)
 
@@ -212,7 +215,7 @@ def _say_what_is_known(app, cask, answer, step):
 
 def _app_choices(app, cask, adopt, site, can_ask_the_app):
     choices = []
-    handover = adopt_apps.handover_label(app, cask) if adopt is not None else ""
+    handover = adopting.handover_label(app, cask) if adopt is not None else ""
     if handover:
         choices.append((ADOPT, handover))
     if can_ask_the_app:

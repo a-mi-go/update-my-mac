@@ -4,9 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from update_my_mac import behind_the_recipe, catch_up_casks
-from update_my_mac.cask_index import Cask
-from update_my_mac.installed_apps import InstalledApp
+from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.controller import catch_up_casks
+from update_my_mac.managers.homebrew.casks import Cask
+from update_my_mac.checks.installed_apps import InstalledApp
 
 from fake_terminal import Terminal
 

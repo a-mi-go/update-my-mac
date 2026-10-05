@@ -12,7 +12,11 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from update_my_mac import __version__ as _version, app_updaters, appcast, sections, versions
+from update_my_mac import __version__ as _version
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.view import sections
+from update_my_mac.checks import versions
 
 
 # Beyond this items count a list is printed as a grid for better readability
