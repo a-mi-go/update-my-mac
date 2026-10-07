@@ -18,7 +18,7 @@ CHOICES = (
 )
 
 
-def run_duplicate_menu(duplicates, remove, step=None, interactive=True):
+def ask_what_to_do(duplicates, remove, step=None, interactive=True):
     """Offer to drop one copy of each doubled command. Returns how many went."""
     step = step or Step()
     if not duplicates or not interactive:

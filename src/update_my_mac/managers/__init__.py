@@ -227,7 +227,7 @@ def untrusted_taps(shell):
     ]
 
 
-def check_installed(shell, managers=MANAGERS):
+def check_what_is_outdated(shell, managers=MANAGERS):
     reports = (check_for_outdated(manager, shell) for manager in managers)
     return [report for report in reports if report is not None]
 
@@ -332,7 +332,7 @@ def describe_own_version(stdout, package):
     return f"{package}  {found.get('current', '?')} → {found.get('latest', '?')}"
 
 
-def installed_managers(shell, managers=MANAGERS):
+def installed(shell, managers=MANAGERS):
     return [m for m in managers if shell.find_executable(m.command) is not None]
 
 

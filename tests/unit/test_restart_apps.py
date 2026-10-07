@@ -117,7 +117,7 @@ def two_apps(tmp_path):
 def test_the_menu_asks_what_to_do_with_them(tmp_path):
     terminal = Terminal("3")
 
-    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.step)
+    restart_apps.ask_what_to_do(two_apps(tmp_path), restarting(True), terminal.step)
 
     assert "What should we do with them?" in terminal.text
     assert "1) restart all" in terminal.text
@@ -131,7 +131,7 @@ def test_the_menu_does_not_repeat_the_count(tmp_path):
     # The heading above it has already said how many, and how they are running.
     terminal = Terminal("3")
 
-    restart_apps.run_restart_menu(two_apps(tmp_path), restarting(True), terminal.step)
+    restart_apps.ask_what_to_do(two_apps(tmp_path), restarting(True), terminal.step)
 
     assert "apps running an old version" not in terminal.text
 
@@ -140,7 +140,7 @@ def test_restarting_everyone_at_once_takes_a_single_answer(tmp_path):
     terminal = Terminal("1")
     restarted = []
 
-    count = restart_apps.run_restart_menu(
+    count = restart_apps.ask_what_to_do(
         two_apps(tmp_path), recording(restarted), terminal.step
     )
 
@@ -153,7 +153,7 @@ def test_leaving_them_all_running_restarts_nothing(tmp_path):
     terminal = Terminal("3")
     restarted = []
 
-    count = restart_apps.run_restart_menu(
+    count = restart_apps.ask_what_to_do(
         two_apps(tmp_path), recording(restarted), terminal.step
     )
 
@@ -167,7 +167,7 @@ def test_going_through_them_one_at_a_time(tmp_path):
     terminal = Terminal("2", "1", "2")
     restarted = []
 
-    count = restart_apps.run_restart_menu(
+    count = restart_apps.ask_what_to_do(
         two_apps(tmp_path), recording(restarted), terminal.step
     )
 
@@ -184,7 +184,7 @@ def test_a_restart_that_worked_is_green_and_one_that_did_not_is_red(tmp_path):
 
     def printed(answer, done, message):
         with console.capture() as captured:
-            restart_apps.run_restart_menu(
+            restart_apps.ask_what_to_do(
                 [app_at(tmp_path)], restarting(done, message),
                 prompting.Step(console.print, Terminal(answer).ask),
             )
@@ -197,7 +197,7 @@ def test_a_restart_that_worked_is_green_and_one_that_did_not_is_red(tmp_path):
 def test_nothing_to_restart_means_nothing_is_asked():
     terminal = Terminal("3")
 
-    restart_apps.run_restart_menu([], restarting(True), terminal.step)
+    restart_apps.ask_what_to_do([], restarting(True), terminal.step)
 
     assert terminal.text == ""
 
@@ -206,7 +206,7 @@ def test_stopping_partway_leaves_the_rest(tmp_path):
     terminal = Terminal("2", "1", "3")
     restarted = []
 
-    count = restart_apps.run_restart_menu(
+    count = restart_apps.ask_what_to_do(
         two_apps(tmp_path), recording(restarted), terminal.step
     )
 
@@ -218,7 +218,7 @@ def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
     terminal = Terminal("", "yes", "1")
     restarted = []
 
-    count = restart_apps.run_restart_menu(
+    count = restart_apps.ask_what_to_do(
         two_apps(tmp_path), recording(restarted), terminal.step
     )
 
@@ -230,7 +230,7 @@ def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
 def test_nothing_to_answer_with_stops_the_question(tmp_path):
     terminal = Terminal(then=EOFError)
 
-    assert restart_apps.run_restart_menu(
+    assert restart_apps.ask_what_to_do(
         two_apps(tmp_path), restarting(True), terminal.step
     ) == 0
     # Asked once, then left alone rather than asked again about every app.
@@ -240,7 +240,7 @@ def test_nothing_to_answer_with_stops_the_question(tmp_path):
 def test_a_restart_that_failed_is_not_counted(tmp_path):
     terminal = Terminal("1")
 
-    restarted = restart_apps.run_restart_menu(
+    restarted = restart_apps.ask_what_to_do(
         [app_at(tmp_path)], restarting(False, "it would not quit"), terminal.step
     )
 
@@ -254,7 +254,7 @@ def test_one_refusing_does_not_stop_the_others(tmp_path):
     def restart(app):
         return app.name != "Other", "done" if app.name != "Other" else "it would not quit"
 
-    restarted = restart_apps.run_restart_menu(
+    restarted = restart_apps.ask_what_to_do(
         two_apps(tmp_path), restart, terminal.step
     )
 
@@ -264,7 +264,7 @@ def test_one_refusing_does_not_stop_the_others(tmp_path):
 def test_no_terminal_means_nothing_is_asked(tmp_path):
     terminal = Terminal()
 
-    assert restart_apps.run_restart_menu(
+    assert restart_apps.ask_what_to_do(
         [app_at(tmp_path)], restarting(True), terminal.step, interactive=False
     ) == 0
     assert terminal.text == ""
@@ -272,7 +272,7 @@ def test_no_terminal_means_nothing_is_asked(tmp_path):
 
 def printed_lines(terminal, apps, restart_one=None):
     """Run the menu on these apps, and hand back the printed lines."""
-    restart_apps.run_restart_menu(apps, restart_one or restarting(True, "restarted"),
+    restart_apps.ask_what_to_do(apps, restart_one or restarting(True, "restarted"),
                                   terminal.step)
     return terminal.lines
 

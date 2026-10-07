@@ -106,9 +106,9 @@ def test_brew_runs_without_an_auto_update():
     assert env["HOMEBREW_NO_AUTO_UPDATE"] == "1"
 
 
-def test_check_installed_skips_everything_that_is_missing():
+def test_checking_what_is_outdated_skips_what_is_missing():
     shell = FakeShell(installed=(), result=CommandResult(True, "", ""))
-    assert managers.check_installed(shell) == []
+    assert managers.check_what_is_outdated(shell) == []
 
 
 def test_silent_nonzero_exit_is_a_failure_not_up_to_date():

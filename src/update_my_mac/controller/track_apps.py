@@ -13,7 +13,7 @@ ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"
 IGNORE, LATER, CANCEL = "ignore", "later", "cancel"
 
 
-def run_untracked_menu(
+def ask_what_to_do(
     apps,
     decisions,
     step=None,
@@ -236,7 +236,7 @@ def _hand_to_homebrew(app, adopt, step):
     return taken
 
 
-def run_revisit_menu(decisions, step=None, interactive=True):
+def ask_about_the_ignored(decisions, step=None, interactive=True):
     """Bring an app back into the list. Returns how many came back."""
     step = step or Step()
     names = decisions.ignored_names()

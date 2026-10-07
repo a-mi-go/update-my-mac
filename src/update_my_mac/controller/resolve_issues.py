@@ -21,7 +21,7 @@ class Problem:
     fix_all: object
 
 
-def run_resolve_menu(problems, step=None, interactive=True):
+def ask_what_to_fix(problems, step=None, interactive=True):
     """Offer to deal with what turned up. Returns how many issues were dealt with."""
     step = step or Step()
     if not problems or not interactive:
