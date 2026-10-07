@@ -16,9 +16,6 @@ REPORTS = [
 ]
 
 
-
-
-
 class FakeApp:
     def __init__(self, name):
         self.name = name
@@ -35,10 +32,6 @@ class RecordingWalkthrough:
         self.seen += [app.name for app in apps]
         ask("> ")
         return len(apps)
-
-
-
-
 
 
 def run(shell, *replies, reports=REPORTS):
@@ -156,10 +149,6 @@ def test_nothing_to_do_means_no_prompt():
     assert asked == []
 
 
-
-
-
-
 def test_no_terminal_cancels_instead_of_crashing():
     # `update < /dev/null`, or a scheduled run that reached the menu.
     shell = RecordingShell()
@@ -223,20 +212,6 @@ def test_the_menu_says_several_numbers_are_allowed(capsys):
     assert "4) Nothing" in menu
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_everything_is_not_accepted_with_rubbish_after_it():
     # "1" used to win before the rest of the line was even looked at.
     entries = apply_updates.build_menu(REPORTS)
@@ -249,8 +224,6 @@ def test_nothing_wins_over_everything_when_both_are_given():
     entries = apply_updates.build_menu(REPORTS)
 
     assert numbers("1,4", entries) == CANCEL
-
-
 
 
 def test_the_run_ends_by_saying_what_actually_changed():
@@ -324,8 +297,6 @@ def test_nothing_is_claimed_after_an_interrupted_run():
     assert "still outdated" not in printed
 
 
-
-
 def test_picking_several_needs_no_everything_or_nothing_option():
     entries = apply_updates.build_menu([
         ManagerReport("brew", "Homebrew", ["git  1 → 2"]),
@@ -352,15 +323,20 @@ def test_backing_out_of_the_multi_select_updates_nothing():
     assert chosen == apply_updates.CANCEL
 
 
+def test_a_main_menu_that_will_not_draw_falls_back_to_the_numbered_one(monkeypatch):
+    def refuse(entries):
+        raise apply_updates.keys.Unusable("no terminal capability")
 
+    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
+    monkeypatch.setattr(apply_updates, "pick_what_to_update", refuse)
+    shell = RecordingShell()
+    console = Console(width=200)
 
+    with console.capture() as captured:
+        apply_updates.ask_what_to_update(REPORTS, shell, console, answers("1"))
 
-
-
-
-
-
-
-
+    assert "could not be drawn" in captured.get()
+    assert "Homebrew (1 package)" in captured.get()
+    assert shell.streamed, "the answer to the numbered menu was acted on"
 
 

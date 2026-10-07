@@ -465,6 +465,40 @@ def test_a_missing_path_entry_can_be_fixed_on_the_spot(machine):
     assert "Open a new terminal, then try: update --check" in text
 
 
+def test_a_config_that_hides_the_fixed_path_is_pointed_out(machine, monkeypatch):
+    _, bin_dir, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    env["SHELL"] = "/bin/zsh"
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: False)
+
+    _, text, _ = run(machine, answers=["", ""])
+
+    assert "still won't find 'update'" in text
+    assert "Done." not in text
+
+
+def test_a_command_a_new_terminal_finds_is_done(machine, monkeypatch):
+    _, _, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    env["SHELL"] = "/bin/zsh"
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: True)
+
+    _, text, _ = run(machine, answers=["", ""])
+
+    assert "Open a new terminal, then try: update --check" in text
+
+
+def test_a_new_terminal_that_cannot_be_asked_does_not_block_done(machine, monkeypatch):
+    _, _, env = machine
+    env["PATH"] = "/usr/bin:/bin"
+    env["SHELL"] = "/bin/zsh"
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: None)
+
+    _, text, _ = run(machine, answers=["", ""])
+
+    assert "Open a new terminal, then try: update --check" in text
+
+
 def test_declining_the_path_fix_leaves_the_shell_alone(machine):
     _, bin_dir, env = machine
     env["PATH"] = "/usr/bin:/bin"
