@@ -208,7 +208,6 @@ def made_by_another_app(app, owners):
     )
 
 
-
 def owned_by_someone_else(env=None):
     """Returns apps in the usual places that belong to another user."""
     env = os.environ if env is None else env

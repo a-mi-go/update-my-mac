@@ -81,10 +81,6 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-
-
-
-
 def pick_what_to_update(entries, pick=keys.pick_several):
     """Returns the entries that were picked, or CANCEL."""
     picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
@@ -109,12 +105,6 @@ def upgrade_managers(manager_keys, shell, console):
     return run_each_manager(manager_keys, shell, console, "Upgrading", managers.upgrade)
 
 
-
-
-
-
-
-
 def ask_what_to_update(reports, shell, console=None, ask=input):
     console = console or Console()
     entries = build_menu(reports)
@@ -130,7 +120,7 @@ def ask_what_to_update(reports, shell, console=None, ask=input):
                 continue
             except keys.Unusable as failure:
                 console.print(keys.unusable_message(failure))
-                break
+                break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
             return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
 
@@ -150,8 +140,6 @@ def ask_what_to_update(reports, shell, console=None, ask=input):
         if chosen == CANCEL:
             return []
         return run_chosen(chosen, shell, console)
-
-
 
 
 def say_what_changed(console, entries, shell):
