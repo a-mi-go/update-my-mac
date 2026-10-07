@@ -110,7 +110,7 @@ def hand_to_homebrew(app, cask, shell):
 
     recorded = managers.recorded_cask_version(cask.token, shell)
     on_disk = installed_apps.read_version(app.path)
-    if recorded and not versions.same(on_disk, recorded):
+    if recorded and not versions.same_release(on_disk, recorded):
         return False, (
             f"Homebrew wrote down {cask.token} {recorded}, but the app is still {on_disk}. "
             f"It would report the app as current from now on, so put it right with: "

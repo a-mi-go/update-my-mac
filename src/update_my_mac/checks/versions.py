@@ -11,7 +11,7 @@ import re
 # about the same size. A date-based 2026.1.1.70276 and a counted 14.0.8.69494
 # say nothing about each other: one starts from a year, the other from a small
 # number, and neither is behind.
-FAR_APART = 10
+COMPARABLE_WITHIN_FACTOR = 10
 
 UNKNOWN = "?"
 
@@ -24,8 +24,8 @@ def known(version):
     return bool(version) and version != UNKNOWN
 
 
-def same(ours, theirs):
-    """Returns whether the two name the same release, ignoring a build after a comma."""
+def same_release(ours, theirs):
+    """Returns whether they name the same release, ignoring a build after a comma."""
     return ours.strip() == theirs.split(",")[0].strip()
 
 
@@ -37,13 +37,13 @@ def comparable(ours, theirs):
 
     smaller, larger = sorted((mine[0], yours[0]))
     if smaller == 0:
-        return larger < FAR_APART
-    return larger <= smaller * FAR_APART
+        return larger < COMPARABLE_WITHIN_FACTOR
+    return larger <= smaller * COMPARABLE_WITHIN_FACTOR
 
 
 def is_newer(candidate, than):
     """Returns whether `candidate` is a later version than `than`."""
-    if not known(than) or not known(candidate) or same(than, candidate):
+    if not known(than) or not known(candidate) or same_release(than, candidate):
         return False
     if not comparable(than, candidate):
         return False
@@ -52,4 +52,4 @@ def is_newer(candidate, than):
 
 def any_version_matches(ours, theirs):
     """Returns whether any of our versions is the same release as `theirs`."""
-    return any(known(one) and same(one, theirs) for one in ours)
+    return any(known(one) and same_release(one, theirs) for one in ours)
