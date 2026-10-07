@@ -12,7 +12,7 @@ from fake_run import MANAGER_UPDATES, RecordingShell, answers, printed_by, quiet
 def pick_and_update(behind, shell, ask, console=None):
     console = console or quiet_console()
     picked = self_update.pick_managers(behind, console, ask)
-    return self_update.update_managers(picked, shell, console)
+    return self_update.update(picked, shell, console)
 
 def test_no_manager_update_means_no_question():
     shell = RecordingShell()

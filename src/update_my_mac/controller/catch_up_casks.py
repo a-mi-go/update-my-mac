@@ -34,7 +34,7 @@ def command_for(item):
     return commands_for([item])[0] if commands_for([item]) else ()
 
 
-def run_catch_up_menu(behind, run, step=None, interactive=True):
+def ask_what_to_do(behind, run, step=None, interactive=True):
     """Offer to bring these apps up to their recipe. Returns how many went."""
     step = step or Step()
     if not behind or not interactive:

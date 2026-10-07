@@ -57,7 +57,7 @@ def restart(app, shell, pause=time.sleep):
     return True, "Quit and started again, now running the version on disk."
 
 
-def run_restart_menu(apps, restart_one, step=None, interactive=True):
+def ask_what_to_do(apps, restart_one, step=None, interactive=True):
     """Ask what to do about the apps running an old version. Returns how many went.
 
     The answer is usually the same for all of them, so it is asked once. Going

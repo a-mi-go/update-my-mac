@@ -162,7 +162,7 @@ def _catch_every_app_up(apps_behind, step):
 
 def _catch_up_walkthrough():
     def go_through_casks(apps_behind, step):
-        return catch_up_casks.run_catch_up_menu(apps_behind, _brewing(), step)
+        return catch_up_casks.ask_what_to_do(apps_behind, _brewing(), step)
 
     return go_through_casks
 
@@ -206,7 +206,7 @@ def _adoption(cask_for):
 
 def _restart_walkthrough():
     def go_through_restarts(apps, step):
-        return restart_apps.run_restart_menu(
+        return restart_apps.ask_what_to_do(
             apps, lambda app: restart_apps.restart(app, shell), step
         )
 
@@ -217,7 +217,7 @@ def _duplicate_walkthrough():
     remove = _removal()
 
     def go_through_duplicates(duplicates, step):
-        return resolve_duplicates.run_duplicate_menu(duplicates, remove, step)
+        return resolve_duplicates.ask_what_to_do(duplicates, remove, step)
 
     return go_through_duplicates
 
@@ -226,7 +226,7 @@ def _app_walkthrough(decisions, offered):
     cask_for = _website_and_cask()
 
     def go_through_apps(apps, step):
-        return track_apps.run_untracked_menu(
+        return track_apps.ask_what_to_do(
             apps,
             decisions,
             step,
@@ -248,7 +248,7 @@ def _untracked_apps(decisions):
 
 
 def run_check_mode():
-    installed = managers.installed_managers(shell)
+    installed = managers.installed(shell)
     managers_behind = _check_the_managers(installed)
     findings = _check_the_mac(installed, app_decisions.load())
     findings.managers_behind = managers_behind
@@ -274,7 +274,7 @@ def _check_the_mac(installed, decisions, console=None):
             spinner.update(f"[dim]{what}[/]")
 
         now("asking each manager what is outdated")
-        findings.reports = managers.check_installed(shell)
+        findings.reports = managers.check_what_is_outdated(shell)
 
         now("looking for apps no manager tracks")
         listed, findings.left_alone = _untracked_apps(decisions)
@@ -300,46 +300,46 @@ def _check_the_mac(installed, decisions, console=None):
 
 
 def run_interactive_mode():
-    installed = managers.installed_managers(shell)
+    installed = managers.installed(shell)
     decisions = app_decisions.load()
 
     managers_behind = _check_the_managers(installed)
     picked = self_update.pick_managers(managers_behind)
-    result = self_update.update_managers(picked, shell)
+    result = self_update.update(picked, shell)
 
     findings = _check_the_mac(installed, decisions)
     findings.managers_behind = managers.still_behind(managers_behind, result.updated)
     report.print_report(findings)
 
     # Resolving issues first, so the update menu below lists what is left.
-    resolved = resolve_issues.run_resolve_menu(_issues(findings, decisions))
+    resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
 
     reports = findings.reports
     if resolved:
-        reports = managers.check_installed(shell)
+        reports = managers.check_what_is_outdated(shell)
         report.print_outdated_summary(reports)
 
-    failed = result.failed + apply_updates.run_upgrade_menu(reports, shell)
+    failed = result.failed + apply_updates.ask_what_to_update(reports, shell)
     return 1 if failed else _exit_code(reports, findings.managers_behind)
 
 
 def run_updates_only_mode():
     console = Console(highlight=False)
-    installed = managers.installed_managers(shell)
+    installed = managers.installed(shell)
 
     managers_behind = _check_the_managers(installed, console)
     picked = self_update.pick_managers(managers_behind)
-    result = self_update.update_managers(picked, shell)
+    result = self_update.update(picked, shell)
 
     with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
-        reports = managers.check_installed(shell)
+        reports = managers.check_what_is_outdated(shell)
 
-    failed = result.failed + apply_updates.run_upgrade_menu(reports, shell)
+    failed = result.failed + apply_updates.ask_what_to_update(reports, shell)
     return 1 if failed else _exit_code(
         reports, managers.still_behind(managers_behind, result.updated)
     )
 
 
 def run_retry_app_mode():
-    track_apps.run_revisit_menu(app_decisions.load())
+    track_apps.ask_about_the_ignored(app_decisions.load())
     return 0

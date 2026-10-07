@@ -42,7 +42,7 @@ class RecordingWalkthrough:
 
 
 def run(shell, *replies, reports=REPORTS):
-    return apply_updates.run_upgrade_menu(reports, shell, quiet_console(), answers(*replies))
+    return apply_updates.ask_what_to_update(reports, shell, quiet_console(), answers(*replies))
 
 
 def test_only_managers_with_something_outdated_get_an_entry():
@@ -149,7 +149,7 @@ def test_nothing_to_do_means_no_prompt():
         asked.append(prompt)
         return "1"
 
-    failed = apply_updates.run_upgrade_menu(
+    failed = apply_updates.ask_what_to_update(
         [ManagerReport("brew", "Homebrew", [])], shell, quiet_console(), record
     )
     assert failed == []
@@ -163,7 +163,7 @@ def test_nothing_to_do_means_no_prompt():
 def test_no_terminal_cancels_instead_of_crashing():
     # `update < /dev/null`, or a scheduled run that reached the menu.
     shell = RecordingShell()
-    failed = apply_updates.run_upgrade_menu(REPORTS, shell, quiet_console(), raising(EOFError()))
+    failed = apply_updates.ask_what_to_update(REPORTS, shell, quiet_console(), raising(EOFError()))
 
     assert failed == []
     assert shell.streamed == []
@@ -174,7 +174,7 @@ def test_ctrl_c_at_the_menu_ends_the_run():
     shell = RecordingShell()
 
     with pytest.raises(KeyboardInterrupt):
-        apply_updates.run_upgrade_menu(
+        apply_updates.ask_what_to_update(
             REPORTS, shell, quiet_console(), raising(KeyboardInterrupt())
         )
 
@@ -258,7 +258,7 @@ def test_the_run_ends_by_saying_what_actually_changed():
     # are asked again and the answer is the difference.
     shell = RecordingShell()
     printed = printed_by(
-        lambda console: apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("1"))
+        lambda console: apply_updates.ask_what_to_update(REPORTS, shell, console, answers("1"))
     )
 
     assert "Homebrew: 1 updated" in printed
@@ -270,7 +270,7 @@ def test_a_package_that_did_not_move_is_named():
     # run only said the manager had exited with 1.
     shell = RecordingShell(exit_code=1, still_outdated={"brew": "git 2.48.1 -> 2.49.0"})
     printed = printed_by(
-        lambda console: apply_updates.run_upgrade_menu(REPORTS, shell, console, answers("2"))
+        lambda console: apply_updates.ask_what_to_update(REPORTS, shell, console, answers("2"))
     )
 
     assert "Homebrew: 0 of 1 updated, still outdated" in printed
@@ -283,7 +283,7 @@ def test_a_manager_that_cannot_be_asked_again_says_so():
             return CommandResult(False, "", "brew: boom")
 
     printed = printed_by(
-        lambda console: apply_updates.run_upgrade_menu(
+        lambda console: apply_updates.ask_what_to_update(
             REPORTS, SilentShell(), console, answers("2")
         )
     )
@@ -298,7 +298,7 @@ def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
         def run_command(self, args, success_exit_codes=(0,), env=None):
             return CommandResult(False, "", "brew: boom")
 
-    failed = apply_updates.run_upgrade_menu(
+    failed = apply_updates.ask_what_to_update(
         REPORTS, SilentShell(), quiet_console(), answers("2")
     )
 
@@ -313,7 +313,7 @@ def test_nothing_is_claimed_after_an_interrupted_run():
     console = Console(width=100, no_color=True)
     with console.capture() as captured:
         with pytest.raises(KeyboardInterrupt):
-            apply_updates.run_upgrade_menu(
+            apply_updates.ask_what_to_update(
                 REPORTS, InterruptedShell(), console, answers("1")
             )
 

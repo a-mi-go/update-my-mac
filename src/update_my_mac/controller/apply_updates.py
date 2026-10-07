@@ -115,7 +115,7 @@ def upgrade_managers(manager_keys, shell, console):
 
 
 
-def run_upgrade_menu(reports, shell, console=None, ask=input):
+def ask_what_to_update(reports, shell, console=None, ask=input):
     console = console or Console()
     entries = build_menu(reports)
     if not entries:

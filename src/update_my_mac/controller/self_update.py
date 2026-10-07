@@ -75,7 +75,7 @@ def pick_managers(behind, console=None, ask=input):
 
     return list(behind) if _confirmed(console, ask) else []
 
-def update_managers(picked, shell, console=None):
+def update(picked, shell, console=None):
     if not picked:
         return SelfUpdateResult()
 
