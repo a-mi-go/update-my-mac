@@ -50,7 +50,7 @@ class Section:
         self.count = self.count or len(self.rows)
 
     def counted(self):
-        """The number, and what it counts, in the right number."""
+        """Returns the number and what it counts, singular or plural to match."""
         if not self.counted_as:
             return str(self.count)
         noun, _, rest = self.counted_as.partition(" ")
@@ -75,7 +75,7 @@ class Findings:
 
 
 def of(findings):
-    """The sections worth printing, loudest first."""
+    """Returns the sections that have rows, loudest first."""
     built = (
         _checks_that_failed(findings)
         + _false_version_recorded(findings)
@@ -92,11 +92,7 @@ def of(findings):
 
 
 def clean_managers(findings):
-    """The managers that were asked and had nothing to report.
-
-    Named rather than left out, because printing nothing about a manager
-    reads as "not checked" rather than "nothing to do".
-    """
+    """Returns the managers that were asked and had nothing to report."""
     return [
         report.label
         for report in findings.reports
@@ -105,23 +101,20 @@ def clean_managers(findings):
 
 
 def count_findings(sections):
-    """How many findings need your attention, and how many can wait."""
+    """Returns how many findings need your attention, and how many can wait."""
     needs_you = sum(s.count for s in sections if s.level in (CRITICAL, WARNING))
     can_wait = sum(s.count for s in sections if s.level == INFO)
     return needs_you, can_wait
 
 
 def _version_change(change):
-    """A manager's "1.2.3 → 1.2.4" as it should be shown."""
+    """Returns a manager's "1.2.3 → 1.2.4" as it should be shown."""
     return change.strip()
 
 
 def _checks_that_failed(findings):
-    """A manager that could not answer, named once however it failed.
-
-    Each manager is asked twice, about itself and about its packages. Keyed
-    by label so one that failed both is listed once.
-    """
+    """Returns a section naming each manager that could not answer, once."""
+    # Each manager is asked twice, about itself and about its packages.
     failed = {}
     for thing in list(findings.managers_behind) + list(findings.reports):
         if thing.error_message:
@@ -162,7 +155,7 @@ def _owned_by_someone_else(findings):
 
 
 def _homebrew_outdated(findings):
-    """What brew outdated says, and what it overlooks, in one place."""
+    """Returns what brew outdated says, and what it overlooks."""
     report = next((r for r in findings.reports if r.manager == "brew"), None)
     rows = []
     if report and not report.error_message:
@@ -181,7 +174,7 @@ def _homebrew_outdated(findings):
 
 
 def _outdated_per_manager(findings):
-    """One section per manager other than Homebrew, named after the manager."""
+    """Returns one section per manager other than Homebrew, named after the manager."""
     built = []
     for report in findings.reports:
         if report.manager == "brew" or report.error_message:
@@ -230,11 +223,7 @@ def _not_restarted(findings):
 
 
 def _untracked_apps(findings):
-    """The apps no manager tracks, split by whether anything watches them.
-
-    An updater that is switched off is a different situation from no updater
-    at all: one of them can be turned back on.
-    """
+    """Returns sections for the apps no manager tracks, split by what watches them."""
     unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(
         _untracked_not_already_listed(findings)
     )
@@ -260,7 +249,7 @@ def _rows_for_apps(apps, findings):
 
 
 def _what_is_known_about(app, findings):
-    """What updates this app, or the recipe that could take it over."""
+    """Returns what updates this app, or the recipe that could take it over."""
     if app.updater.kind != app_updaters.NONE:
         return app.updater.update_method_note()
     cask = findings.find_cask(app) if findings.find_cask else None
@@ -271,7 +260,7 @@ def _what_is_known_about(app, findings):
 
 
 def _untracked_not_already_listed(findings):
-    """Untracked apps, minus the ones already named in a louder section."""
+    """Returns untracked apps, minus the ones already named in a louder section."""
     return [
         app for app in findings.untracked
         if not appcast.answer_for(app, findings.offered).error
@@ -279,7 +268,7 @@ def _untracked_not_already_listed(findings):
 
 
 def _updates_available(app, findings):
-    """The installed version, and the newer one on offer for it."""
+    """Returns the installed version, and the newer one on offer for it."""
     answer = appcast.answer_for(app, findings.offered)
     if appcast.offers_newer(app, answer):
         return f"{app.version} → {answer.version}"

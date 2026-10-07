@@ -25,16 +25,12 @@ def known(version):
 
 
 def same(ours, theirs):
-    """Whether the two name the same release.
-
-    A recipe often carries a build number after a comma, such as
-    "4.92.0,240144", where the app reports only "4.92.0".
-    """
+    """Returns whether the two name the same release, ignoring a build after a comma."""
     return ours.strip() == theirs.split(",")[0].strip()
 
 
 def comparable(ours, theirs):
-    """Whether the two are numbered the same way, so one can be ahead at all."""
+    """Returns whether the two are numbered the same way."""
     mine, yours = numbers_in(ours), numbers_in(theirs)
     if not mine or not yours:
         return False
@@ -46,7 +42,7 @@ def comparable(ours, theirs):
 
 
 def is_newer(candidate, than):
-    """Whether `candidate` is a later version than `than`, as far as anyone can tell."""
+    """Returns whether `candidate` is a later version than `than`."""
     if not known(than) or not known(candidate) or same(than, candidate):
         return False
     if not comparable(than, candidate):
@@ -55,10 +51,5 @@ def is_newer(candidate, than):
 
 
 def any_version_matches(ours, theirs):
-    """Whether any of our versions is the same release as `theirs`.
-
-    An app gives two: the version it shows a person and the build behind it.
-    A recipe can name either one, so comparing only the first can call an app
-    outdated when its build already matches.
-    """
+    """Returns whether any of our versions is the same release as `theirs`."""
     return any(known(one) and same(one, theirs) for one in ours)

@@ -46,7 +46,7 @@ def _asked(shell, command, args):
 
 
 def bin_directories(shell):
-    """Where each manager puts the commands it installs."""
+    """Returns where each manager puts the commands it installs."""
     found = {}
 
     prefix = _asked(shell, "brew", ["--prefix"])
@@ -65,10 +65,7 @@ def bin_directories(shell):
 
 
 def package_behind(path):
-    """The package a command belongs to, its version, and how to get rid of it.
-
-    Read off the symlink, which points into wherever the manager keeps it.
-    """
+    """Returns the package a command belongs to, its version, and how to remove it."""
     try:
         real = Path(os.path.realpath(path))
     except OSError:
@@ -103,7 +100,7 @@ def package_behind(path):
 
 
 def _version_in(manifest):
-    """The version a node package writes down about itself."""
+    """Returns the version a node package writes down about itself."""
     try:
         return str(json.loads(manifest.read_text()).get("version", ""))
     except (OSError, ValueError):
@@ -111,7 +108,7 @@ def _version_in(manifest):
 
 
 def _in_path_order(directories, env):
-    """The manager directories, in the order PATH would search them."""
+    """Returns the manager directories, in the order PATH would search them."""
     searched = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
     places = {Path(entry): position for position, entry in enumerate(searched)}
     never_on_path = len(searched)
@@ -119,7 +116,7 @@ def _in_path_order(directories, env):
 
 
 def find(shell, env=None):
-    """Commands that exist in more than one manager's directory."""
+    """Returns commands that exist in more than one manager's directory."""
     env = os.environ if env is None else env
     ordered = _in_path_order(bin_directories(shell), env)
 

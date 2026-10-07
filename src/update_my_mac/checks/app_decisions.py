@@ -56,7 +56,7 @@ class AppDecisions:
         self.apps.pop(name, None)
 
     def save(self):
-        """Whether it was written. Losing a decision is not worth a crash."""
+        """Writes the decisions and returns True if it worked."""
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             # Written beside the file and moved into place, so an interrupted

@@ -29,12 +29,7 @@ def nonblank_lines(output):
 
 
 def parse_brew_outdated(stdout):
-    """Read `brew outdated --verbose`.
-
-    Without --verbose Homebrew prints bare names as soon as its output is not
-    a terminal, and ours never is. It writes "name (1.2.3) < 1.2.4" for a
-    formula and "!=" for a cask, where the versions merely differ.
-    """
+    """Returns what `brew outdated --verbose` names, formulae and casks alike."""
     packages = []
     for line in nonblank_lines(stdout):
         match = re.match(r"(\S+) \((.+?)\) (?:<|!=) (\S+)", line.strip())
@@ -47,7 +42,7 @@ def parse_brew_outdated(stdout):
 
 
 def parse_mas_outdated(stdout):
-    """Read `mas outdated`, which writes "497799835  Xcode  (14.0 -> 14.1)"."""
+    """Reads `mas outdated`, which writes "497799835  Xcode  (14.0 -> 14.1)"."""
     apps = []
     for line in nonblank_lines(stdout):
         match = re.match(r"\d+\s+(.+?)\s+\((.+?)\s*->\s*(.+?)\)", line.strip())
@@ -60,11 +55,7 @@ def parse_mas_outdated(stdout):
 
 
 def parse_npm_outdated(stdout):
-    """Read `npm outdated -g --json`.
-
-    npm exits 1 both when it finds updates and when it fails; only the JSON
-    tells them apart, by carrying an "error" key.
-    """
+    """Returns what `npm outdated -g --json` names, or an error when it carries one."""
     return _parse_json_packages(stdout)
 
 
@@ -174,7 +165,7 @@ MANAGERS = (
 
 
 def check_for_outdated(manager, shell):
-    """Ask one manager what's outdated. Returns None when it isn't installed."""
+    """Asks one manager what's outdated. Returns None when it isn't installed."""
     executable = shell.find_executable(manager.command)
     if executable is None:
         return None
@@ -207,7 +198,7 @@ def check_for_outdated(manager, shell):
 
 
 def untrusted_taps(shell):
-    """The taps Homebrew will not read from until they are trusted."""
+    """Returns the taps Homebrew will not read from until they are trusted."""
     executable = shell.find_executable("brew")
     if executable is None:
         return []
@@ -244,11 +235,7 @@ STALE_AFTER_SECONDS = 24 * 60 * 60
 
 
 def check_homebrew_index(manager, shell):
-    """Whether Homebrew's index is old enough to be worth refreshing.
-
-    Homebrew cannot say whether it is behind without fetching, so the age of
-    the index it answers from has to stand in.
-    """
+    """Returns whether Homebrew's index is old enough to be worth refreshing."""
     executable = shell.find_executable(manager.command)
     result = shell.run_command([executable, "--cache"], (0,))
     if not result.success:
@@ -283,7 +270,7 @@ def check_homebrew_index(manager, shell):
 
 
 def check_self(manager, shell):
-    """A newer version of the manager itself, or None when there is none."""
+    """Returns a newer version of the manager itself, or None when there is none."""
     if not manager.self_upgrade_args:
         return None
 
@@ -313,7 +300,7 @@ def check_self(manager, shell):
 
 
 def describe_own_version(stdout, package):
-    """Read one named package out of `outdated --json`."""
+    """Reads one named package out of `outdated --json`."""
     if not stdout.strip():
         return ""
 
@@ -342,16 +329,12 @@ def check_themselves(shell, managers=MANAGERS):
 
 
 def still_behind(behind, updated):
-    """One whose check could not run stays, because nobody answered that question."""
+    """Returns the managers that did not update, counting an unanswered check."""
     return [one for one in behind if one.error_message or one.key not in updated]
 
 
 def adopt_cask(token, shell):
-    """Hand an app that is already installed over to Homebrew.
-
-    Adoption needs a current index to match against, so unlike the checks
-    this one lets Homebrew update itself first.
-    """
+    """Hands an app that is already installed over to Homebrew, index first."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
@@ -359,11 +342,7 @@ def adopt_cask(token, shell):
 
 
 def install_cask_over(token, shell):
-    """Download the cask's version and put it over the app already in place.
-
-    --force rather than --adopt, which Homebrew refuses for anything but an
-    identical copy, and the two flags cannot be combined.
-    """
+    """Downloads the cask's version and puts it over the app already in place."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
@@ -371,11 +350,7 @@ def install_cask_over(token, shell):
 
 
 def recorded_cask_versions(shell):
-    """What Homebrew has written down for every cask it installed.
-
-    One question rather than one per app, and the answer is what Homebrew
-    believes rather than what is on disk.
-    """
+    """Returns what Homebrew wrote down for every cask it installed, in one question."""
     executable = shell.find_executable("brew")
     if executable is None:
         return {}
@@ -394,7 +369,7 @@ def recorded_cask_versions(shell):
 
 
 def recorded_cask_version(token, shell):
-    """The version Homebrew wrote down for a cask, which it takes on trust."""
+    """Returns the version Homebrew wrote down for a cask."""
     executable = shell.find_executable("brew")
     if executable is None:
         return ""
@@ -410,7 +385,7 @@ def recorded_cask_version(token, shell):
 
 
 def upgrade_self(manager, shell):
-    """Update the manager itself, with the terminal attached."""
+    """Updates the manager itself, with the terminal attached. Returns the exit code."""
     if not manager.self_upgrade_args:
         return -1
 
@@ -423,7 +398,7 @@ def upgrade_self(manager, shell):
 
 
 def upgrade(manager, shell):
-    """Run a manager's upgrade command with the terminal attached."""
+    """Runs a manager's upgrade command with the terminal attached."""
     if not manager.upgrade_args:
         # Otherwise a registry entry that forgot them runs the bare command.
         return -1

@@ -18,7 +18,7 @@ UPGRADE = ("upgrade", "--cask", "--greedy")
 
 
 def commands_for(behind):
-    """The brew commands that cover these apps, grouped rather than one each."""
+    """Returns the brew commands that cover these apps, grouped by kind."""
     grouped = []
     reinstall = behind_the_recipe.to_reinstall(behind)
     if reinstall:
@@ -30,12 +30,12 @@ def commands_for(behind):
 
 
 def command_for(item):
-    """The one command that puts a single app right."""
+    """Returns the one command that puts a single app right."""
     return commands_for([item])[0] if commands_for([item]) else ()
 
 
 def ask_what_to_do(behind, run, step=None, interactive=True):
-    """Offer to bring these apps up to their recipe. Returns how many went."""
+    """Offers to bring these apps up to their recipe. Returns how many went."""
     step = step or Step()
     if not behind or not interactive:
         return 0
@@ -61,11 +61,7 @@ def _choices(behind):
 
 
 def catch_up_all(behind, run, step):
-    """Run the grouped commands. Returns how many apps they covered.
-
-    A command that fails does not stop the rest, because one group failing
-    says nothing about the other. Ctrl-C ends the whole run, here as anywhere.
-    """
+    """Runs the grouped commands. Returns how many apps they covered."""
     each = step.inside()
     done = 0
     for command in commands_for(behind):
@@ -77,12 +73,12 @@ def catch_up_all(behind, run, step):
 
 
 def _how_many_apps(command):
-    """How many apps one grouped command covers, which is all but its flags."""
+    """Returns how many apps one grouped command covers."""
     return len([part for part in command if not part.startswith("-")]) - 1
 
 
 def _walk_through(behind, run, step):
-    """Ask about each app in turn. Returns how many were brought up to date."""
+    """Asks about each app in turn. Returns how many were brought up to date."""
     said = step.inside()
     done = 0
     try:

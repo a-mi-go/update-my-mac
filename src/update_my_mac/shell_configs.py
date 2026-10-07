@@ -35,7 +35,7 @@ def fish_config_dir(env):
 
 
 def _matching_lines(path, patterns):
-    """(line number, kind, can_disable) for each line matching one of patterns."""
+    """Returns (line number, kind, can_disable) for each line matching a pattern."""
     if not path.is_file():
         return []
     found = []
@@ -95,11 +95,7 @@ def find_shadowing_definitions(name, env):
 
 
 def disable(definitions, now=None):
-    """Comment out single lines, move function files aside. Returns what changed.
-
-    Each file is backed up once before its lines change, so two definitions in
-    the same file don't leave a backup that already has the first edit in it.
-    """
+    """Comments out single lines, moves function files aside. Returns what changed."""
     stamp = time.strftime("%Y%m%d%H%M%S", time.localtime(now))
     changes = []
     lines_by_file = {}
@@ -114,6 +110,7 @@ def disable(definitions, now=None):
         else:
             lines_by_file.setdefault(definition.path, []).append(definition.line_number)
 
+    # Grouped by file, so one backup is taken before any of its lines change.
     for path, numbers in lines_by_file.items():
         backup = path.with_name(f"{path.name}.bak-{stamp}")
         counter = 1
@@ -131,7 +128,7 @@ def disable(definitions, now=None):
 
 
 def shell_of_process(pid):
-    """zsh, bash or fish if that process is one of them, else None."""
+    """Returns zsh, bash or fish if that process is one of them, else None."""
     try:
         command = subprocess.run(
             ["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True
@@ -144,11 +141,7 @@ def shell_of_process(pid):
 
 
 def seconds_since_start(pid):
-    """How long a process has been running, from ps's elapsed time.
-
-    Elapsed time rather than the start date, because ps writes the date in the
-    user's language, and "Mo. 21 Sep." is no fun to parse.
-    """
+    """Returns how long a process has been running, from ps's elapsed time."""
     try:
         elapsed = subprocess.run(
             ["ps", "-o", "etime=", "-p", str(pid)], capture_output=True, text=True
@@ -159,7 +152,7 @@ def seconds_since_start(pid):
 
 
 def parse_elapsed(elapsed):
-    """ps's [[dd-]hh:]mm:ss in seconds, or None for anything else."""
+    """Returns ps's [[dd-]hh:]mm:ss in seconds, or None for anything else."""
     if not re.fullmatch(r"(\d+-)?(\d+:){1,2}\d+", elapsed or ""):
         return None
     days = 0
@@ -195,14 +188,14 @@ def config_changed_since(started_at, files):
 
 
 def clear_line(shell, name):
-    """What to type into an already open terminal to forget an old definition."""
+    """Returns what to type into an already open terminal to forget an old definition."""
     if shell == "fish":
         return f"functions -e {name}; abbr -e {name} 2>/dev/null"
     return f"unalias {name} 2>/dev/null; unset -f {name} 2>/dev/null; hash -r"
 
 
 def builtin_in(shell, name):
-    """Whether shell has a builtin or keyword called name, if shell is installed."""
+    """Returns whether shell has a builtin or keyword called name, if shell is installed."""
     if shutil.which(shell) is None:
         return False
     # The name travels as an argument, never as part of the script.

@@ -43,7 +43,7 @@ def build_menu(reports):
 
 
 def parse_menu_answer(answer, entries):
-    """The chosen entries, or CANCEL, or None when the answer made no sense."""
+    """Returns the chosen entries, or CANCEL, or None when the answer made no sense."""
     answer = answer.strip().lower()
     if answer in ("", "q", "c", "cancel", "exit", "0"):
         return CANCEL
@@ -86,7 +86,7 @@ def print_menu(entries, console):
 
 
 def pick_what_to_update(entries, pick=keys.pick_several):
-    """A multiple choice: the entries that were picked, or CANCEL."""
+    """Returns the entries that were picked, or CANCEL."""
     picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
     return picked or CANCEL
 

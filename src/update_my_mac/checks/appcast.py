@@ -36,13 +36,7 @@ class NotAnAppcast(Exception):
 
 @dataclass(frozen=True)
 class FeedAnswer:
-    """What a feed said, and what went wrong asking it.
-
-    Both at once when a feed that used to answer has stopped: the version is
-    the last one it named, and the error is the state it is in now. Dropping
-    either would be a lie, and dropping the error would be the worse one,
-    because a feed going quiet is how an app stops updating itself.
-    """
+    """What a feed said, and what went wrong asking it."""
     version: str = ""
     error: str = ""
 
@@ -53,11 +47,7 @@ def cache_path(env):
 
 
 def _version_of(item):
-    """The version an appcast entry offers, as a person would read it.
-
-    Sparkle writes it either as a child element or as an attribute on the
-    download, and the human-readable one is the short string.
-    """
+    """Returns the readable version from an appcast entry, element or attribute."""
     enclosure = item.find("enclosure")
     for found in (
         item.findtext(f"{SPARKLE}shortVersionString"),
@@ -71,11 +61,7 @@ def _version_of(item):
 
 
 def newest_version(feed):
-    """The highest version an appcast offers.
-
-    Raises NotAnAppcast when the answer is not a feed, which is what a host
-    that dropped one serves in its place.
-    """
+    """Returns the highest version an appcast offers. Raises NotAnAppcast otherwise."""
     try:
         root = ElementTree.fromstring(feed)
     except ElementTree.ParseError:
@@ -92,14 +78,14 @@ def newest_version(feed):
 
 
 def fetch(url):
-    """The feed's text. Raises urllib's errors, which the caller turns into words."""
+    """Returns the feed's text. Raises urllib's errors."""
     request = urllib.request.Request(url, headers={"User-Agent": "update-my-mac"})
     with urllib.request.urlopen(request, timeout=TIMEOUT_PER_FEED_SECONDS) as response:
         return response.read().decode("utf-8", "replace")
 
 
 def read_feed(url, fetch_one=fetch):
-    """Ask one feed what it offers."""
+    """Asks one feed what it offers."""
     if not url.startswith("https://"):
         return FeedAnswer(error="its feed is not served over https, so it was not read")
 
@@ -123,11 +109,7 @@ def read_feed(url, fetch_one=fetch):
 
 
 def check(apps, env=None, fetch_one=fetch, now=time.time):
-    """Ask every app's feed what it offers. Returns the answers by feed URL.
-
-    Kept for a few hours, because a feed is checked once per app and a run
-    that looks at twenty apps should not wait for twenty round trips twice.
-    """
+    """Asks every app's feed what it offers. Returns the answers by feed URL."""
     env = os.environ if env is None else env
     cached = _read_cache(cache_path(env))
     answers = {}
@@ -164,7 +146,7 @@ def check(apps, env=None, fetch_one=fetch, now=time.time):
 
 
 def _still_good(kept, now):
-    """The kept answer while it is recent enough to reuse, otherwise None."""
+    """Returns the kept answer while it is recent enough to reuse, else None."""
     if not kept:
         return None
     keep_for = STALE_AFTER_A_FAILURE if kept.get("error") else STALE_AFTER_SECONDS
@@ -174,7 +156,7 @@ def _still_good(kept, now):
 
 
 def _only_asked_about(cached, apps):
-    """The cache without the feeds of apps that are not installed any more."""
+    """Returns the cache without the feeds of apps that are not installed any more."""
     wanted = {app.updater.feed_url for app in apps if app.updater.feed_url}
     return {url: answer for url, answer in cached.items() if url in wanted}
 
@@ -184,11 +166,7 @@ def answer_for(app, answers):
 
 
 def offers_newer(app, answer):
-    """Whether the feed names a version later than the one installed.
-
-    An app names two versions for itself, and a feed may be written against
-    either of them.
-    """
+    """Returns whether the feed names a version later than the one installed."""
     if versions.any_version_matches(app.versions_named(), answer.version):
         return False
     return versions.is_newer(answer.version, than=app.version)

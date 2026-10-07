@@ -36,12 +36,7 @@ class Item:
 
 
 def print_as_list_or_grid(console, indent, items):
-    """One item per line, or a grid when there is nothing but names to print.
-
-    A version belongs next to the thing it belongs to, so a list that carries
-    one stays a list however long it is. Bare names are worth packing into a
-    grid, because a column of them wastes most of the terminal.
-    """
+    """Prints one item per line, or a grid when the items are bare names."""
     if not items:
         return
 
@@ -70,7 +65,7 @@ def print_as_list_or_grid(console, indent, items):
 
 
 def _split_name_and_change(package):
-    """A manager's "name  1.2.3 → 1.2.4" line, split so the arrows line up."""
+    """Returns a manager's "name  1.2.3 → 1.2.4" line split so the arrows line up."""
     name, _, versions = package.partition("  ")
     return Item(name, versions.strip())
 
@@ -90,11 +85,7 @@ ROW_INDENT = "   "
 
 
 def print_report(findings, console=None):
-    """All check results and issue findings, in one place.
-
-    Framed for a terminal, plain for a pipe or a log, where a border on every
-    line is only in the way.
-    """
+    """Prints every check result and finding, framed for a terminal, plain for a pipe."""
     console = console or Console(highlight=False, soft_wrap=True)
     found = sections.of(findings)
     framed = console.is_terminal
@@ -123,7 +114,7 @@ def print_report(findings, console=None):
 
 
 def _footer(findings, found, framed):
-    """What was checked and found clean, and what is not in the list above."""
+    """Returns what was checked and found clean, and what is not in the list above."""
     lines = []
     if not findings.any_manager_installed:
         # Saying everything is fine would claim something nobody checked.
@@ -147,7 +138,7 @@ def _footer(findings, found, framed):
 
 
 def _heading(section, width):
-    """The section title, its count, and the reason it exists, on one line."""
+    """Returns the section title, its count and its note, on one line."""
     heading = Text.assemble(
         (f"{MARK[section.level]} ", ""),
         (f"{section.title} ", f"bold {COLOUR[section.level]}"),
@@ -214,11 +205,7 @@ def _print_group(console, heading, apps, with_updater=True, offered=None, find_c
 
 
 def _version_column(app, offered, find_cask=None):
-    """The installed version, and the newer one on offer for it.
-
-    An app that no manager tracks has two places that could know of one: its
-    own update feed, and a Homebrew recipe that could take it over.
-    """
+    """Returns the installed version and the newer one on offer, from feed or recipe."""
     answer = appcast.answer_for(app, offered or {})
     if appcast.offers_newer(app, answer):
         return f"{app.version} → {answer.version}"
@@ -329,11 +316,7 @@ def print_untracked_apps(apps, console=None, left_alone=0, offered=None, find_ca
 
 
 def _say_which_feeds_went_quiet(console, quiet, offered):
-    """Apps whose update feed stopped answering, so they update no more.
-
-    Sparkle reports this as an improperly signed update, because a host that
-    dropped the feed serves its own error page in its place.
-    """
+    """Prints the apps whose update feed stopped answering."""
     if not quiet:
         return
 

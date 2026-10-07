@@ -30,37 +30,27 @@ class Behind:
 
     @property
     def false_version_recorded(self):
-        """Homebrew believes it has this version, so no upgrade will touch it.
-
-        What it wrote down at install time matches the recipe while the app on
-        disk is older. `brew outdated` stays silent about it, and so does
-        --greedy, because Homebrew compares its own note, never the bundle.
-        """
+        """Returns whether Homebrew's note matches the recipe while the app is older."""
         return versions.same(self.recorded, self.cask.version)
 
 
 def is_behind(app_version, cask_version):
-    """Whether the recipe knows a newer version than the app on disk."""
+    """Returns whether the recipe knows a newer version than the app on disk."""
     return versions.is_newer(cask_version, than=app_version)
 
 
 def to_reinstall(behind):
-    """The casks Homebrew has a wrong version written down for."""
+    """Returns the casks Homebrew has a wrong version written down for."""
     return [item.cask.token for item in behind if item.false_version_recorded]
 
 
 def to_upgrade(behind):
-    """The casks a greedy upgrade would actually pick up."""
+    """Returns the casks a greedy upgrade would actually pick up."""
     return [item.cask.token for item in behind if not item.false_version_recorded]
 
 
 def find(apps, casks, recorded=None, already_reported=()):
-    """Apps behind their recipe that Homebrew is saying nothing about.
-
-    `already_reported` is what `brew outdated` named. Listing one of those
-    here as well would say the same thing twice, in two places, with two
-    different names for the same app.
-    """
+    """Returns apps behind their recipe that Homebrew says nothing about."""
     recorded = recorded or {}
     found = []
     for app in apps:
