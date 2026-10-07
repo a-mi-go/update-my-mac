@@ -31,7 +31,7 @@ class Behind:
     @property
     def false_version_recorded(self):
         """Returns whether Homebrew's note matches the recipe while the app is older."""
-        return versions.same(self.recorded, self.cask.version)
+        return versions.same_release(self.recorded, self.cask.version)
 
 
 def is_behind(app_version, cask_version):
