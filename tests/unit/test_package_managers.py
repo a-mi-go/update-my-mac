@@ -261,7 +261,7 @@ def test_a_brew_that_says_nothing_about_its_cache_is_left_alone():
 def test_only_installed_managers_are_asked_about_themselves():
     shell = FakeShell(set(), CommandResult(True, "{}", ""))
 
-    assert managers.check_managers_themselves(shell) == []
+    assert managers.check_themselves(shell) == []
 
 
 def test_a_homebrew_without_an_api_cache_is_left_alone(tmp_path):
@@ -329,3 +329,25 @@ def test_the_app_store_says_both_versions_without_its_id():
     packages = managers.parse_mas_outdated("6469021132  PDFgear  (2.27 -> 2.28)\n")
 
     assert packages == ["PDFgear  2.27 → 2.28"]
+
+
+def behind_update(key, error_message=""):
+    return managers.ManagerUpdate(key, key, "a newer one exists", error_message)
+
+
+def test_a_manager_that_refreshed_is_no_longer_behind():
+    still = managers.still_behind([behind_update("brew"), behind_update("npm")], ["brew"])
+
+    assert [one.key for one in still] == ["npm"]
+
+
+def test_a_manager_nobody_could_ask_stays_behind_even_once_it_refreshed():
+    still = managers.still_behind([behind_update("brew", "boom")], ["brew"])
+
+    assert [one.key for one in still] == ["brew"]
+
+
+def test_refreshing_nothing_leaves_every_manager_behind():
+    behind = [behind_update("brew"), behind_update("npm")]
+
+    assert managers.still_behind(behind, []) == behind

@@ -8,6 +8,7 @@ from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
 from update_my_mac.controller import apply_updates
+from update_my_mac.controller import self_update
 from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import casks
 from update_my_mac.controller import catch_up_casks
@@ -27,13 +28,13 @@ from update_my_mac.controller import track_apps
 SPINNER = "dots"
 
 
-def _exit_code(reports, manager_updates=()):
+def _exit_code(reports, managers_behind=()):
     """Non-zero only when a check could not run, never for outdated packages.
 
     A manager that could not answer about itself is such a check, which is why
     its updates are counted here too.
     """
-    failed = [thing for thing in list(reports) + list(manager_updates) if thing.error_message]
+    failed = [thing for thing in list(reports) + list(managers_behind) if thing.error_message]
     return 1 if failed else 0
 
 
@@ -64,40 +65,42 @@ def _behind_the_recipe(reports):
     )
 
 
-def _issues(untracked, doubled, stale, behind, decisions, offered):
+def _issues(findings, decisions):
     """The kinds of trouble that turned up, as choices the person can pick."""
     cask_for = _website_and_cask()
     found = []
 
-    untracked_problem = _untracked_problem(untracked, cask_for, decisions, offered)
+    untracked_problem = _untracked_problem(
+        findings.untracked, cask_for, decisions, findings.offered
+    )
     if untracked_problem:
         found.append(untracked_problem)
 
-    if doubled:
+    if findings.doubled:
         found.append(
             _problem(
-                f"yes, I don't need apps installed twice ({len(doubled)})",
-                doubled,
+                f"yes, I don't need apps installed twice ({len(findings.doubled)})",
+                findings.doubled,
                 _duplicate_walkthrough(),
                 _remove_every_shadowed_copy,
             )
         )
 
-    if stale:
+    if findings.stale:
         found.append(
             _problem(
-                f"yes, restart updated apps ({len(stale)})",
-                stale,
+                f"yes, restart updated apps ({len(findings.stale)})",
+                findings.stale,
                 _restart_walkthrough(),
                 _restart_every_app,
             )
         )
 
-    if behind:
+    if findings.apps_behind:
         found.append(
             _problem(
-                f"yes, update the apps Homebrew stopped noticing ({len(behind)})",
-                behind,
+                f"yes, update the apps Homebrew stopped noticing ({len(findings.apps_behind)})",
+                findings.apps_behind,
                 _catch_up_walkthrough(),
                 _catch_every_app_up,
             )
@@ -153,13 +156,13 @@ def _remove_every_shadowed_copy(duplicates, step):
     return resolve_duplicates.remove_shadowed(duplicates, _removal(), step)
 
 
-def _catch_every_app_up(behind, step):
-    return catch_up_casks.catch_up_all(behind, _brewing(), step)
+def _catch_every_app_up(apps_behind, step):
+    return catch_up_casks.catch_up_all(apps_behind, _brewing(), step)
 
 
 def _catch_up_walkthrough():
-    def go_through_casks(behind, step):
-        return catch_up_casks.run_catch_up_menu(behind, _brewing(), step)
+    def go_through_casks(apps_behind, step):
+        return catch_up_casks.run_catch_up_menu(apps_behind, _brewing(), step)
 
     return go_through_casks
 
@@ -246,25 +249,25 @@ def _untracked_apps(decisions):
 
 def run_check_mode():
     installed = managers.installed_managers(shell)
-    behind = _ask_the_managers_about_themselves(installed)
-    findings = _check_the_mac(installed, app_decisions.load(), behind)
+    managers_behind = _check_the_managers(installed)
+    findings = _check_the_mac(installed, app_decisions.load())
+    findings.managers_behind = managers_behind
     report.print_report(findings)
-    return _exit_code(findings.reports, findings.manager_updates)
+    return _exit_code(findings.reports, findings.managers_behind)
 
 
-def _ask_the_managers_about_themselves(installed, console=None):
+def _check_the_managers(installed, console=None):
     console = console or Console(highlight=False)
     with console.status(
         "[dim]asking the package managers if they need an update themselves[/]",
         spinner=SPINNER,
     ):
-        return managers.check_managers_themselves(shell, installed)
+        return managers.check_themselves(shell, installed)
 
 
-def _check_the_mac(installed, decisions, manager_updates=(), console=None):
+def _check_the_mac(installed, decisions, console=None):
     console = console or Console(highlight=False)
     findings = sections.Findings(any_manager_installed=bool(installed))
-    findings.manager_updates = list(manager_updates)
 
     with console.status("", spinner=SPINNER) as spinner:
         def now(what):
@@ -282,7 +285,7 @@ def _check_the_mac(installed, decisions, manager_updates=(), console=None):
         findings.offered = appcast.check(listed)
 
         now("comparing each app against Homebrew's recipe")
-        findings.behind = _behind_the_recipe(findings.reports)
+        findings.apps_behind = _behind_the_recipe(findings.reports)
 
         now("looking for app or package duplicates")
         findings.doubled = duplicate_installations.find(shell)
@@ -300,43 +303,41 @@ def run_interactive_mode():
     installed = managers.installed_managers(shell)
     decisions = app_decisions.load()
 
-    self_update = apply_updates.run_manager_menu(
-        _ask_the_managers_about_themselves(installed), shell
-    )
-    findings = _check_the_mac(installed, decisions, self_update.behind)
+    managers_behind = _check_the_managers(installed)
+    picked = self_update.pick_managers(managers_behind)
+    result = self_update.update_managers(picked, shell)
+
+    findings = _check_the_mac(installed, decisions)
+    findings.managers_behind = managers.still_behind(managers_behind, result.updated)
     report.print_report(findings)
 
     # Resolving issues first, so the update menu below lists what is left.
-    resolved = resolve_issues.run_resolve_menu(
-        _issues(
-            findings.untracked, findings.doubled, findings.stale, findings.behind,
-            decisions, findings.offered,
-        )
-    )
+    resolved = resolve_issues.run_resolve_menu(_issues(findings, decisions))
 
     reports = findings.reports
     if resolved:
-        # Resolving an issue changes what is outdated, so ask again.
         reports = managers.check_installed(shell)
         report.print_outdated_summary(reports)
 
-    failed = self_update.failed + apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(reports, findings.manager_updates)
+    failed = result.failed + apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(reports, findings.managers_behind)
 
 
 def run_updates_only_mode():
     console = Console(highlight=False)
     installed = managers.installed_managers(shell)
 
-    self_update = apply_updates.run_manager_menu(
-        _ask_the_managers_about_themselves(installed, console), shell
-    )
+    managers_behind = _check_the_managers(installed, console)
+    picked = self_update.pick_managers(managers_behind)
+    result = self_update.update_managers(picked, shell)
 
     with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
         reports = managers.check_installed(shell)
 
-    failed = self_update.failed + apply_updates.run_upgrade_menu(reports, shell)
-    return 1 if failed else _exit_code(reports, self_update.behind)
+    failed = result.failed + apply_updates.run_upgrade_menu(reports, shell)
+    return 1 if failed else _exit_code(
+        reports, managers.still_behind(managers_behind, result.updated)
+    )
 
 
 def run_retry_app_mode():

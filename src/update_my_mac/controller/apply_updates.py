@@ -81,49 +81,8 @@ def print_menu(entries, console):
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def _confirm_pm_self_update(console, ask):
-    while True:
-        try:
-            said = _pick_yes_or_no(console, ask, "Update them now?")
-        except KeyboardInterrupt:
-            prompting.interrupted(console.print)
-            continue
-        except prompting.Stopped:
-            console.print("\nNothing updated.")
-            said = False
-        else:
-            prompting.answered()
-        # A blank line, or the answer and what follows run together.
-        console.print()
-        return said
 
 
-def _pick_yes_or_no(console, ask, question, default=False):
-    if keys.available():
-        try:
-            return bool(keys.confirm(question, default=default))
-        except keys.Unusable as failure:
-            console.print(keys.unusable_message(failure))
-
-    hint = "Y/n" if default else "y/N"
-    while True:
-        try:
-            console.print(
-                f"[cyan]{keys.QMARK}[/] [bold]{escape(question)}[/] \\[{hint}] ",
-                end="",
-                highlight=False,
-            )
-            answer = ask("").strip().lower()
-        except EOFError:
-            raise prompting.Stopped
-
-        if answer == "":
-            return default
-        if answer in ("n", "no"):
-            return False
-        if answer in ("y", "yes"):
-            return True
-        console.print("[yellow]Didn't catch that.[/]")
 
 
 def pick_what_to_update(entries, pick=keys.pick_several):
@@ -132,7 +91,7 @@ def pick_what_to_update(entries, pick=keys.pick_several):
     return picked or CANCEL
 
 
-def _run_each_manager(manager_keys, shell, console, announce, run_one):
+def run_each_manager(manager_keys, shell, console, announce, run_one):
     done, failed = [], []
     for key in manager_keys:
         manager = managers.by_key(key)
@@ -146,42 +105,14 @@ def _run_each_manager(manager_keys, shell, console, announce, run_one):
     return done, failed
 
 
-def upgrade_managers_themselves(manager_keys, shell, console):
-    """Update the managers first, so the upgrades after them use current tools."""
-    return _run_each_manager(manager_keys, shell, console, "Updating", managers.upgrade_self)
-
-
 def upgrade_managers(manager_keys, shell, console):
-    return _run_each_manager(manager_keys, shell, console, "Upgrading", managers.upgrade)
+    return run_each_manager(manager_keys, shell, console, "Upgrading", managers.upgrade)
 
 
-@dataclass
-class ManagerRun:
-    refreshed: list = field(default_factory=list)
-    failed: list = field(default_factory=list)
-    behind: list = field(default_factory=list)
 
 
-def run_manager_menu(manager_updates, shell, console=None, ask=input):
-    if not manager_updates:
-        return ManagerRun()
 
-    console = console or Console()
-    named = ", ".join(update.label for update in manager_updates)
-    console.print(f"\n[bold]The package managers can be updated[/]: {escape(named)}")
-    console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
 
-    if not _confirm_pm_self_update(console, ask):
-        return ManagerRun(behind=manager_updates)
-
-    done, failed = upgrade_managers_themselves(
-        [update.key for update in manager_updates], shell, console
-    )
-    say_what_happened(console, done, failed)
-    # One whose check could not run stays behind, because nobody answered that
-    # question either way.
-    still = [one for one in manager_updates if one.error_message or one.key not in done]
-    return ManagerRun(done, [key for key, _ in failed], still)
 
 
 def run_upgrade_menu(reports, shell, console=None, ask=input):
@@ -221,17 +152,6 @@ def run_upgrade_menu(reports, shell, console=None, ask=input):
         return run_chosen(chosen, shell, console)
 
 
-def say_what_happened(console, done, failed):
-    """A closing word for a step that has nothing to count, like a self-update."""
-    if not done and not failed:
-        return
-
-    console.print()
-    if done:
-        names = ", ".join(managers.by_key(key).label for key in done)
-        console.print(f"[green]Updated[/]: {escape(names)}")
-    for key, why in failed:
-        console.print(f"[yellow]{escape(managers.by_key(key).label)}: {why}[/]")
 
 
 def say_what_changed(console, entries, shell):

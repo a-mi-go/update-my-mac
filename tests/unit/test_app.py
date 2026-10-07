@@ -19,15 +19,15 @@ def test_a_check_that_could_not_run_is_a_failure():
 def test_a_manager_that_could_not_answer_about_itself_counts_too():
     # It was printed as a failure but --check still exited 0.
     reports = [ManagerReport("brew", "Homebrew", [])]
-    manager_updates = [ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")]
+    managers_behind = [ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")]
 
-    assert app._exit_code(reports, manager_updates) == 1
+    assert app._exit_code(reports, managers_behind) == 1
 
 
 def test_a_manager_update_that_is_merely_available_is_not_a_failure():
-    manager_updates = [ManagerUpdate("npm", "npm (global)", "npm  12.0.2 → 12.1.0")]
+    managers_behind = [ManagerUpdate("npm", "npm (global)", "npm  12.0.2 → 12.1.0")]
 
-    assert app._exit_code([], manager_updates) == 0
+    assert app._exit_code([], managers_behind) == 0
 
 
 class QuietShell:
@@ -64,7 +64,7 @@ def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
     monkeypatch.setattr(app.appcast, "check", lambda *a, **k: {})
     monkeypatch.setattr(app.casks, "load", lambda *a, **k: {})
     monkeypatch.setattr(app, "shell", QuietShell())
-    monkeypatch.setattr(app.managers, "check_managers_themselves",
+    monkeypatch.setattr(app.managers, "check_themselves",
                         lambda shell, installed: [behind("brew", "boom")])
 
     assert app.run_check_mode() == 1
@@ -72,11 +72,37 @@ def test_check_mode_still_asks_the_managers_about_themselves(monkeypatch):
 
 def test_updates_only_reports_a_manager_nobody_could_ask(monkeypatch):
     monkeypatch.setattr(app, "shell", QuietShell())
-    monkeypatch.setattr(app.managers, "check_managers_themselves",
+    monkeypatch.setattr(app.managers, "check_themselves",
                         lambda shell, installed: [behind("brew", "boom")])
-    monkeypatch.setattr(app.apply_updates, "run_manager_menu",
-                        lambda *a, **k: app.apply_updates.ManagerRun(
-                            behind=[behind("brew", "boom")]
-                        ))
+    monkeypatch.setattr(app.self_update, "pick_managers", lambda *a, **k: [])
 
     assert app.run_updates_only_mode() == 1
+
+
+class NothingIgnored:
+    def is_ignored(self, name):
+        return False
+
+
+def quiet_mac(monkeypatch):
+    """A Mac where every check answers nothing, so a test can set one of them."""
+    for name in ("find_untracked", "find_all", "owned_by_someone_else"):
+        monkeypatch.setattr(app.installed_apps, name, lambda *a, **k: [])
+    monkeypatch.setattr(app.appcast, "check", lambda *a, **k: {})
+    monkeypatch.setattr(app.casks, "load", lambda *a, **k: {})
+    monkeypatch.setattr(app, "shell", QuietShell())
+
+
+def test_every_check_lands_in_the_field_the_report_reads(monkeypatch):
+    # Findings takes any attribute, so a typo in one of these assignments
+    # would leave its section silently empty rather than fail.
+    quiet_mac(monkeypatch)
+    monkeypatch.setattr(app.behind_the_recipe, "find", lambda *a, **k: ["an old cask"])
+    monkeypatch.setattr(app.duplicate_installations, "find", lambda *a, **k: ["a doubled command"])
+    monkeypatch.setattr(app.running_apps, "find", lambda *a, **k: ["still running old"])
+
+    findings = app._check_the_mac([], NothingIgnored())
+
+    assert findings.apps_behind == ["an old cask"]
+    assert findings.doubled == ["a doubled command"]
+    assert findings.stale == ["still running old"]
