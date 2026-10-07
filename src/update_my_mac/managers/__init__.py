@@ -336,9 +336,14 @@ def installed_managers(shell, managers=MANAGERS):
     return [m for m in managers if shell.find_executable(m.command) is not None]
 
 
-def check_managers_themselves(shell, managers=MANAGERS):
+def check_themselves(shell, managers=MANAGERS):
     updates = (check_self(manager, shell) for manager in managers)
     return [update for update in updates if update is not None]
+
+
+def still_behind(behind, updated):
+    """One whose check could not run stays, because nobody answered that question."""
+    return [one for one in behind if one.error_message or one.key not in updated]
 
 
 def adopt_cask(token, shell):

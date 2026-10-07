@@ -244,20 +244,20 @@ def print_still_running_old(apps, console=None):
     )
 
 
-def print_behind_the_recipe(behind, console=None):
+def print_behind_the_recipe(apps_behind, console=None):
     """Apps older than Homebrew's recipe, which Homebrew itself never says."""
-    if not behind:
+    if not apps_behind:
         return
 
     console = console or Console(highlight=False, soft_wrap=True)
     console.print()
-    console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(behind)}[/]")
+    console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(apps_behind)}[/]")
     console.print(
         "    [dim]Homebrew reports none of these, because it trusts each app to "
         "update itself.[/]"
     )
     print_as_list_or_grid(
-        console, "    ", [Item(item.app.name, item.version_change()) for item in behind]
+        console, "    ", [Item(item.app.name, item.version_change()) for item in apps_behind]
     )
 
 

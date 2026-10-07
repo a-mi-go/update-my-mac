@@ -2,6 +2,8 @@ import pytest
 from rich.console import Console
 
 from update_my_mac.controller import apply_updates
+
+from fake_run import MANAGER_UPDATES, RecordingShell, answers, printed_by, quiet_console, raising
 from update_my_mac.controller.apply_updates import CANCEL
 from update_my_mac.managers import ManagerReport, ManagerUpdate
 from update_my_mac.system.shell import CommandResult
@@ -13,34 +15,8 @@ REPORTS = [
     ManagerReport("pnpm", "pnpm (global)", [], "boom"),
 ]
 
-MANAGER_UPDATES = [
-    ManagerUpdate("brew", "Homebrew", "index is 3 days old"),
-    ManagerUpdate("npm", "npm (global)", "npm  12.0.2 → 12.1.0"),
-]
 
 
-class RecordingShell:
-    """Records upgrades, and answers the check that follows them.
-
-    `still_outdated` is what each manager reports when asked again after the
-    upgrade, keyed by command name. Empty means it has nothing left.
-    """
-
-    def __init__(self, exit_code=0, still_outdated=None):
-        self.streamed = []
-        self.exit_code = exit_code
-        self.still_outdated = still_outdated or {}
-
-    def find_executable(self, command):
-        return f"/fake/{command}"
-
-    def stream_command(self, args, env=None):
-        self.streamed.append(args)
-        return self.exit_code
-
-    def run_command(self, args, success_exit_codes=(0,), env=None):
-        command = args[0].rsplit("/", 1)[-1]
-        return CommandResult(True, self.still_outdated.get(command, ""), "")
 
 
 class FakeApp:
@@ -61,13 +37,8 @@ class RecordingWalkthrough:
         return len(apps)
 
 
-def answers(*replies):
-    replies = list(replies)
-    return lambda _prompt: replies.pop(0)
 
 
-def quiet_console():
-    return Console(file=open("/dev/null", "w"), width=200)
 
 
 def run(shell, *replies, reports=REPORTS):
@@ -185,11 +156,8 @@ def test_nothing_to_do_means_no_prompt():
     assert asked == []
 
 
-def raising(exception):
-    def ask(_prompt):
-        raise exception
 
-    return ask
+
 
 
 def test_no_terminal_cancels_instead_of_crashing():
@@ -255,75 +223,18 @@ def test_the_menu_says_several_numbers_are_allowed(capsys):
     assert "4) Nothing" in menu
 
 
-def test_no_manager_update_means_no_question():
-    shell = RecordingShell()
-    asked = []
-
-    def record(prompt):
-        asked.append(prompt)
-        return "y"
-
-    assert apply_updates.run_manager_menu([], shell, quiet_console(), record).failed == []
-    assert asked == []
 
 
-def test_saying_yes_updates_every_manager_that_is_behind():
-    shell = RecordingShell()
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("y"))
-
-    assert run.failed == []
-    assert run.refreshed == ["brew", "npm"]
-    assert shell.streamed == [
-        ["/fake/brew", "update"],
-        ["/fake/npm", "install", "-g", "npm@latest"],
-    ]
 
 
-def test_anything_but_yes_leaves_the_managers_alone():
-    shell = RecordingShell()
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers(""))
-
-    assert run.failed == []
-    # Declining is not the same as every manager being up to date.
-    assert run.refreshed == []
-    assert shell.streamed == []
 
 
-def test_no_terminal_leaves_the_managers_alone():
-    shell = RecordingShell()
-    apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), raising(EOFError()))
-
-    assert shell.streamed == []
 
 
-def test_a_manager_that_fails_to_update_is_reported_back():
-    shell = RecordingShell(exit_code=2)
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("yes"))
-
-    assert run.failed == ["brew", "npm"]
-    assert run.refreshed == []
 
 
-def test_the_manager_question_asks_again_when_it_is_not_understood():
-    shell = RecordingShell()
-    run = apply_updates.run_manager_menu(
-        MANAGER_UPDATES, shell, quiet_console(), answers("maybe", "y")
-    )
-
-    assert run.failed == []
-    assert shell.streamed == [
-        ["/fake/brew", "update"],
-        ["/fake/npm", "install", "-g", "npm@latest"],
-    ]
 
 
-def test_saying_no_outright_leaves_them_alone():
-    shell = RecordingShell()
-
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, shell, quiet_console(), answers("n"))
-
-    assert run.failed == []
-    assert shell.streamed == []
 
 
 def test_everything_is_not_accepted_with_rubbish_after_it():
@@ -340,11 +251,6 @@ def test_nothing_wins_over_everything_when_both_are_given():
     assert numbers("1,4", entries) == CANCEL
 
 
-def printed_by(action):
-    console = Console(width=100, no_color=True)
-    with console.capture() as captured:
-        action(console)
-    return captured.get()
 
 
 def test_the_run_ends_by_saying_what_actually_changed():
@@ -418,15 +324,6 @@ def test_nothing_is_claimed_after_an_interrupted_run():
     assert "still outdated" not in printed
 
 
-def test_the_manager_step_closes_the_same_way():
-    shell = RecordingShell(exit_code=2)
-    printed = printed_by(
-        lambda console: apply_updates.run_manager_menu(
-            MANAGER_UPDATES, shell, console, answers("y")
-        )
-    )
-
-    assert "Homebrew: exited with 2" in printed
 
 
 def test_picking_several_needs_no_everything_or_nothing_option():
@@ -455,108 +352,15 @@ def test_backing_out_of_the_multi_select_updates_nothing():
     assert chosen == apply_updates.CANCEL
 
 
-def test_the_question_is_coloured_rather_than_handed_to_input():
-    # input() writes its prompt raw, so markup there would be shown as text.
-    console = Console(width=80, force_terminal=True)
-    asked = []
-
-    with console.capture() as captured:
-        apply_updates._confirm_pm_self_update(console, lambda prompt: asked.append(prompt) or "n")
-
-    assert asked == [""]
-    # 36 is cyan, and the whole question wears it.
-    assert "\x1b[36m" in captured.get()
-    assert "Update them now?" in captured.get()
 
 
-def test_the_keys_are_asked_first_where_the_terminal_allows_it(monkeypatch):
-    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
-    monkeypatch.setattr(apply_updates.keys, "confirm", lambda question, default: True)
-
-    assert apply_updates._confirm_pm_self_update(Console(width=80), None)
 
 
-def test_a_menu_that_will_not_draw_falls_back_to_the_question(monkeypatch):
-    def refuse(question, default):
-        raise apply_updates.keys.Unusable("no terminal capability")
-
-    monkeypatch.setattr(apply_updates.keys, "available", lambda: True)
-    monkeypatch.setattr(apply_updates.keys, "confirm", refuse)
-    console = Console(width=80)
-
-    with console.capture() as captured:
-        said = apply_updates._confirm_pm_self_update(console, lambda prompt: "y")
-
-    assert said
-    assert "could not be drawn" in captured.get()
 
 
-def test_the_yes_or_no_hint_survives_the_markup():
-    # rich reads [y/N] as a style and swallows it unless the bracket is escaped.
-    console = Console(width=80, no_color=True)
-
-    with console.capture() as captured:
-        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
-
-    assert "[y/N]" in captured.get()
 
 
-def test_the_question_is_bold_and_the_marker_coloured():
-    # rich's own highlighter picks brackets out of a line and bolds them.
-    console = Console(width=80, force_terminal=True)
-
-    with console.capture() as captured:
-        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
-
-    # The question is bold, the marker is cyan, and the hint is neither:
-    # dimmed it was barely readable.
-    printed = captured.get()
-    assert "\x1b[1mUpdate them now?" in printed
-    assert "\x1b[36m" in printed
-    assert "\x1b[2m" not in printed
 
 
-def test_a_question_that_defaults_to_yes_says_so_and_takes_an_empty_answer():
-    console = Console(width=80, no_color=True)
-
-    with console.capture() as captured:
-        said = apply_updates._pick_yes_or_no(console, lambda prompt: "", "Keep it?", default=True)
-
-    assert said
-    assert "[Y/n]" in captured.get()
 
 
-def test_a_line_is_broken_after_the_answer():
-    # The question is printed without a line break, because the answer is
-    # typed on the same line. In a terminal the Enter that ends the answer
-    # breaks it; here nothing does, so this is the one that gets printed.
-    console = Console(width=80, no_color=True)
-
-    with console.capture() as captured:
-        apply_updates._confirm_pm_self_update(console, lambda prompt: "n")
-
-    assert captured.get().endswith("\n")
-    assert captured.get().count("\n") == 1
-
-
-def test_a_manager_that_refreshed_is_no_longer_behind():
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, RecordingShell(), quiet_console(),
-                                         answers("y"))
-
-    assert run.behind == []
-
-
-def test_declining_leaves_every_manager_behind():
-    run = apply_updates.run_manager_menu(MANAGER_UPDATES, RecordingShell(), quiet_console(),
-                                         answers("n"))
-
-    assert run.behind == MANAGER_UPDATES
-
-
-def test_a_manager_nobody_could_ask_stays_behind_even_once_it_refreshed():
-    could_not_ask = [ManagerUpdate("brew", "Homebrew", "", "brew: boom")]
-    run = apply_updates.run_manager_menu(could_not_ask, RecordingShell(), quiet_console(),
-                                         answers("y"))
-
-    assert run.refreshed == ["brew"]
-    assert run.behind == could_not_ask

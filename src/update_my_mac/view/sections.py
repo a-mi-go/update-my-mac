@@ -61,13 +61,13 @@ class Section:
 class Findings:
     """Everything one run turned up, before anyone decides how to show it."""
 
-    manager_updates: list = field(default_factory=list)
+    managers_behind: list = field(default_factory=list)
     reports: list = field(default_factory=list)
     untracked: list = field(default_factory=list)
     offered: dict = field(default_factory=dict)
     left_alone: int = 0
     doubled: list = field(default_factory=list)
-    behind: list = field(default_factory=list)
+    apps_behind: list = field(default_factory=list)
     stale: list = field(default_factory=list)
     foreign: list = field(default_factory=list)
     find_cask: object = None
@@ -123,7 +123,7 @@ def _checks_that_failed(findings):
     by label so one that failed both is listed once.
     """
     failed = {}
-    for thing in list(findings.manager_updates) + list(findings.reports):
+    for thing in list(findings.managers_behind) + list(findings.reports):
         if thing.error_message:
             failed.setdefault(thing.label, thing.error_message)
     rows = [Row(label, "", f"check failed: {message}") for label, message in failed.items()]
@@ -133,7 +133,7 @@ def _checks_that_failed(findings):
 def _false_version_recorded(findings):
     rows = [
         Row(item.app.name, item.version_change())
-        for item in findings.behind
+        for item in findings.apps_behind
         if item.false_version_recorded
     ]
     return [
@@ -169,10 +169,10 @@ def _homebrew_outdated(findings):
         rows += [_package_row(package) for package in report.outdated_packages]
     rows += [
         Row(item.app.name, item.version_change(), "needs --greedy")
-        for item in findings.behind
+        for item in findings.apps_behind
         if not item.false_version_recorded
     ]
-    note = "what it reports, and what it overlooks" if findings.behind else ""
+    note = "what it reports, and what it overlooks" if findings.apps_behind else ""
     section = Section(WARNING, "Homebrew", note, rows, counted_as=UPDATES)
     if report and report.ignored_taps:
         named = ", ".join(report.ignored_taps)
@@ -200,7 +200,7 @@ def _package_row(package):
 def _managers_needing_an_update(findings):
     rows = [
         Row(update.label, "", update.description or "can be refreshed")
-        for update in findings.manager_updates
+        for update in findings.managers_behind
         if not update.error_message
     ]
     return [
