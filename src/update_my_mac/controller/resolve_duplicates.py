@@ -19,7 +19,7 @@ CHOICES = (
 
 
 def ask_what_to_do(duplicates, remove, step=None, interactive=True):
-    """Offer to drop one copy of each doubled command. Returns how many went."""
+    """Offers to drop one copy of each doubled command. Returns how many went."""
     step = step or Step()
     if not duplicates or not interactive:
         return 0
@@ -37,7 +37,7 @@ def ask_what_to_do(duplicates, remove, step=None, interactive=True):
 
 
 def remove_shadowed(duplicates, remove, step):
-    """Remove the copies PATH never reaches. Returns how many were removed."""
+    """Removes the copies PATH never reaches. Returns how many were removed."""
     each = step.inside()
     removed = 0
     for duplicate in duplicates:
@@ -50,10 +50,7 @@ def remove_shadowed(duplicates, remove, step):
 
 
 def _walk_through(duplicates, remove, step):
-    """Ask about each doubled command in turn. Returns how many copies went.
-
-    Ctrl-C ends the walk here, so a removal that already ran still counts.
-    """
+    """Asks about each doubled command in turn. Returns how many copies went."""
     said = step.inside()
     removed = 0
     try:
@@ -77,7 +74,7 @@ def _walk_through(duplicates, remove, step):
 
 
 def _copy_choices(duplicate):
-    """The copies as options, so what is picked is a copy and not a number."""
+    """Returns the copies as options, each carrying the copy it stands for."""
     return [
         (copy, f"remove the {copy.manager} one")
         for copy in duplicate.copies

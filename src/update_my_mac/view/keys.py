@@ -44,7 +44,7 @@ def _style():
 
 
 def _choices(entries):
-    """A None entry becomes a line the cursor skips."""
+    """Returns the entries as choices, a None entry becoming a skipped line."""
     from questionary import Choice, Separator
 
     return [

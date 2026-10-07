@@ -45,7 +45,7 @@ def build_argument_parser():
 
 
 def is_this_tool(path):
-    """Whether path is this tool's command: uv's script, or a link to it."""
+    """Returns whether path is this tool's command: uv's script, or a link to it."""
     try:
         with open(path, "rb") as script:
             return b"update_my_mac" in script.read(4096)
@@ -54,11 +54,7 @@ def is_this_tool(path):
 
 
 def names_from_an_earlier_setup(bin_dir):
-    """The names an earlier run left behind, or [] if this is the first run.
-
-    Read from the bin dir itself rather than kept in a file, so it can't drift
-    from what is really there: this tool's `update`, and links pointing at it.
-    """
+    """Returns the names an earlier run left in the bin dir, or [] on a first run."""
     installed = Path(bin_dir) / DEFAULT_NAME
     if not is_this_tool(installed):
         return []
@@ -71,7 +67,7 @@ def names_from_an_earlier_setup(bin_dir):
 
 
 def already_taken_by(name, env):
-    """Something else answering to name: a program on PATH, or a builtin."""
+    """Returns something else answering to name: a program on PATH, or a builtin."""
     found = shutil.which(name, path=env.get("PATH", ""))
     if found and not is_this_tool(found):
         return found
@@ -86,7 +82,7 @@ def ask_for_name(ask):
 
 
 def first_name(args, ask, out, interactive):
-    """The name to start from: given, kept from an earlier run, or asked for."""
+    """Returns the name to start from: given, kept from an earlier run, or asked for."""
     if args.name:
         return args.name
 
@@ -105,7 +101,7 @@ def first_name(args, ask, out, interactive):
 
 
 def occupied_in_bin_dir(name, bin_dir):
-    """Something not ours already sits where the link for name would go."""
+    """Returns whether something not ours sits where the link for name would go."""
     if name == DEFAULT_NAME:
         return False  # uv's own file, which the install replaces
     target = Path(bin_dir) / name
@@ -116,7 +112,7 @@ def occupied_in_bin_dir(name, bin_dir):
 
 
 def usable_name(name, bin_dir, env, ask, err, interactive):
-    """Settle on a name nothing else answers to. None to give up."""
+    """Settles on a name nothing else answers to. Returns None if the person gives up."""
     while True:
         if not USABLE_NAME.fullmatch(name):
             err(f"[yellow]setup: '{escape(name)}' is not a usable command name.[/]")
@@ -132,7 +128,7 @@ def usable_name(name, bin_dir, env, ask, err, interactive):
 
 
 def decide_about_shadowing(name, env, ask, out, interactive):
-    """How to handle definitions of name in the shell config. Changes nothing."""
+    """Returns how to handle definitions of name in the shell config."""
     while True:
         definitions = shell_configs.find_shadowing_definitions(name, env)
         if not definitions:
@@ -180,7 +176,7 @@ def update_shell_with_uv():
 
 
 def link_under_name(name, bin_dir, out):
-    """Point name at the installed update. occupied_in_bin_dir ruled out strangers."""
+    """Points name at the installed update."""
     target = Path(bin_dir) / name
     installed = Path(bin_dir) / DEFAULT_NAME
     if target.is_symlink():
@@ -190,16 +186,7 @@ def link_under_name(name, bin_dir, out):
 
 
 def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_something):
-    """Point out a terminal holding a definition its config no longer has.
-
-    A definition lives in the memory of the shell that loaded it, and nothing
-    outside that shell can ask it what it has. What can be told is whether it
-    started before its config last changed.
-
-    That alone would also flag a name the user just made up, which no terminal
-    can be holding. So it only counts when a definition was disabled just now,
-    or for the default name, which earlier installs and setups may have used.
-    """
+    """Points out a terminal that started before its config last changed."""
     if not disabled_something and name != DEFAULT_NAME:
         return
     if calling_pid is None:
@@ -225,7 +212,7 @@ def warn_if_terminal_is_stale(name, calling_pid, env, out, now, disabled_somethi
 
 
 def settle_name(args, env, ask, out, err, interactive):
-    """(name, definitions to disable), or (None, []) to stop. Changes nothing."""
+    """Returns (name, definitions to disable), or (None, []) to stop."""
     name = first_name(args, ask, out, interactive)
     while True:
         name = usable_name(name, args.bin_dir, env, ask, err, interactive)

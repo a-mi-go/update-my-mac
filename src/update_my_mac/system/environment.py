@@ -22,7 +22,7 @@ def prefixes(env):
 
 
 def manager_directories(env):
-    """Everywhere a package manager might be, most personal first."""
+    """Returns everywhere a package manager might be, most personal first."""
     home = env.get("HOME", "")
     # pnpm refuses to run unless its own global bin directory is on PATH.
     pnpm_home = env.get("PNPM_HOME") or os.path.join(home, "Library", "pnpm")
@@ -40,11 +40,7 @@ def manager_directories(env):
 
 
 def path_with_managers(env, exists=os.path.isdir):
-    """PATH plus the locations it doesn't already have.
-
-    Appended rather than prepended: whatever the caller put on PATH was a
-    decision, and these are guesses.
-    """
+    """Returns PATH with the manager locations it does not already have appended."""
     entries = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
     for directory in manager_directories(env):
         # Absolute only: without HOME these come out relative, and a relative

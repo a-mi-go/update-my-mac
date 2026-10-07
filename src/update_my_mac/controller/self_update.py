@@ -64,7 +64,7 @@ class SelfUpdateResult:
     failed: list = field(default_factory=list)
 
 def pick_managers(behind, console=None, ask=input):
-    """Which of the managers that are behind should renew themselves now."""
+    """Returns the managers to renew now, picked from the ones that are behind."""
     if not behind:
         return []
 

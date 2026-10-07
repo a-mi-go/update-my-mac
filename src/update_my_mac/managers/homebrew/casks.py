@@ -29,12 +29,7 @@ def cache_path(env):
 
 
 def app_names_in(cask):
-    """The file names of the applications this cask installs.
-
-    A cask lists what it puts on disk, and an application shows up there as
-    "Something.app". Most casks install exactly one, some install none because
-    they ship a command or an installer package instead.
-    """
+    """Returns the file names of the applications this cask installs."""
     found = []
     for artifact in cask.get("artifacts", []):
         if not isinstance(artifact, dict):
@@ -49,7 +44,7 @@ def app_names_in(cask):
 
 
 def installs_a_package(cask):
-    """Whether this cask ships an installer rather than an app bundle."""
+    """Returns whether this cask ships an installer rather than an app bundle."""
     return any(
         isinstance(artifact, dict) and artifact.get("pkg")
         for artifact in cask.get("artifacts", [])
@@ -57,21 +52,12 @@ def installs_a_package(cask):
 
 
 def as_app_name(token):
-    """The app name a cask token would have, if it were named after the app.
-
-    Turns "some-app" into "some app", which is only good enough for casks that
-    name no app at all, where there is nothing better to go on.
-    """
+    """Returns the app name a token would have, turning "some-app" into "some app"."""
     return token.replace("-", " ").lower()
 
 
 def reduce_to_apps(casks):
-    """Boil the published list of casks down to a lookup table.
-
-    Homebrew publishes every cask it has, which is about ten megabytes of
-    release notes, checksums and dependency lists. We need three fields out of
-    that, so we throw the rest away before writing anything to disk.
-    """
+    """Returns a lookup table, keeping the three fields of each cask we use."""
     by_app = {}
     for cask in casks:
         token = cask.get("token")
@@ -97,11 +83,7 @@ def download(source=SOURCE):
 
 
 def read_cache(path):
-    """What we stored last time, and how many seconds ago.
-
-    A missing or damaged file counts as nothing stored, so a bad cache can
-    never be worse than an empty one.
-    """
+    """Returns what we stored last time and how many seconds ago, or nothing stored."""
     try:
         stored = json.loads(path.read_text())
         age = time.time() - path.stat().st_mtime
@@ -127,14 +109,10 @@ class CaskIndex:
         self.by_app = by_app
 
     def for_app(self, app_path):
-        """The cask that installs this app, or None if Homebrew has none.
-
-        Matched on the exact file name. Ignoring case finds more matches and
-        gets some of them wrong, because two unrelated programs can ship the
-        same name in different capitalisation. A file name is a weak
-        identifier and the published cask list offers no stronger one.
-        """
+        """Returns the cask that installs this app, matched on the exact file name."""
         name = Path(app_path).name
+        # Exact: two unrelated programs can ship the same name capitalised
+        # differently.
         found = self.by_app.get(name)
         if found is None:
             found = self._installer_cask_named(name)
@@ -148,12 +126,7 @@ class CaskIndex:
         )
 
     def _installer_cask_named(self, app_name):
-        """A cask that ships an installer, matched on its token.
-
-        An installer names no app, so the token is the only handle there is.
-        Accepted for those casks alone, because a token is weaker evidence
-        than a file name.
-        """
+        """Returns a cask that ships an installer, matched on its token alone."""
         found = self.by_app.get(app_name.removesuffix(".app").lower())
         if isinstance(found, dict) and found.get("installs_a_package"):
             return found
@@ -164,13 +137,7 @@ class CaskIndex:
 
 
 def load(env=None, fetch=download):
-    """The lookup table, from disk while it is recent, otherwise from Homebrew.
-
-    If fetching fails, usually because there is no network, we fall back to
-    whatever is on disk even when it is old. An out of date answer about which
-    cask installs an app is still far better than no answer, because that part
-    of a cask hardly ever changes.
-    """
+    """Returns the lookup table: recent from disk, else fetched, else stale from disk."""
     path = cache_path(os.environ if env is None else env)
     stored, age = read_cache(path)
     if stored is not None and age < STALE_AFTER_SECONDS:

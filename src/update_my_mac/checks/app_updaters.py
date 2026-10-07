@@ -39,7 +39,7 @@ class UpdaterStatus:
 
     @property
     def is_unclear(self):
-        """An updater is there, but nobody ever said whether it should run."""
+        """Returns whether an updater is there with nobody having said if it runs."""
         return self.kind != NONE and self.automatic is None
 
     def update_method_note(self):
@@ -59,11 +59,7 @@ class UpdaterStatus:
 
 
 def site_behind(feed_url):
-    """The vendor's site, from the feed the app checks for its own updates.
-
-    The feed itself is XML nobody wants to read. Its host is as close to a
-    download page as an app that no manager tracks ever gets.
-    """
+    """Returns the vendor's site, taken from the app's own update feed."""
     if not feed_url:
         return ""
     parsed = urllib.parse.urlparse(feed_url)
@@ -79,26 +75,18 @@ def read_bundle_info(app_path):
 
 
 def has_sparkle(app_path, info):
-    """Sparkle can be linked without a feed in the plist, and the other way round.
-
-    An app can ship the framework and set its feed at runtime, and another can
-    keep the key from an older build without the framework. Either trace is
-    enough to say the app has an updater.
-    """
+    """Returns whether the app ships Sparkle or names a Sparkle feed."""
     framework = app_path / "Contents" / "Frameworks" / "Sparkle.framework"
     return framework.is_dir() or bool(info.get(FEED_URL))
 
 
 def has_squirrel(app_path):
-    """Whether the app ships Electron's updater."""
+    """Returns whether the app ships Electron's updater."""
     return (app_path / "Contents" / "Frameworks" / "Squirrel.framework").is_dir()
 
 
 def read_users_app_settings(bundle_id, shell):
-    """What the user answered, read as the app's own preferences.
-
-    `defaults export` rather than the file, which macOS can leave stale.
-    """
+    """Returns the app's own preferences, as `defaults export` reports them."""
     if not bundle_id:
         return {}
 
@@ -127,7 +115,7 @@ def _timestamp_to_date(value):
 
 
 def detect(app_path, shell, info=None):
-    """What the app's updater is and whether it is switched on."""
+    """Returns what the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
         return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
@@ -143,19 +131,13 @@ def detect(app_path, shell, info=None):
 
 
 def _may_check_automatically(users_answer, developers_default):
-    """The user's answer if they gave one, otherwise what the app shipped with."""
+    """Returns the user's answer if they gave one, else what the app shipped with."""
     answer = users_answer.get(AUTOMATIC_CHECKS)
     return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
 
 
 def group_by_status(apps):
-    """Split untracked apps by what looks after them.
-
-    The first group is the point of the whole exercise: nothing on the machine
-    will ever tell you these are behind. An updater that was switched off and
-    one nobody ever answered for are kept apart, because saying "switched off"
-    about the second would be a claim we cannot make.
-    """
+    """Returns the untracked apps grouped by what looks after them."""
     unattended, switched_off, unclear, self_updating = [], [], [], []
     for app in apps:
         if app.updater.kind == NONE:

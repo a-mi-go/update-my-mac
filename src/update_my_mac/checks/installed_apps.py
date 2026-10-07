@@ -30,7 +30,7 @@ class InstalledApp:
         return f"{self.name}  {self.version}"
 
     def versions_named(self):
-        """Every version the app gives for itself, most readable first."""
+        """Returns every version the app gives for itself, most readable first."""
         return [self.version, self.build]
 
 
@@ -59,12 +59,12 @@ UNKNOWN_VERSION = versions.UNKNOWN
 
 
 def read_build(info):
-    """The build the app came from, which a recipe is often written against."""
+    """Returns the build the app came from."""
     return info.get("CFBundleVersion") or ""
 
 
 def read_version(app_path, info=None):
-    """The version a person would recognise, from the app's own Info.plist."""
+    """Returns the version a person would recognise, from the app's own Info.plist."""
     info = app_updaters.read_bundle_info(app_path) if info is None else info
     return (
         info.get("CFBundleShortVersionString")
@@ -74,11 +74,7 @@ def read_version(app_path, info=None):
 
 
 def belongs_to_macos(app_path):
-    """Whether macOS ships this app, so softwareupdate looks after it.
-
-    The restricted flag is a surer sign than the path: Safari sits in
-    /Applications like anything else.
-    """
+    """Returns whether macOS ships this app, read from the restricted flag."""
     try:
         return bool(app_path.stat().st_flags & stat.SF_RESTRICTED)
     except (OSError, AttributeError):
@@ -91,7 +87,7 @@ def comes_from_the_app_store(app_path):
 
 
 def apps_installed_by_homebrew(shell):
-    """App file names Homebrew installed, empty when brew isn't there."""
+    """Returns app file names Homebrew installed, empty when brew isn't there."""
     executable = shell.find_executable("brew")
     if executable is None:
         return set()
@@ -117,10 +113,7 @@ def apps_installed_by_homebrew(shell):
 
 
 def _app_names_in(artifact):
-    """App file names an artifact mentions, however it phrases it.
-
-    A cask shipping a `pkg` names its app only in what it would remove again.
-    """
+    """Returns the app file names an artifact mentions, however it phrases them."""
     found = []
     for app in _as_path_list(artifact.get("app")):
         if isinstance(app, str):
@@ -136,14 +129,14 @@ def _app_names_in(artifact):
 
 
 def _as_path_list(value):
-    """Casks write a single path as a string and several as a list."""
+    """Returns the paths an artifact names, written as a string or as a list."""
     if value is None:
         return []
     return value if isinstance(value, list) else [value]
 
 
 def find_all(env=None):
-    """Every app in the usual places that is somebody's to update."""
+    """Returns every app in the usual places that is somebody's to update."""
     env = os.environ if env is None else env
 
     found = []
@@ -170,7 +163,7 @@ def find_all(env=None):
 
 
 def find_untracked(shell, env=None):
-    """Apps in the usual places that neither mas nor Homebrew accounts for."""
+    """Returns apps in the usual places that neither mas nor Homebrew accounts for."""
     env = os.environ if env is None else env
     from_homebrew = apps_installed_by_homebrew(shell)
 
@@ -204,13 +197,7 @@ def find_untracked(shell, env=None):
 
 
 def without_shortcuts(apps):
-    """The apps, minus the launchers other apps put next to themselves.
-
-    A sync client can drop one per web service into /Applications. They open a
-    page, carry the version of the app that wrote them, and are replaced when
-    it updates. The bundle identifier gives them away: a launcher's id sits
-    under the id of the app that made it.
-    """
+    """Returns the apps, minus the launchers other apps put beside themselves."""
     owners = {app.bundle_id for app in apps if app.bundle_id}
     return [app for app in apps if not made_by_another_app(app, owners)]
 
@@ -223,11 +210,7 @@ def made_by_another_app(app, owners):
 
 
 def owned_by_someone_else(env=None):
-    """Apps in the usual places that belong to another user.
-
-    A Homebrew upgrade of one of these breaks halfway, when it sets the
-    permissions of an app you do not own.
-    """
+    """Returns apps in the usual places that belong to another user."""
     env = os.environ if env is None else env
     mine = os.getuid()
 

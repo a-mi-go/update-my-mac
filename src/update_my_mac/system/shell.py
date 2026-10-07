@@ -18,12 +18,9 @@ def find_executable(command):
 
 
 def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
-    """Run a command, keeping its two output streams apart.
-
-    Only stdout is parsed, so a warning on stderr can never be read as a
-    package. success_exit_codes is for managers like npm, which exits 1 when
-    it finds updates.
-    """
+    """Runs a command and returns its output, keeping the two streams apart."""
+    # success_exit_codes is for managers like npm, which exits 1 when it finds
+    # updates.
     try:
         proc = subprocess.run(
             args,
@@ -44,11 +41,8 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
 
 
 def stream_command(args, env=None):
-    """Run a command with the terminal attached, returning its exit code.
-
-    Upgrades are not captured, because a password prompt needs the real
-    terminal.
-    """
+    """Runs a command with the terminal attached. Returns its exit code."""
+    # Not captured: a password prompt needs the real terminal.
     try:
         return subprocess.run(args, env=env).returncode
     except (OSError, subprocess.SubprocessError):
@@ -56,10 +50,7 @@ def stream_command(args, env=None):
 
 
 def open_in_browser(url):
-    """Open a web address, and say whether it worked.
-
-    Only https, so a bad entry upstream cannot turn this into opening a file.
-    """
+    """Opens an https address. Returns whether it worked."""
     if not url.startswith("https://"):
         return False
 
@@ -70,10 +61,7 @@ def open_in_browser(url):
 
 
 def ask_application_to_quit(bundle_id):
-    """Ask an app to quit the way the Quit menu item does.
-
-    Never a kill: unsaved work is the person's to decide about.
-    """
+    """Asks an app to quit the way the Quit menu item does."""
     executable = find_executable("osascript")
     if executable is None:
         return False

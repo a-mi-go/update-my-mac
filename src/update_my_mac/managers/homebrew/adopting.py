@@ -18,7 +18,7 @@ SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 
 
 def compare_to_app(app, cask):
-    """How the recipe's version stands to the installed one."""
+    """Returns how the recipe's version stands to the installed one."""
     if cask is None:
         return ""
     if versions.any_version_matches(app.versions_named(), cask.version):
@@ -29,26 +29,22 @@ def compare_to_app(app, cask):
 
 
 def can_adopt(app, cask):
-    """Whether Homebrew can register the app that is already there, as it is."""
+    """Returns whether Homebrew can register the app that is already there, as it is."""
     return compare_to_app(app, cask) == SAME
 
 
 def would_downgrade(app, cask):
-    """Whether taking the app over would put an older version in its place."""
+    """Returns whether taking the app over would put an older version in its place."""
     return compare_to_app(app, cask) == OLDER
 
 
 def can_take_over(app, cask):
-    """Whether the handover can be offered at all, whatever it would do.
-
-    Not for a cask that ships an installer package: --adopt only ever takes
-    over an app bundle Homebrew would have put there itself.
-    """
+    """Returns whether the handover can be offered, which rules out installer casks."""
     return cask is not None and not cask.installs_a_package
 
 
 def handover_label(app, cask):
-    """What the handover would do to this app, as the menu should word it."""
+    """Returns the menu wording for what the handover would do to this app."""
     if not can_take_over(app, cask):
         return ""
     standing = compare_to_app(app, cask)
@@ -71,11 +67,7 @@ def handover_label(app, cask):
 
 
 def homebrew_note(app, cask):
-    """Where Homebrew stands with this app, when that needs saying.
-
-    Nothing for a recipe that matches or leads: what the handover would do is
-    then plain from the option itself.
-    """
+    """Returns where Homebrew stands with this app, or nothing when it matches or leads."""
     standing = compare_to_app(app, cask)
     if not standing:
         return "Homebrew has no recipe for this app."
@@ -99,10 +91,7 @@ def homebrew_note(app, cask):
 
 
 def hand_to_homebrew(app, cask, shell):
-    """Hand the app over, downloading the recipe's version first if it has to.
-
-    Returns whether the app is now properly looked after, and why.
-    """
+    """Hands the app over. Returns whether it is now looked after, and why."""
     if cask is None:
         return False, "Homebrew has no recipe for this app."
     if cask.installs_a_package:

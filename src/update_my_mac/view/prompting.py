@@ -75,7 +75,7 @@ class Step:
             raise Stopped
 
     def choose(self, options, question=""):
-        """The question is passed in so a menu that erases itself takes it along."""
+        """Returns the key that was picked, after drawing the question and the options."""
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")

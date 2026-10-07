@@ -29,32 +29,24 @@ SPINNER = "dots"
 
 
 def _exit_code(reports, managers_behind=()):
-    """Non-zero only when a check could not run, never for outdated packages.
-
-    A manager that could not answer about itself is such a check, which is why
-    its updates are counted here too.
-    """
+    """Returns non-zero only when a check could not run, never for outdated packages."""
     failed = [thing for thing in list(reports) + list(managers_behind) if thing.error_message]
     return 1 if failed else 0
 
 
 @functools.lru_cache(maxsize=1)
 def _casks():
-    """Homebrew's list of casks, read once however many steps ask for it.
-
-    It is 400K of JSON on disk and four steps of a run want to look something
-    up in it.
-    """
+    """Returns Homebrew's list of casks, read once however many steps ask for it."""
     return casks.load()
 
 
 def _website_and_cask():
-    """How to find the cask that installs a given app, if there is one."""
+    """Returns a lookup for the cask that installs a given app."""
     return lambda app: _casks().for_app(app.path)
 
 
 def _behind_the_recipe(reports):
-    """Apps older than their cask, which is the one thing Homebrew never says."""
+    """Returns the apps older than their cask."""
     brew = next((r for r in reports if r.manager == "brew"), None)
     named = {line.split()[0] for line in (brew.outdated_packages if brew else [])}
     return behind_the_recipe.find(
@@ -66,7 +58,7 @@ def _behind_the_recipe(reports):
 
 
 def _issues(findings, decisions):
-    """The kinds of trouble that turned up, as choices the person can pick."""
+    """Returns the kinds of trouble that turned up, as choices the person can pick."""
     cask_for = _website_and_cask()
     found = []
 
@@ -109,11 +101,7 @@ def _issues(findings, decisions):
 
 
 def _untracked_problem(untracked, cask_for, decisions, offered):
-    """The entry for the apps no manager tracks, or None when none is a problem.
-
-    An app that keeps itself up to date and has run ahead of its recipe is
-    doing the job, so it is not one of the things to sort out.
-    """
+    """Returns the entry for the apps no manager tracks, or None when none is a problem."""
     troubled = [
         app
         for app in untracked
@@ -139,7 +127,7 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
 
 
 def _problem(label, things, walk_through, fix_all):
-    """One entry in the menu, with the things it is about tied to it."""
+    """Returns one entry in the menu, with the things it is about tied to it."""
     return resolve_issues.Problem(
         label,
         lambda step: walk_through(things, step),
@@ -241,7 +229,7 @@ def _app_walkthrough(decisions, offered):
 
 
 def _untracked_apps(decisions):
-    """Untracked apps, minus the ones the user asked not to see again."""
+    """Returns untracked apps, minus the ones the user asked not to see again."""
     found = installed_apps.find_untracked(shell)
     listed = [app for app in found if not decisions.is_ignored(app.name)]
     return listed, len(found) - len(listed)

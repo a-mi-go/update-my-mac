@@ -41,15 +41,12 @@ class StillRunningOld:
 
 
 def _processes(shell):
-    """Every running process as (pid, seconds running, executable path).
-
-    `etime` rather than a start date, which ps writes in the machine's own
-    language.
-    """
+    """Returns every running process as (pid, seconds running, executable path)."""
     executable = shell.find_executable("ps")
     if executable is None:
         return []
 
+    # etime is a number; ps writes a start date in the machine's language.
     result = shell.run_command([executable, "-eo", "pid=,etime=,comm="], (0,))
     if not result.success:
         return []
@@ -67,13 +64,13 @@ def _processes(shell):
 
 
 def _bundle_of(command):
-    """The .app a running executable belongs to, if it belongs to one."""
+    """Returns the .app a running executable belongs to, if it belongs to one."""
     match = re.match(r"(.*?\.app)/Contents/MacOS/", command)
     return Path(match.group(1)) if match else None
 
 
 def _our_own_ancestors(shell):
-    """The app this tool is running inside, which must not be restarted."""
+    """Returns the app this tool is running inside."""
     executable = shell.find_executable("ps")
     if executable is None:
         return set()
@@ -95,7 +92,7 @@ def _our_own_ancestors(shell):
 
 
 def find(shell, env=None):
-    """Running apps whose bundle was replaced after they were started."""
+    """Returns running apps whose bundle was replaced after they were started."""
     env = os.environ if env is None else env
     directories = {path.resolve() for path in installed_apps.app_directories(env)}
     ours = _our_own_ancestors(shell)

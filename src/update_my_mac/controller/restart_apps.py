@@ -31,11 +31,7 @@ WALK_CHOICES = (
 
 
 def restart(app, shell, pause=time.sleep):
-    """Ask the app to quit, wait for it to go, then start it again.
-
-    Returns whether it worked and a sentence saying what happened. An app
-    that does not quit is left alone, because it is asking about unsaved work.
-    """
+    """Quits the app and starts it again. Returns whether it worked, and a sentence."""
     info = app_updaters.read_bundle_info(app.bundle)
     bundle_id = info.get("CFBundleIdentifier", "")
     if not bundle_id:
@@ -58,11 +54,7 @@ def restart(app, shell, pause=time.sleep):
 
 
 def ask_what_to_do(apps, restart_one, step=None, interactive=True):
-    """Ask what to do about the apps running an old version. Returns how many went.
-
-    The answer is usually the same for all of them, so it is asked once. Going
-    one at a time is there for the app that has something unsaved in it.
-    """
+    """Asks about the apps running an old version. Returns how many went."""
     step = step or Step()
     if not apps or not interactive:
         return 0
@@ -91,7 +83,7 @@ def _restart_all(apps, restart_one, step):
 
 
 def _walk_through(apps, restart_one, step):
-    """Let the user decide how to deal with each app. Returns how many were restarted."""
+    """Lets the user decide how to deal with each app. Returns how many were restarted."""
     said = step.inside()
     restarted = 0
     try:

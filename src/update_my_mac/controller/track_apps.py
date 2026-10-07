@@ -24,11 +24,7 @@ def ask_what_to_do(
     open_app=None,
     offered=None,
 ):
-    """Ask what to do about the untracked apps. Returns how many were dealt with.
-
-    Dealt with means Homebrew took it over or it was left alone on purpose;
-    either way the app is not asked about again.
-    """
+    """Asks about the untracked apps. Returns how many were dealt with."""
     step = step or Step()
     waiting = [app for app in apps if not decisions.is_ignored(app.name)]
     if not waiting or not interactive:
@@ -62,13 +58,7 @@ def ask_what_to_do(
 
 
 def worth_sorting_out(app, cask, answer=None):
-    """Whether this app is a problem at all.
-
-    An app that looks after itself only counts once something says it has
-    stopped: a feed offering a version it never installed, a feed that no
-    longer answers, or a recipe that has gone past it. Running ahead of its
-    recipe is none of those.
-    """
+    """Returns whether this app is a problem at all."""
     if not app.updater.looks_after_itself:
         return True
 
@@ -79,21 +69,12 @@ def worth_sorting_out(app, cask, answer=None):
 
 
 def known_to_homebrew(found):
-    """How many of the (app, cask) pairs Homebrew has a recipe for at all.
-
-    Going back a version is a way in too, so an app counts here even when it
-    is left out of the step that hands over several at once.
-    """
+    """Returns how many of the (app, cask) pairs Homebrew has a recipe for."""
     return sum(1 for app, cask in found if adopting.can_take_over(app, cask))
 
 
 def ready_for_homebrew(found):
-    """How many of the (app, cask) pairs Homebrew could take over without loss.
-
-    An app whose recipe is behind it can still be handed over, but only by
-    putting an older version in its place, which nobody should be counted
-    into without saying so.
-    """
+    """Returns how many Homebrew could take over without putting an older one back."""
     return sum(
         1 for app, cask in found
         if adopting.can_take_over(app, cask) and not adopting.would_downgrade(app, cask)
@@ -101,7 +82,7 @@ def ready_for_homebrew(found):
 
 
 def _worth_asking(choices):
-    """Whether the menu offers more than going through them one at a time."""
+    """Returns whether the menu offers more than going through them one at a time."""
     return len(choices) > 2
 
 
@@ -116,9 +97,7 @@ def _choices(found, adopt):
 
 
 def adopt_all(found, adopt, step):
-    """Hand every app Homebrew has a recipe for over to it. Returns how many went.
-
-    """
+    """Hands every app Homebrew has a recipe for over to it. Returns how many went."""
     each = step.inside()
     adopted = 0
     for app, cask in found:
@@ -134,11 +113,7 @@ def adopt_all(found, adopt, step):
 
 
 def _walk_through(found, decisions, adopt, open_url, open_app, offered, step):
-    """Ask about each app in turn. Returns how many were ignored and adopted.
-
-    Ctrl-C ends the walk here rather than further out, so what was decided
-    before it still counts and still gets written.
-    """
+    """Asks about each app in turn. Returns how many were ignored and adopted."""
     ignored, adopted = 0, 0
     try:
         for app, cask in found:
@@ -159,7 +134,7 @@ def _walk_through(found, decisions, adopt, open_url, open_app, offered, step):
 
 
 def _ask_about(app, cask, adopt, open_url, open_app, offered, step):
-    """Ask about one app until the answer decides something. Returns that answer."""
+    """Asks about one app until the answer decides something. Returns that answer."""
     said = step.inside()
     answer = appcast.answer_for(app, offered)
     site = app_updaters.site_behind(app.updater.feed_url)
@@ -237,7 +212,7 @@ def _hand_to_homebrew(app, adopt, step):
 
 
 def ask_about_the_ignored(decisions, step=None, interactive=True):
-    """Bring an app back into the list. Returns how many came back."""
+    """Brings an app back into the list. Returns how many came back."""
     step = step or Step()
     names = decisions.ignored_names()
 
