@@ -61,7 +61,7 @@ def _version_of(item):
 
 
 def newest_version(feed):
-    """Returns the highest version an appcast offers. Raises NotAnAppcast otherwise."""
+    """Returns the highest version an appcast offers. Raises NotAnAppcast if not one."""
     try:
         root = ElementTree.fromstring(feed)
     except ElementTree.ParseError:
