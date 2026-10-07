@@ -106,3 +106,52 @@ def test_every_check_lands_in_the_field_the_report_reads(monkeypatch):
     assert findings.apps_behind == ["an old cask"]
     assert findings.doubled == ["a doubled command"]
     assert findings.stale == ["still running old"]
+
+
+def a_self_update_that(monkeypatch, found, updated=(), failed=()):
+    """Stubs the step so only its result reaches the mode under test."""
+    quiet_mac(monkeypatch)
+    monkeypatch.setattr(app.managers, "check_themselves", lambda shell, installed: list(found))
+    monkeypatch.setattr(app.self_update, "pick_managers", lambda offered, *a, **k: list(offered))
+    monkeypatch.setattr(
+        app.self_update, "update",
+        lambda picked, shell, *a, **k: app.self_update.SelfUpdateResult(list(updated), list(failed)),
+    )
+    monkeypatch.setattr(app.resolve_issues, "ask_what_to_fix", lambda *a, **k: 0)
+    monkeypatch.setattr(app.apply_updates, "ask_what_to_update", lambda *a, **k: [])
+
+
+def test_a_failed_self_update_exits_non_zero(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew")], failed=["brew"])
+
+    assert app.run_interactive_mode() == 1
+
+
+def test_a_manager_that_updated_itself_is_not_held_against_the_run(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew")], updated=["brew"])
+
+    assert app.run_interactive_mode() == 0
+
+
+def test_a_manager_nobody_could_ask_exits_non_zero_even_once_it_updated(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew", "boom")], updated=["brew"])
+
+    assert app.run_interactive_mode() == 1
+
+
+def test_declining_the_self_update_is_not_a_failure(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew")])
+
+    assert app.run_interactive_mode() == 0
+
+
+def test_a_failed_self_update_exits_non_zero_in_updates_only(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew")], failed=["brew"])
+
+    assert app.run_updates_only_mode() == 1
+
+
+def test_a_manager_nobody_could_ask_exits_non_zero_in_updates_only(monkeypatch):
+    a_self_update_that(monkeypatch, [behind("brew", "boom")], updated=["brew"])
+
+    assert app.run_updates_only_mode() == 1
