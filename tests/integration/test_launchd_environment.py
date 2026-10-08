@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from conftest import with_a_cask_cache
+
 HERE = Path(__file__).parent
 MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"
@@ -24,7 +26,7 @@ def home_with_managers(tmp_path):
     shutil.copy(MOCKS / "brew", local_bin / "brew")
     shutil.copy(MOCKS / "npm", local_bin / "npm")
     shutil.copy(MOCKS / "pnpm", pnpm_bin / "pnpm")
-    return home
+    return with_a_cask_cache(home)
 
 
 def run_check(home, prefixes=""):
@@ -59,6 +61,7 @@ def test_managers_are_found_without_a_login_shell(tmp_path):
 def test_a_prefix_can_be_pointed_somewhere_unusual(tmp_path):
     home = tmp_path / "empty-home"
     home.mkdir()
+    with_a_cask_cache(home)
     prefix = tmp_path / "opt" / "elsewhere"
     (prefix / "bin").mkdir(parents=True)
     shutil.copy(MOCKS / "mas", prefix / "bin" / "mas")
