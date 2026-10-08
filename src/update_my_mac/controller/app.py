@@ -5,6 +5,7 @@ import functools
 from rich.console import Console
 
 from update_my_mac.managers.homebrew import adopting
+from update_my_mac.managers.homebrew import brew
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
 from update_my_mac.controller import apply_updates
@@ -47,12 +48,13 @@ def _website_and_cask():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    brew = next((r for r in reports if r.manager == "brew"), None)
-    named = {line.split()[0] for line in (brew.outdated_packages if brew else [])}
+    brew_report = next((r for r in reports if r.manager == "brew"), None)
+    named = {line.split()[0] for line in
+             (brew_report.outdated_packages if brew_report else [])}
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
-        managers.recorded_cask_versions(shell),
+        brew.recorded_cask_versions(shell),
         already_reported=named,
     )
 
