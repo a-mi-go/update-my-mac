@@ -1,6 +1,7 @@
 import pytest
 
 from update_my_mac import managers
+from update_my_mac.managers.homebrew import brew
 from update_my_mac.managers import CheckFailed
 from update_my_mac.system.shell import CommandResult
 
@@ -314,7 +315,7 @@ def test_an_unreadable_tap_list_is_not_guessed_at():
 
 def test_homebrew_versions_are_read_off_its_verbose_output():
     # A formula is "name (old) < new", a cask "name (old) != new".
-    packages = managers.parse_brew_outdated(
+    packages = brew.parse_outdated(
         "tcl-tk (9.0.4) < 9.0.4_1\nchatgpt (26.917.71314) != 26.924.22138\n"
     )
 
@@ -322,7 +323,7 @@ def test_homebrew_versions_are_read_off_its_verbose_output():
 
 
 def test_a_homebrew_line_in_no_known_shape_is_kept_as_it_is():
-    assert managers.parse_brew_outdated("something odd\n") == ["something odd"]
+    assert brew.parse_outdated("something odd\n") == ["something odd"]
 
 
 def test_the_app_store_says_both_versions_without_its_id():

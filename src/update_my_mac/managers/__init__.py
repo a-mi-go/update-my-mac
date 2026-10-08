@@ -5,40 +5,17 @@ to read the answer. Adding a manager means adding an entry here.
 import json
 import os
 import re
-import time
-from dataclasses import dataclass, field
-from pathlib import Path
 
-
-class CheckFailed(Exception):
-    """The manager ran but its answer says something went wrong."""
-
-
-@dataclass
-class ManagerReport:
-    manager: str
-    label: str
-    outdated_packages: list
-    error_message: str = ""
-    # Taps Homebrew is leaving out of the answer it just gave.
-    ignored_taps: list = field(default_factory=list)
-
-
-def nonblank_lines(output):
-    return [line for line in output.splitlines() if line.strip()]
-
-
-def parse_brew_outdated(stdout):
-    """Returns what `brew outdated --verbose` names, formulae and casks alike."""
-    packages = []
-    for line in nonblank_lines(stdout):
-        match = re.match(r"(\S+) \((.+?)\) (?:<|!=) (\S+)", line.strip())
-        if match:
-            name, current, latest = match.groups()
-            packages.append(f"{name}  {current} → {latest}")
-        else:
-            packages.append(line.strip())
-    return packages
+from update_my_mac.managers.homebrew import brew
+from update_my_mac.managers.manager import (
+    CheckFailed,
+    ManagerReport,
+    ManagerUpdate,
+    PackageManager,
+    _describe_error,
+    _parse_json_packages,
+    nonblank_lines,
+)
 
 
 def parse_mas_outdated(stdout):
@@ -63,57 +40,6 @@ def parse_pnpm_outdated(stdout):
     return _parse_json_packages(stdout)
 
 
-def _describe_error(error):
-    if not isinstance(error, dict):
-        return str(error)
-    # The code alone is cryptic and the summary alone loses the category.
-    described = ": ".join(part for part in (error.get("code"), error.get("summary")) if part)
-    return described or str(error)
-
-
-def _parse_json_packages(stdout):
-    if not stdout:
-        return []
-
-    try:
-        data = json.loads(stdout)
-    except ValueError:
-        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
-
-    if not isinstance(data, dict):
-        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
-
-    if "error" in data:
-        raise CheckFailed(_describe_error(data["error"]))
-
-    packages = []
-    for name, info in sorted(data.items()):
-        current = info.get("current", "?") if isinstance(info, dict) else "?"
-        latest = info.get("latest", "?") if isinstance(info, dict) else "?"
-        packages.append(f"{name}  {current} → {latest}")
-    return packages
-
-
-@dataclass(frozen=True)
-class PackageManager:
-    key: str
-    label: str
-    command: str
-    outdated_args: tuple
-    upgrade_args: tuple = ()
-    parse_output: object = nonblank_lines
-    success_exit_codes: tuple = (0,)
-    extra_env: dict = field(default_factory=dict)
-    counted_as: str = "packages"
-    # How the manager reports a newer version of itself, and how it installs it.
-    # Either a command to run, or a function for a manager that has no such
-    # command. Without one, the manager is never offered an update of itself.
-    self_check_args: tuple = ()
-    self_check: object = None
-    self_package: str = ""
-    self_upgrade_args: tuple = ()
-
-
 MANAGERS = (
     PackageManager(
         "mas",
@@ -130,11 +56,11 @@ MANAGERS = (
         "brew",
         ("outdated", "--verbose"),
         ("upgrade",),
-        parse_output=parse_brew_outdated,
+        parse_output=brew.parse_outdated,
         # A scheduled run should report against what Homebrew already knows
         # rather than pulling a new index first.
         extra_env={"HOMEBREW_NO_AUTO_UPDATE": "1"},
-        self_check=lambda manager, shell: check_homebrew_index(manager, shell),
+        self_check=lambda manager, shell: brew.check_index(manager, shell),
         self_upgrade_args=("update",),
     ),
     PackageManager(
@@ -193,80 +119,13 @@ def check_for_outdated(manager, shell):
 
     # Homebrew says on stderr when it is ignoring a tap, and an ignored tap is
     # left out of the answer silently. Without this the report looks complete.
-    ignored = untrusted_taps(shell) if "not trusted" in result.stderr else []
+    ignored = brew.untrusted_taps(shell) if "not trusted" in result.stderr else []
     return ManagerReport(manager.key, manager.label, packages, ignored_taps=ignored)
-
-
-def untrusted_taps(shell):
-    """Returns the taps Homebrew will not read from until they are trusted."""
-    executable = shell.find_executable("brew")
-    if executable is None:
-        return []
-
-    result = shell.run_command([executable, "tap-info", "--json", "--installed"], (0,))
-    if not result.success:
-        return []
-
-    try:
-        taps = json.loads(result.stdout)
-    except ValueError:
-        return []
-    return [
-        tap["name"]
-        for tap in taps
-        if isinstance(tap, dict) and tap.get("trusted") is False and tap.get("name")
-    ]
 
 
 def check_what_is_outdated(shell, managers=MANAGERS):
     reports = (check_for_outdated(manager, shell) for manager in managers)
     return [report for report in reports if report is not None]
-
-
-@dataclass
-class ManagerUpdate:
-    key: str
-    label: str
-    description: str = ""
-    error_message: str = ""
-
-
-STALE_AFTER_SECONDS = 24 * 60 * 60
-
-
-def check_homebrew_index(manager, shell):
-    """Returns whether Homebrew's index is old enough to be worth refreshing."""
-    executable = shell.find_executable(manager.command)
-    result = shell.run_command([executable, "--cache"], (0,))
-    if not result.success:
-        return None
-
-    told = result.stdout.strip()
-    # An empty answer would become Path("."), which is a directory and would
-    # then be read as a Homebrew cache.
-    cache = Path(told)
-    if not told or not cache.is_absolute() or not cache.is_dir():
-        # Not a real Homebrew, or a layout we don't know. Saying nothing beats
-        # offering an update we can't justify.
-        return None
-
-    api = cache / "api"
-    if not api.is_dir():
-        # A Homebrew that fetches formulae over git rather than the API keeps
-        # no such directory, and then its age says nothing.
-        return None
-
-    try:
-        age = time.time() - (api / "formula_names.txt").stat().st_mtime
-    except OSError:
-        return ManagerUpdate(manager.key, manager.label, "index has never been fetched")
-
-    if age < STALE_AFTER_SECONDS:
-        return None
-    days = int(age // STALE_AFTER_SECONDS)
-    return ManagerUpdate(
-        manager.key, manager.label, f"index is {days} day{'s' if days != 1 else ''} old"
-    )
 
 
 def check_self(manager, shell):
@@ -331,57 +190,6 @@ def check_themselves(shell, managers=MANAGERS):
 def still_behind(behind, updated):
     """Returns the managers that did not update, counting an unanswered check."""
     return [one for one in behind if one.error_message or one.key not in updated]
-
-
-def adopt_cask(token, shell):
-    """Hands an app that is already installed over to Homebrew, index first."""
-    executable = shell.find_executable("brew")
-    if executable is None:
-        return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
-
-
-def install_cask_over(token, shell):
-    """Downloads the cask's version and puts it over the app already in place."""
-    executable = shell.find_executable("brew")
-    if executable is None:
-        return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--force"])
-
-
-def recorded_cask_versions(shell):
-    """Returns what Homebrew wrote down for every cask it installed, in one question."""
-    executable = shell.find_executable("brew")
-    if executable is None:
-        return {}
-
-    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
-    result = shell.run_command([executable, "list", "--cask", "--versions"], (0,), env)
-    if not result.success:
-        return {}
-
-    recorded = {}
-    for line in nonblank_lines(result.stdout):
-        parts = line.split()
-        if len(parts) >= 2:
-            recorded[parts[0]] = parts[-1]
-    return recorded
-
-
-def recorded_cask_version(token, shell):
-    """Returns the version Homebrew wrote down for a cask."""
-    executable = shell.find_executable("brew")
-    if executable is None:
-        return ""
-
-    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
-    result = shell.run_command([executable, "list", "--cask", "--versions", token], (0,), env)
-    if not result.success:
-        return ""
-
-    # "betterdisplay 5.0.6", or nothing at all when it isn't installed.
-    parts = result.stdout.split()
-    return parts[-1] if len(parts) >= 2 else ""
 
 
 def upgrade_self(manager, shell):
