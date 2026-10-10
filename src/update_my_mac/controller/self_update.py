@@ -25,8 +25,7 @@ def _confirmed(console, ask):
         except prompting.Stopped:
             console.print("\nNothing updated.")
             said = False
-        else:
-            prompting.answered()
+        prompting.answered()
         # A blank line, or the answer and what follows run together.
         console.print()
         return said

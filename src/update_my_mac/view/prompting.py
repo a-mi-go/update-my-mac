@@ -85,6 +85,9 @@ class Step:
             except KeyboardInterrupt:
                 interrupted(self.say)
                 continue
+            except Stopped:
+                answered()
+                raise
             answered()
             return chosen
 

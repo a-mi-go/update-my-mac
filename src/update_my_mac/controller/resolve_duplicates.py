@@ -6,6 +6,7 @@ uninstall that was picked.
 
 from rich.markup import escape
 
+from update_my_mac.system.shell import describe_exit
 from update_my_mac.view.prompting import Step, Stopped
 
 REMOVE_SHADOWED, DECIDE_FOR_EACH, NOTHING = "shadowed", "decide for each", "nothing"
@@ -93,6 +94,6 @@ def _remove_one(copy, remove, step):
     exit_code = remove(copy)
 
     if exit_code != 0:
-        step.say(f"[yellow]That exited with {exit_code}.[/]")
+        step.say(f"[yellow]That {describe_exit(exit_code)}.[/]")
         return False
     return True

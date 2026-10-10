@@ -85,6 +85,15 @@ def test_the_manager_step_closes_the_same_way():
 
     assert "Homebrew: exited with 2" in printed
 
+def test_a_manager_that_never_ran_is_not_given_an_exit_code():
+    shell = RecordingShell(exit_code=None)
+    printed = printed_by(
+        lambda console: pick_and_update(MANAGER_UPDATES, shell, answers("y"), console)
+    )
+
+    assert "Homebrew: could not be run" in printed
+    assert "None" not in printed
+
 def test_the_question_is_coloured_rather_than_handed_to_input():
     # input() writes its prompt raw, so markup there would be shown as text.
     console = Console(width=80, force_terminal=True)

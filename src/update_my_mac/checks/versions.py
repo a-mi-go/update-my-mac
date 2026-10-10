@@ -24,9 +24,13 @@ def known(version):
     return bool(version) and version != UNKNOWN
 
 
+def _without_build(version):
+    return version.split(",")[0].strip()
+
+
 def same_release(ours, theirs):
     """Returns whether they name the same release, ignoring a build after a comma."""
-    return ours.strip() == theirs.split(",")[0].strip()
+    return _without_build(ours) == _without_build(theirs)
 
 
 def comparable(ours, theirs):

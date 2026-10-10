@@ -41,12 +41,20 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
 
 
 def stream_command(args, env=None):
-    """Runs a command with the terminal attached. Returns its exit code."""
+    """Runs a command with the terminal attached.
+
+    Returns its exit code, or None when the command never started.
+    """
     # Not captured: a password prompt needs the real terminal.
     try:
         return subprocess.run(args, env=env).returncode
     except (OSError, subprocess.SubprocessError):
-        return -1
+        return None
+
+
+def describe_exit(exit_code):
+    """Returns how a streamed command ended, as a phrase to put after its name."""
+    return "could not be run" if exit_code is None else f"exited with {exit_code}"
 
 
 def open_in_browser(url):

@@ -167,7 +167,7 @@ def test_a_manager_without_upgrade_arguments_is_not_run():
 
     entry = WithoutUpgradeArguments()
 
-    assert entry.upgrade(shell) == -1
+    assert entry.upgrade(shell) is None
 
 
 NPM_ITSELF_OUTDATED = """{

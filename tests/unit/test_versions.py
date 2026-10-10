@@ -8,6 +8,11 @@ def test_a_build_number_after_a_comma_is_the_same_release():
     assert not versions.same_release("4.91.0", "4.92.0,240144")
 
 
+def test_the_build_is_ignored_whichever_side_carries_it():
+    assert versions.same_release("4.92.0,240144", "4.92.0")
+    assert versions.same_release("4.92.0,240144", "4.92.0,240145")
+
+
 def test_a_later_version_is_later():
     assert versions.is_newer("1.2.5", than="1.1")
     assert not versions.is_newer("1.1", than="1.2.5")
