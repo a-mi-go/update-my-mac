@@ -108,11 +108,14 @@ update_my_mac/
     shell_configs.py              only the installer uses it
 
     managers/                     the four tools we drive
-        __init__.py               the table, and asking any manager anything
-        manager.py                the shape of a manager and of its answers
+        __init__.py               the registry, and asking all of them at once
+        manager.py                the base class, and the shape of its answers
+        app_store.py              what mas runs, and how it reads the answer
+        npm.py                    the same for npm
+        pnpm.py                   the same for pnpm
         homebrew/
-            __init__.py
-            brew.py               what brew reports, and the commands for it
+            __init__.py           the Homebrew class
+            brew.py               the commands only Homebrew has
             casks.py              the downloaded cask list
             behind_the_recipe.py  an app ahead of or behind its recipe
             adopting.py           handing an app over, and whether that works
@@ -125,7 +128,7 @@ update_my_mac/
         running_apps.py           still running an old version
         duplicate_installations.py  the same command from two managers
         app_decisions.py          what the person chose last time
-        versions.py               comparing and shortening version strings
+        versions.py               comparing version strings
 
     view/
         __init__.py
@@ -186,16 +189,27 @@ pieces rather than the one this note first planned, and the three read better
 than one would have.
 
 `controller/self_update.py` asks and does: `pick_managers` and `update`.
-`managers/__init__.py` keeps the table and the questions any manager can be
-asked. `managers/homebrew/brew.py` holds the 127 lines only Homebrew needed,
-so `adopting.py` stops reaching up for `adopt_cask` and the others.
+`managers/__init__.py` keeps the registry and the questions that go to every
+manager at once. `managers/homebrew/brew.py` holds the 83 lines only Homebrew
+needed, so `adopting.py` stops reaching up for `adopt_cask` and the others.
 
-`managers/manager.py` carries the shape of a manager and of its answers,
-because `brew.py` needs `ManagerUpdate` and the table module needs `brew`,
-and one of them had to stop importing the other.
+`managers/manager.py` carries the base class and the shape of its answers,
+because `brew.py` needs `ManagerUpdate` and the registry needs `brew`, and one
+of them had to stop importing the other.
 
-The per-manager files for mas, npm and pnpm are two to eleven lines each and
-would hold a single parser. Those stay with the table.
+The table of thirteen fields then became one class per manager. Two of those
+fields held functions, `parse_output` and `self_check`, and a function pointer
+in a data row is a class hierarchy in disguise. All four managers bring their
+own parser, so all four get a class: `PackageManager` holds what they share,
+and `AppStore`, `Homebrew`, `Npm` and `Pnpm` hold their arguments as class
+attributes and their parser as a method. Homebrew overrides two more:
+`check_self`, which reads the downloaded index instead of running a command,
+and `ignored_sources`, the hook that took the untrusted-tap branch out of the
+generic check.
+
+The price is the one place that showed all four side by side. `MANAGERS` still
+lists every manager, so none goes missing, but comparing their arguments now
+means opening four short files.
 
 **2. Each action module offers its own `Problem`.** The twelve adapter
 functions in `app` become one function per action module:
