@@ -82,7 +82,7 @@ def update(picked, shell, console=None):
     console = console or Console()
     updated, failed = run_each_manager(
         [update.key for update in picked], shell, console,
-        "Updating", managers.upgrade_self,
+        "Updating", lambda manager, shell: manager.upgrade_self(shell),
     )
     say_what_happened(console, updated, failed)
     return SelfUpdateResult(updated, [key for key, _ in failed])

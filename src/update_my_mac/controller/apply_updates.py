@@ -102,7 +102,10 @@ def run_each_manager(manager_keys, shell, console, announce, run_one):
 
 
 def upgrade_managers(manager_keys, shell, console):
-    return run_each_manager(manager_keys, shell, console, "Upgrading", managers.upgrade)
+    return run_each_manager(
+        manager_keys, shell, console, "Upgrading",
+        lambda manager, shell: manager.upgrade(shell),
+    )
 
 
 def ask_what_to_update(reports, shell, console=None, ask=input):
@@ -150,7 +153,7 @@ def say_what_changed(console, entries, shell):
     could_not_confirm = []
     for entry in entries:
         manager = managers.by_key(entry.keys[0])
-        again = managers.check_for_outdated(manager, shell)
+        again = manager.outdated(shell)
         if again is None or again.error_message:
             console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
             could_not_confirm.append(manager.key)
