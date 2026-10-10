@@ -3,7 +3,7 @@
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac.prompting import Step
+from update_my_mac.view.prompting import Step
 
 WIDTH = 60
 

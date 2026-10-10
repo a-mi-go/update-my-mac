@@ -2,12 +2,15 @@
 
 from pathlib import Path
 
-from update_my_mac import app_updaters, appcast, behind_the_recipe, sections
-from update_my_mac.app_updaters import UpdaterStatus
-from update_my_mac.cask_index import Cask
-from update_my_mac.duplicate_installations import Copy, Duplicate
-from update_my_mac.installed_apps import InstalledApp
-from update_my_mac.package_managers import ManagerReport, ManagerUpdate
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks import appcast
+from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.view import sections
+from update_my_mac.checks.app_updaters import UpdaterStatus
+from update_my_mac.managers.homebrew.casks import Cask
+from update_my_mac.checks.duplicate_installations import Copy, Duplicate
+from update_my_mac.checks.installed_apps import InstalledApp
+from update_my_mac.managers import ManagerReport, ManagerUpdate
 
 
 def app(name="TokenEater", version="1.0", updater=None):
@@ -49,7 +52,7 @@ def test_a_check_that_could_not_run_is_the_loudest_thing():
 def test_a_manager_that_failed_both_questions_is_named_once():
     found = sections.of(sections.Findings(
         reports=[ManagerReport("npm", "npm (global)", [], "ENOTFOUND")],
-        manager_updates=[ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
+        managers_behind=[ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
     ))
 
     assert find("A check could not run", found).count == 1
@@ -58,7 +61,7 @@ def test_a_manager_that_failed_both_questions_is_named_once():
 def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
     found = sections.of(sections.Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
-        behind=[behind()],
+        apps_behind=[behind()],
     ))
 
     homebrew = find("Homebrew", found)
@@ -67,7 +70,7 @@ def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
 
 
 def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
-    found = sections.of(sections.Findings(behind=[behind(recorded="5.0.6")]))
+    found = sections.of(sections.Findings(apps_behind=[behind(recorded="5.0.6")]))
 
     written_down = find("No upgrade will fetch these", found)
     assert written_down.level == sections.CRITICAL

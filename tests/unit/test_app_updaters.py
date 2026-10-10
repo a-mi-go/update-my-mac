@@ -1,8 +1,8 @@
 import datetime
 import plistlib
 
-from update_my_mac import app_updaters
-from update_my_mac.shell import CommandResult
+from update_my_mac.checks import app_updaters
+from update_my_mac.system.shell import CommandResult
 
 
 def make_app(tmp_path, name="Thing", info=None, with_sparkle=False):

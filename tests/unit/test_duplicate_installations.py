@@ -2,8 +2,8 @@
 
 import os
 
-from update_my_mac import duplicate_installations
-from update_my_mac.shell import CommandResult
+from update_my_mac.checks import duplicate_installations
+from update_my_mac.system.shell import CommandResult
 
 
 def make_brew(root, cask, command):

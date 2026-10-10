@@ -1,4 +1,4 @@
-from update_my_mac import environment
+from update_my_mac.system import environment
 
 LAUNCHD_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
