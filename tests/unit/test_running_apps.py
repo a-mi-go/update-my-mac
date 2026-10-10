@@ -4,8 +4,8 @@ import os
 import plistlib
 import time
 
-from update_my_mac import running_apps
-from update_my_mac.shell import CommandResult
+from update_my_mac.checks import running_apps
+from update_my_mac.system.shell import CommandResult
 
 
 def bundle(directory, name, written_ago_seconds, version=""):

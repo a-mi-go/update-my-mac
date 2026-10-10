@@ -1,6 +1,6 @@
 import json
 
-from update_my_mac import app_decisions
+from update_my_mac.checks import app_decisions
 
 
 def decisions_in(tmp_path):

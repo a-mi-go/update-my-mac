@@ -1,11 +1,16 @@
 """Comparing versions nobody numbered the same way."""
 
-from update_my_mac import versions
+from update_my_mac.checks import versions
 
 
 def test_a_build_number_after_a_comma_is_the_same_release():
-    assert versions.same("4.92.0", "4.92.0,240144")
-    assert not versions.same("4.91.0", "4.92.0,240144")
+    assert versions.same_release("4.92.0", "4.92.0,240144")
+    assert not versions.same_release("4.91.0", "4.92.0,240144")
+
+
+def test_the_build_is_ignored_whichever_side_carries_it():
+    assert versions.same_release("4.92.0,240144", "4.92.0")
+    assert versions.same_release("4.92.0,240144", "4.92.0,240145")
 
 
 def test_a_later_version_is_later():
