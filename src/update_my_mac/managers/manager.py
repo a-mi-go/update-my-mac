@@ -160,18 +160,18 @@ class PackageManager:
         return ManagerUpdate(self.key, self.label, described) if described else None
 
     def upgrade(self, shell):
-        """Upgrades the packages with the terminal attached. Returns the exit code."""
+        """Upgrades the packages with the terminal attached. Returns the exit code or None."""
         return self._stream(shell, self.upgrade_args)
 
     def upgrade_self(self, shell):
-        """Updates this manager with the terminal attached. Returns the exit code."""
+        """Updates this manager with the terminal attached. Returns the exit code or None."""
         return self._stream(shell, self.self_upgrade_args)
 
     def _stream(self, shell, args):
         if not args:
-            return -1
+            return None
 
         executable = shell.find_executable(self.command)
         if executable is None:
-            return -1
+            return None
         return shell.stream_command([executable, *args], self._env())

@@ -8,6 +8,7 @@ way the app sits there, older than the recipe, and nothing says so.
 from rich.markup import escape
 
 from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.system.shell import describe_exit
 from update_my_mac.view.prompting import Step, Stopped
 
 CATCH_UP_ALL, DECIDE_FOR_EACH, NOTHING = "all", "decide for each", "nothing"
@@ -112,6 +113,6 @@ def _run_one(command, run, step):
     exit_code = run(command)
 
     if exit_code != 0:
-        step.say(f"[yellow]That exited with {exit_code}.[/]")
+        step.say(f"[yellow]That {describe_exit(exit_code)}.[/]")
         return False
     return True

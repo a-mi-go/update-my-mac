@@ -7,6 +7,7 @@ from rich.markup import escape
 
 from update_my_mac.view import keys
 from update_my_mac import managers
+from update_my_mac.system.shell import describe_exit
 from update_my_mac.view import prompting
 from update_my_mac.view import report
 
@@ -94,8 +95,9 @@ def run_each_manager(manager_keys, shell, console, announce, run_one):
         console.print(f"\n[bold]{announce} {manager.label}[/]")
         exit_code = run_one(manager, shell)
         if exit_code != 0:
-            console.print(f"[yellow]{manager.label} exited with {exit_code}[/]")
-            failed.append((key, f"exited with {exit_code}"))
+            how = describe_exit(exit_code)
+            console.print(f"[yellow]{manager.label} {how}[/]")
+            failed.append((key, how))
         else:
             done.append(key)
     return done, failed
@@ -134,15 +136,15 @@ def ask_what_to_update(reports, shell, console=None, ask=input):
         except EOFError:
             # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
+            prompting.answered()
             return []
 
         chosen = parse_menu_answer(answer, entries)
         if chosen is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
-        if chosen == CANCEL:
-            return []
-        return run_chosen(chosen, shell, console)
+        prompting.answered()
+        return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
 
 
 def say_what_changed(console, entries, shell):

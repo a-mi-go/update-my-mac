@@ -105,12 +105,15 @@ def interrupting(*answers):
         answer = given.pop(0)
         if answer is INTERRUPT:
             raise KeyboardInterrupt
+        if answer is NO_MORE_INPUT:
+            raise EOFError
         return answer
 
     return ask
 
 
 INTERRUPT = object()
+NO_MORE_INPUT = object()
 
 
 def test_the_first_ctrl_c_only_warns():
@@ -138,4 +141,17 @@ def test_an_answer_in_between_clears_the_warning():
 
     assert step.choose([("a", "one"), ("b", "two")]) == "a"
     assert step.choose([("a", "one"), ("b", "two")]) == "b"
+    assert terminal.text.count("Press Ctrl-C again") == 2
+
+
+def test_a_question_that_ran_out_of_input_clears_the_warning():
+    terminal = Terminal()
+    step = Step(terminal.out, interrupting(INTERRUPT, NO_MORE_INPUT, INTERRUPT, "1"))
+
+    try:
+        step.choose([("a", "one"), ("b", "two")])
+    except Stopped:
+        pass
+
+    assert step.choose([("a", "one"), ("b", "two")]) == "a"
     assert terminal.text.count("Press Ctrl-C again") == 2

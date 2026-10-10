@@ -11,6 +11,7 @@ So the version is compared before, and checked again afterwards.
 
 from update_my_mac.checks import installed_apps
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.system.shell import describe_exit
 from update_my_mac.checks import versions
 
 
@@ -106,7 +107,8 @@ def hand_to_homebrew(app, cask, shell):
         # place, because --adopt takes nothing but an identical copy.
         exit_code = brew.install_cask_over(cask.token, shell)
     if exit_code != 0:
-        return False, f"Homebrew could not take it over, {cask.token} exited with {exit_code}."
+        how = describe_exit(exit_code)
+        return False, f"Homebrew could not take it over, {cask.token} {how}."
 
     recorded = brew.recorded_cask_version(cask.token, shell)
     on_disk = installed_apps.read_version(app.path)
