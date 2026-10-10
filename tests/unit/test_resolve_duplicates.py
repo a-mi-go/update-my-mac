@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
-from update_my_mac import resolve_duplicates
-from update_my_mac.duplicate_installations import Copy, Duplicate
+from update_my_mac.controller import resolve_duplicates
+from update_my_mac.checks.duplicate_installations import Copy, Duplicate
 from fake_terminal import Terminal
 
 
@@ -40,7 +40,7 @@ class Remover:
 
 def test_which_one_runs_and_which_one_never_does_is_spelled_out():
     terminal = Terminal(DECIDE, LEAVE_BOTH)
-    resolve_duplicates.run_duplicate_menu([doubled()], Remover(), terminal.step)
+    resolve_duplicates.ask_what_to_do([doubled()], Remover(), terminal.step)
 
     assert "runs now:   Homebrew, codex" in terminal.text
     assert "never used: npm (global), @openai/codex" in terminal.text
@@ -50,7 +50,7 @@ def test_the_shadowed_copy_can_be_dropped():
     remover = Remover()
     terminal = Terminal(DECIDE, DROP_NPM)
 
-    removed = resolve_duplicates.run_duplicate_menu(
+    removed = resolve_duplicates.ask_what_to_do(
         [doubled()], remover, terminal.step
     )
     assert removed == 1
@@ -61,7 +61,7 @@ def test_the_one_that_runs_can_be_dropped_instead():
     remover = Remover()
     terminal = Terminal(DECIDE, DROP_HOMEBREW)
 
-    resolve_duplicates.run_duplicate_menu([doubled()], remover, terminal.step)
+    resolve_duplicates.ask_what_to_do([doubled()], remover, terminal.step)
     assert remover.removed == ["codex"]
 
 
@@ -69,7 +69,7 @@ def test_leaving_both_removes_nothing():
     remover = Remover()
     terminal = Terminal(DECIDE, LEAVE_BOTH)
 
-    assert resolve_duplicates.run_duplicate_menu(
+    assert resolve_duplicates.ask_what_to_do(
         [doubled()], remover, terminal.step
     ) == 0
     assert remover.removed == []
@@ -79,7 +79,7 @@ def test_stopping_partway_leaves_the_rest_alone():
     remover = Remover()
     terminal = Terminal(DECIDE, CANCEL)
 
-    resolve_duplicates.run_duplicate_menu(
+    resolve_duplicates.ask_what_to_do(
         [doubled(), doubled()], remover, terminal.step
     )
     assert remover.removed == []
@@ -88,7 +88,7 @@ def test_stopping_partway_leaves_the_rest_alone():
 def test_a_removal_that_failed_is_not_counted():
     terminal = Terminal(DECIDE, DROP_NPM)
 
-    removed = resolve_duplicates.run_duplicate_menu(
+    removed = resolve_duplicates.ask_what_to_do(
         [doubled()], Remover(exit_code=1), terminal.step
     )
     assert removed == 0
@@ -103,7 +103,7 @@ def test_a_copy_of_unknown_origin_is_not_guessed_at():
     remover = Remover()
     terminal = Terminal(DECIDE, DROP_HOMEBREW)
 
-    resolve_duplicates.run_duplicate_menu([unknown], remover, terminal.step)
+    resolve_duplicates.ask_what_to_do([unknown], remover, terminal.step)
     assert remover.removed == []
     assert "Nothing here says how that one was installed" in terminal.text
 
@@ -111,7 +111,7 @@ def test_a_copy_of_unknown_origin_is_not_guessed_at():
 def test_no_terminal_means_nothing_is_asked():
     terminal = Terminal()
 
-    assert resolve_duplicates.run_duplicate_menu(
+    assert resolve_duplicates.ask_what_to_do(
         [doubled()], Remover(), terminal.step, interactive=False
     ) == 0
     assert terminal.text == ""
@@ -121,14 +121,14 @@ def test_ctrl_c_is_left_to_end_the_run():
     terminal = Terminal(then=KeyboardInterrupt)
 
     with pytest.raises(KeyboardInterrupt):
-        resolve_duplicates.run_duplicate_menu([doubled()], Remover(), terminal.step)
+        resolve_duplicates.ask_what_to_do([doubled()], Remover(), terminal.step)
 
 
 def test_every_copy_that_never_runs_can_go_in_one_step():
     remover = Remover()
     terminal = Terminal(DROP_SHADOWED)
 
-    removed = resolve_duplicates.run_duplicate_menu(
+    removed = resolve_duplicates.ask_what_to_do(
         [doubled(), doubled()], remover, terminal.step
     )
 
@@ -141,7 +141,7 @@ def test_doing_nothing_asks_about_no_command_at_all():
     remover = Remover()
     terminal = Terminal("3")
 
-    assert resolve_duplicates.run_duplicate_menu(
+    assert resolve_duplicates.ask_what_to_do(
         [doubled()], remover, terminal.step
     ) == 0
     assert "runs now" not in terminal.text
@@ -156,4 +156,4 @@ def test_ctrl_c_during_a_removal_ends_the_run():
     terminal = Terminal(DROP_SHADOWED)
 
     with pytest.raises(KeyboardInterrupt):
-        resolve_duplicates.run_duplicate_menu([doubled()], Interrupting(), terminal.step)
+        resolve_duplicates.ask_what_to_do([doubled()], Interrupting(), terminal.step)

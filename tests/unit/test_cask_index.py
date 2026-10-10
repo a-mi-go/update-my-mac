@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from update_my_mac import cask_index
+from update_my_mac.managers.homebrew import casks
 
 PUBLISHED = [
     {
@@ -26,8 +26,8 @@ PUBLISHED = [
 ]
 
 
-def index_of(casks=PUBLISHED):
-    return cask_index.CaskIndex(cask_index.reduce_to_apps(casks))
+def index_of(published=PUBLISHED):
+    return casks.CaskIndex(casks.reduce_to_apps(published))
 
 
 def test_an_app_is_found_by_its_bundle_name():
@@ -69,7 +69,7 @@ def test_a_cask_without_a_token_is_ignored():
 
 
 def cached(tmp_path, by_app, age_in_seconds=0):
-    path = cask_index.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
+    path = casks.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(by_app))
     when = time.time() - age_in_seconds
@@ -87,52 +87,52 @@ def refusing():
 def test_a_fresh_cache_is_used_without_fetching(tmp_path):
     env = cached(tmp_path, {"Codex.app": {"token": "codex-app"}})
 
-    index = cask_index.load(env, refusing())
+    index = casks.load(env, refusing())
     assert index.for_app("Codex.app").token == "codex-app"
 
 
 def test_a_stale_cache_is_replaced(tmp_path):
     env = cached(tmp_path, {"Old.app": {"token": "old"}}, age_in_seconds=2 * 24 * 60 * 60)
 
-    index = cask_index.load(env, lambda: {"New.app": {"token": "new"}})
+    index = casks.load(env, lambda: {"New.app": {"token": "new"}})
     assert index.for_app("Old.app") is None
     assert index.for_app("New.app").token == "new"
 
 
 def test_what_was_fetched_is_kept_for_next_time(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    cask_index.load(env, lambda: {"New.app": {"token": "new"}})
+    casks.load(env, lambda: {"New.app": {"token": "new"}})
 
-    assert cask_index.load(env, refusing()).for_app("New.app").token == "new"
+    assert casks.load(env, refusing()).for_app("New.app").token == "new"
 
 
 def test_a_stale_cache_beats_no_answer(tmp_path):
     # Offline, an old lookup table is still better than an empty one.
     env = cached(tmp_path, {"Old.app": {"token": "old"}}, age_in_seconds=9 * 24 * 60 * 60)
 
-    assert cask_index.load(env, refusing()).for_app("Old.app").token == "old"
+    assert casks.load(env, refusing()).for_app("Old.app").token == "old"
 
 
 def test_without_a_cache_or_a_network_the_index_is_simply_empty(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
 
-    assert len(cask_index.load(env, refusing())) == 0
+    assert len(casks.load(env, refusing())) == 0
 
 
 def test_a_damaged_cache_does_not_stop_the_run(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    path = cask_index.cache_path(env)
+    path = casks.cache_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{ not json")
 
-    assert len(cask_index.load(env, lambda: {"New.app": {"token": "new"}})) == 1
+    assert len(casks.load(env, lambda: {"New.app": {"token": "new"}})) == 1
 
 
 def test_the_cache_sits_where_the_xdg_variables_say(tmp_path):
-    xdg = cask_index.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
+    xdg = casks.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
     assert xdg == tmp_path / "update-my-mac" / "casks.json"
 
-    default = cask_index.cache_path({"HOME": str(tmp_path)})
+    default = casks.cache_path({"HOME": str(tmp_path)})
     assert default == tmp_path / ".cache" / "update-my-mac" / "casks.json"
 
 
@@ -140,7 +140,7 @@ def test_a_name_that_differs_only_in_case_is_not_claimed():
     # Tempting, because a Mac filesystem does not care about case. But the
     # orca cask installs plotly's orca, and the Orca in /Applications here is
     # a different program with the same name.
-    index = cask_index.CaskIndex(cask_index.reduce_to_apps([
+    index = casks.CaskIndex(casks.reduce_to_apps([
         {"token": "orca", "version": "1.3.1", "artifacts": [{"app": ["orca.app"]}]},
     ]))
 
