@@ -88,6 +88,19 @@ def test_what_the_handover_would_do_is_said_in_the_menu(tmp_path):
     assert adopting.handover_label(matching, None) == ""
 
 
+def test_a_recipe_matching_only_the_build_is_the_same_version(tmp_path):
+    # Dockish puts 6.2 in its short version and 6.2.1 in its build, and the
+    # recipe names the build.
+    app = InstalledApp("Dockish", "6.2", tmp_path / "Dockish.app",
+                       UpdaterStatus(), build="6.2.1")
+    cask = Cask("dockish", "https://example.test/", "6.2.1")
+
+    assert adopting.compare_to_app(app, cask) == adopting.SAME
+    assert adopting.can_adopt(app, cask)
+    assert not adopting.would_downgrade(app, cask)
+    assert adopting.handover_label(app, cask) == "add to Homebrew (dockish 6.2.1)"
+
+
 def test_two_version_schemes_are_not_called_newer_or_older(tmp_path):
     # Foxit reports 2026.1.1.70276 where its recipe says 14.0.8.69494. Neither
     # is ahead of the other, they are counted differently.
