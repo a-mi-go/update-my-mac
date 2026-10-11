@@ -5,7 +5,6 @@ from rich.markup import escape
 from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
-from update_my_mac.checks import versions
 from update_my_mac.view.prompting import Step, Stopped
 
 ADOPT_ALL, DECIDE_FOR_EACH, NOTHING = "adopt all", "decide for each", "nothing"
@@ -65,7 +64,7 @@ def worth_sorting_out(app, cask, answer=None):
     answer = answer or appcast.FeedAnswer()
     if answer.error or appcast.offers_newer(app, answer):
         return True
-    return cask is not None and versions.is_newer(cask.version, than=app.version)
+    return adopting.compare_to_app(app, cask) == adopting.NEWER
 
 
 def known_to_homebrew(found):
