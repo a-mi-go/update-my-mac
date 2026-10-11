@@ -507,6 +507,18 @@ def test_an_app_that_looks_after_itself_and_has_nothing_pending_is_no_problem():
     )
 
 
+def test_a_recipe_matching_the_build_rather_than_the_short_version_is_no_problem():
+    # Dockish says 6.2 for itself and carries 6.2.1 as its build, which is the
+    # version the recipe names.
+    on_disk = InstalledApp(
+        "Dockish", "6.2", Path("/Applications/Dockish.app"),
+        UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
+        build="6.2.1",
+    )
+
+    assert not track_apps.worth_sorting_out(on_disk, cask(version="6.2.1"))
+
+
 def test_an_app_whose_own_feed_offers_more_than_it_installed_is_a_problem():
     # Dockish says it checks by itself, sits on 1.1, and its feed has 1.2.5.
     # Whatever it is doing, it is not updating itself.
