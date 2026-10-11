@@ -509,7 +509,7 @@ def test_an_app_that_looks_after_itself_and_has_nothing_pending_is_no_problem():
 
 def test_a_recipe_matching_the_build_rather_than_the_short_version_is_no_problem():
     # Dockish says 6.2 for itself and carries 6.2.1 as its build, which is the
-    # version the recipe names. It already has what the recipe would install.
+    # version the recipe names.
     on_disk = InstalledApp(
         "Dockish", "6.2", Path("/Applications/Dockish.app"),
         UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
