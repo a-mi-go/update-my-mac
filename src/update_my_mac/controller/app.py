@@ -6,6 +6,7 @@ from rich.console import Console
 
 from update_my_mac.managers.homebrew import adopting
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
 from update_my_mac.controller import apply_updates
@@ -21,7 +22,6 @@ from update_my_mac.controller import resolve_duplicates
 from update_my_mac.controller import resolve_issues
 from update_my_mac.controller import restart_apps
 from update_my_mac.checks import running_apps
-from update_my_mac.view import sections
 from update_my_mac.system import shell
 from update_my_mac.controller import track_apps
 
@@ -257,7 +257,7 @@ def _check_the_managers(installed, console=None):
 
 def _check_the_mac(installed, decisions, console=None):
     console = console or Console(highlight=False)
-    findings = sections.Findings(any_manager_installed=bool(installed))
+    findings = Findings(any_manager_installed=bool(installed))
 
     with console.status("", spinner=SPINNER) as spinner:
         def now(what):
