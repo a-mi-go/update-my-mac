@@ -1,7 +1,5 @@
 """Turning check results into something readable."""
 
-from update_my_mac import __version__
-
 from dataclasses import dataclass
 
 from rich import box
@@ -13,10 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from update_my_mac import __version__ as _version
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
 from update_my_mac.view import sections
-from update_my_mac.checks import versions
 
 
 # Beyond this items count a list is printed as a grid for better readability
@@ -66,8 +61,8 @@ def print_as_list_or_grid(console, indent, items):
 
 def _split_name_and_change(package):
     """Returns a manager's "name  1.2.3 → 1.2.4" line split so the arrows line up."""
-    name, _, versions = package.partition("  ")
-    return Item(name, versions.strip())
+    name, _, change = package.partition("  ")
+    return Item(name, change.strip())
 
 
 def count_outdated_packages(reports):
@@ -160,175 +155,6 @@ def _rows(section):
         name, version, note = row.cells()
         grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
     return grid
-
-
-def print_manager_updates(updates, console=None, any_installed=True):
-    """The package managers themselves, checked before the packages they hold."""
-    console = console or Console(soft_wrap=True)
-    if not updates:
-        # Silence here would read as "not checked" rather than "nothing to do".
-        if any_installed:
-            console.print("[green]Package managers[/]: up to date\n")
-        return
-
-    console.print("[bold]Package managers[/]")
-    for update in updates:
-        if update.error_message:
-            console.print(
-                f"    [yellow]{update.label}: check failed[/] "
-                f"({escape(update.error_message)})"
-            )
-        elif update.description:
-            console.print(f"    {update.label}: {escape(update.description)}")
-        else:
-            # Nothing asked it, because nothing can without fetching first.
-            console.print(f"    {update.label}: [dim]can be refreshed[/]")
-    console.print()
-
-
-def _print_group(console, heading, apps, with_updater=True, offered=None, find_cask=None):
-    if not apps:
-        return
-    console.print(f"  {heading}: [bold cyan]{len(apps)}[/]")
-    print_as_list_or_grid(
-        console,
-        "      ",
-        [
-            Item(
-                app.name,
-                _version_column(app, offered, find_cask),
-                app.updater.update_method_note() if with_updater else "",
-            )
-            for app in apps
-        ],
-    )
-
-
-def _version_column(app, offered, find_cask=None):
-    """Returns the installed version and the newer one on offer, from feed or recipe."""
-    answer = appcast.answer_for(app, offered or {})
-    if appcast.offers_newer(app, answer):
-        return f"{app.version} → {answer.version}"
-
-    cask = find_cask(app) if find_cask else None
-    if cask and versions.is_newer(cask.version, than=app.version):
-        return f"{app.version} → {cask.version}"
-    return app.version
-
-
-def print_still_running_old(apps, console=None):
-    """Apps upgraded underneath a running process, which nothing else notices."""
-    if not apps:
-        return
-
-    console = console or Console(highlight=False, soft_wrap=True)
-    console.print()
-    console.print(f"[yellow]Updated but not restarted (running an old version)[/]: [bold cyan]{len(apps)}[/]")
-    print_as_list_or_grid(
-        console,
-        "    ",
-        [Item(app.name, app.version, app.comment()) for app in apps],
-    )
-
-
-def print_behind_the_recipe(apps_behind, console=None):
-    """Apps older than Homebrew's recipe, which Homebrew itself never says."""
-    if not apps_behind:
-        return
-
-    console = console or Console(highlight=False, soft_wrap=True)
-    console.print()
-    console.print(f"[yellow]Older than Homebrew's recipe[/]: [bold cyan]{len(apps_behind)}[/]")
-    console.print(
-        "    [dim]Homebrew reports none of these, because it trusts each app to "
-        "update itself.[/]"
-    )
-    print_as_list_or_grid(
-        console, "    ", [Item(item.app.name, item.version_change()) for item in apps_behind]
-    )
-
-
-def print_duplicate_installations(duplicates, console=None):
-    """Commands two managers installed, where PATH quietly picks the winner."""
-    if not duplicates:
-        return
-
-    console = console or Console(highlight=False, soft_wrap=True)
-    console.print()
-    console.print(f"[yellow]Installed twice[/]: [bold cyan]{len(duplicates)}[/]")
-    for duplicate in duplicates:
-        console.print(f"    {escape(duplicate.command)}")
-        console.print(f"        runs now:   {escape(duplicate.winner.describe())}")
-        for copy in duplicate.shadowed:
-            console.print(f"        never used: {escape(copy.describe())}")
-
-
-def print_foreign_owners(apps, console=None):
-    """Apps a Homebrew upgrade would break on, with the way out."""
-    if not apps:
-        return
-
-    console = console or Console(highlight=False, soft_wrap=True)
-    console.print()
-    console.print(f"[yellow]Owned by another user[/]: [bold cyan]{len(apps)}[/]")
-    print_as_list_or_grid(console, "    ", [Item(path.name) for path in apps])
-    console.print(
-        "    [dim]Homebrew cannot upgrade these until they are yours. "
-        "Take them over with:[/]"
-    )
-    quoted = " ".join(f'"{path}"' for path in apps)
-    console.print(f"    sudo chown -R $(id -un) {quoted}", markup=False, highlight=False)
-
-
-def print_untracked_apps(apps, console=None, left_alone=0, offered=None, find_cask=None):
-    """Apps not tracked by any of the supported package managers."""
-    console = console or Console(highlight=False, soft_wrap=True)
-    if not apps and not left_alone:
-        return
-
-    console.print()
-    if apps:
-        console.print(
-            f"[bold]Not tracked by any package manager[/]: [bold cyan]{len(apps)}[/]"
-        )
-        # An app whose feed has gone quiet is listed by what it does now, not
-        # by what its settings still claim it does.
-        quiet, rest = [], []
-        for app in apps:
-            side = quiet if appcast.answer_for(app, offered or {}).error else rest
-            side.append(app)
-
-        unattended, switched_off, unclear, self_updating = app_updaters.group_by_status(rest)
-        _print_group(console, "Possibly don't update at all", unattended,
-                     with_updater=False, offered=offered, find_cask=find_cask)
-        _print_group(console, "Their updater is switched off", switched_off,
-                     offered=offered, find_cask=find_cask)
-        _print_group(console, "They have an updater, nobody answered for it", unclear,
-                     offered=offered, find_cask=find_cask)
-        _print_group(console, "These update themselves", self_updating,
-                     offered=offered, find_cask=find_cask)
-        _say_which_feeds_went_quiet(console, quiet, offered)
-    if left_alone:
-        console.print(
-            f"[dim]{left_alone} more left alone on purpose. "
-            f"Run with --retry-app to list one again.[/]"
-        )
-
-
-def _say_which_feeds_went_quiet(console, quiet, offered):
-    """Prints the apps whose update feed stopped answering."""
-    if not quiet:
-        return
-
-    console.print(f"  [yellow]Cannot update themselves any more[/]: [bold cyan]{len(quiet)}[/]")
-    print_as_list_or_grid(
-        console,
-        "      ",
-        [
-            Item(app.name, app.version, appcast.answer_for(app, offered).error)
-            for app in quiet
-        ],
-    )
 
 
 def _say_what_was_left_out(console, report):

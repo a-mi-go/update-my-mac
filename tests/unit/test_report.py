@@ -4,7 +4,6 @@ from rich.console import Console
 
 from update_my_mac import __version__
 from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
 from update_my_mac.view import report
 from update_my_mac.view import sections
 from update_my_mac.checks.app_updaters import UpdaterStatus
@@ -57,101 +56,6 @@ def test_brackets_in_a_package_name_are_text_not_markup():
     assert "1.0 → 2.0" in out
 
 
-def test_untracked_apps_are_listed_with_their_versions():
-    console = Console(width=200, no_color=True, soft_wrap=True)
-    apps = [
-        InstalledApp("TokenEater", "5.12.2", Path("/Applications/TokenEater.app")),
-        InstalledApp("Some [beta] App", "1.0", Path("/Applications/Some [beta] App.app")),
-    ]
-
-    with console.capture() as captured:
-        report.print_untracked_apps(apps, console)
-    out = captured.get()
-
-    assert "Not tracked by any package manager: 2" in out
-    assert "TokenEater" in out
-    assert "5.12.2" in out
-    # Brackets in a name are text, not colour markup.
-    assert "Some [beta] App" in out
-
-
-def test_nothing_is_said_when_every_app_is_tracked():
-    console = Console(width=200, no_color=True)
-    with console.capture() as captured:
-        report.print_untracked_apps([], console)
-
-    assert captured.get() == ""
-
-
-def test_the_managers_are_listed_before_anything_else(capsys):
-    report.print_manager_updates(
-        [
-            ManagerUpdate("brew", "Homebrew", "index is 3 days old"),
-            ManagerUpdate("npm", "npm (global)", "npm  12.0.2 → 12.1.0"),
-        ],
-        Console(width=200, no_color=True),
-    )
-
-    printed = capsys.readouterr().out
-    assert "Package managers" in printed
-    assert "Homebrew: index is 3 days old" in printed
-    assert "npm (global): npm  12.0.2 → 12.1.0" in printed
-
-
-def test_current_managers_are_said_to_be_current(capsys):
-    report.print_manager_updates([], Console(width=200, no_color=True))
-
-    assert "Package managers: up to date" in capsys.readouterr().out
-
-
-def test_a_machine_with_no_managers_is_not_told_they_are_current(capsys):
-    report.print_manager_updates([], Console(width=200, no_color=True), any_installed=False)
-
-    assert capsys.readouterr().out == ""
-
-
-def test_a_failed_manager_check_says_so(capsys):
-    report.print_manager_updates(
-        [ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
-        Console(width=200, no_color=True),
-    )
-
-    assert "check failed" in capsys.readouterr().out
-
-
-def untracked(name, version, updater=None):
-    return InstalledApp(name, version, Path(f"/Applications/{name}.app"),
-                        updater or UpdaterStatus())
-
-
-def test_untracked_apps_are_split_by_who_looks_after_them(capsys):
-    report.print_untracked_apps(
-        [
-            untracked("Docker", "4.91.0"),
-            untracked("Air", "262.579.44",
-                      UpdaterStatus(app_updaters.SPARKLE, True, last_checked="2026-09-24")),
-            untracked("Dockish", "1.1", UpdaterStatus(app_updaters.SPARKLE, None)),
-        ],
-        Console(width=200, no_color=True),
-    )
-
-    printed = capsys.readouterr().out
-    assert "Not tracked by any package manager: 3" in printed
-    assert "Possibly don't update at all: 1" in printed
-    assert "They have an updater, nobody answered for it: 1" in printed
-    assert "These update themselves: 1" in printed
-    assert "Air" in printed
-    assert "checks only, last checked 2026-09-24" in printed
-
-
-def test_a_group_nobody_falls_into_is_not_printed(capsys):
-    report.print_untracked_apps([untracked("Docker", "4.91.0")], Console(width=200, no_color=True))
-
-    printed = capsys.readouterr().out
-    assert "Possibly don't update at all: 1" in printed
-    assert "update themselves" not in printed
-
-
 def outdated(count):
     return [ManagerReport("brew", "Homebrew", [f"package-{n}" for n in range(count)])]
 
@@ -171,26 +75,6 @@ def test_a_longer_list_goes_into_four_columns(capsys):
     assert len(rows) == 2
     assert rows[0].split() == ["package-0", "package-1", "package-2", "package-3"]
     assert rows[1].split() == ["package-4", "package-5"]
-
-
-def test_a_long_list_of_apps_keeps_its_versions(capsys):
-    # A version belongs next to the app it belongs to, however long the list.
-    apps = [untracked(f"App{n}", "1.2.3") for n in range(6)]
-    report.print_untracked_apps(apps, Console(width=120, no_color=True))
-
-    printed = capsys.readouterr().out
-    assert "App0" in printed
-    assert printed.count("1.2.3") == 6
-
-
-def test_a_short_list_of_apps_keeps_its_versions(capsys):
-    report.print_untracked_apps(
-        [untracked("Docker", "4.91.0")], Console(width=120, no_color=True)
-    )
-
-    printed = capsys.readouterr().out
-    assert "Docker" in printed
-    assert "4.91.0" in printed
 
 
 BRACKETS = ["oops[/]", "[bold]weird[/bold]"]
@@ -217,46 +101,6 @@ def test_the_columns_print_brackets_as_text(capsys):
     printed = capsys.readouterr().out
     assert "oops[/]" in printed
     assert "[bold]weird[/bold]" in printed
-
-
-def test_an_app_name_with_brackets_survives_the_columns(capsys):
-    apps = [untracked(f"App{n}", "1.0") for n in range(5)] + [untracked("Foo [beta]", "2.0")]
-    report.print_untracked_apps(apps, Console(width=200, no_color=True))
-
-    assert "Foo [beta]" in capsys.readouterr().out
-
-
-def test_a_switched_off_updater_is_not_called_unknown(capsys):
-    # "Switched off" is a claim; "nobody answered" is the absence of one.
-    report.print_untracked_apps(
-        [
-            untracked("Off", "1.0", UpdaterStatus(app_updaters.SPARKLE, False)),
-            untracked("Unanswered", "1.0", UpdaterStatus(app_updaters.SPARKLE, None)),
-        ],
-        Console(width=200, no_color=True),
-    )
-
-    printed = capsys.readouterr().out
-    assert "Their updater is switched off: 1" in printed
-    assert "They have an updater, nobody answered for it: 1" in printed
-
-
-def test_apps_owned_by_someone_else_come_with_a_way_out(capsys):
-    report.print_foreign_owners(
-        [Path("/Applications/Firefox.app"), Path("/Applications/Disk Drill.app")],
-        Console(width=120, no_color=True),
-    )
-
-    printed = capsys.readouterr().out
-    assert "Owned by another user: 2" in printed
-    assert "Firefox.app" in printed
-    assert 'sudo chown -R $(id -un) "/Applications/Firefox.app"' in printed
-
-
-def test_nothing_is_printed_when_every_app_is_mine(capsys):
-    report.print_foreign_owners([], Console(width=120, no_color=True))
-
-    assert capsys.readouterr().out == ""
 
 
 def test_a_manager_says_when_it_left_something_out(capsys):
@@ -332,21 +176,6 @@ def with_feed(name, version, url="https://x.test/appcast.xml"):
         name, version, Path(f"/Applications/{name}.app"),
         UpdaterStatus(app_updaters.SPARKLE, True, False, "2026-08-16", url),
     )
-
-
-def test_an_app_whose_feed_went_quiet_is_listed_once(capsys):
-    # By what it does now, not by what its settings still claim it does.
-    url = "https://x.test/appcast.xml"
-    report.print_untracked_apps(
-        [with_feed("Air", "262.579.44", url)],
-        Console(width=200, no_color=True),
-        offered={url: appcast.FeedAnswer(error="its feed answers 403")},
-    )
-
-    printed = capsys.readouterr().out
-    assert "Cannot update themselves any more: 1" in printed
-    assert "its feed answers 403" in printed
-    assert "These update themselves" not in printed
 
 
 def report_of(findings, width=80, terminal=False):
