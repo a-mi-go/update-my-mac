@@ -6,10 +6,9 @@ from update_my_mac import __version__
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.view import report
-from update_my_mac.view import sections
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.installed_apps import InstalledApp
-from update_my_mac.managers import ManagerReport, ManagerUpdate
+from update_my_mac.managers import ManagerReport
 
 
 def rendered(reports):
