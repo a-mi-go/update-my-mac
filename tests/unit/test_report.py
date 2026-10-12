@@ -3,6 +3,7 @@ from pathlib import Path
 from rich.console import Console
 
 from update_my_mac import __version__
+from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.view import report
 from update_my_mac.view import sections
@@ -186,7 +187,7 @@ def report_of(findings, width=80, terminal=False):
 
 
 def test_the_report_is_framed_for_someone_watching():
-    findings = sections.Findings(
+    findings = Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
     )
 
@@ -198,7 +199,7 @@ def test_the_report_is_framed_for_someone_watching():
 
 
 def test_a_run_without_a_frame_still_says_what_wrote_it():
-    findings = sections.Findings(reports=[ManagerReport("brew", "Homebrew", [])])
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", [])])
 
     assert f"update-my-mac {__version__}" in report_of(findings)
 
@@ -206,7 +207,7 @@ def test_a_run_without_a_frame_still_says_what_wrote_it():
 def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
     # Every line would start with a border, which is only in the way in a
     # pipe or a log.
-    findings = sections.Findings(
+    findings = Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
     )
 
@@ -220,7 +221,7 @@ def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
 
 def test_a_clean_run_says_which_managers_answered():
     # Silence about a manager reads as "not checked".
-    findings = sections.Findings(reports=[
+    findings = Findings(reports=[
         ManagerReport("brew", "Homebrew", []),
         ManagerReport("mas", "Mac App Store", []),
     ])
@@ -232,14 +233,14 @@ def test_a_clean_run_says_which_managers_answered():
 
 
 def test_a_machine_with_no_managers_is_not_told_everything_is_fine():
-    printed = report_of(sections.Findings(any_manager_installed=False))
+    printed = report_of(Findings(any_manager_installed=False))
 
     assert "No supported package managers found." in printed
     assert "Everything is up to date" not in printed
 
 
 def test_a_section_says_how_many_and_why_it_is_there():
-    findings = sections.Findings(
+    findings = Findings(
         reports=[ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"])]
     )
 
@@ -250,7 +251,7 @@ def test_a_section_says_how_many_and_why_it_is_there():
 
 
 def test_a_reason_that_would_not_fit_is_left_off_rather_than_wrapped():
-    findings = sections.Findings(
+    findings = Findings(
         reports=[ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"])]
     )
 
@@ -261,7 +262,7 @@ def test_a_reason_that_would_not_fit_is_left_off_rather_than_wrapped():
 
 
 def test_the_managers_that_are_current_are_said_so_in_green():
-    findings = sections.Findings(reports=[ManagerReport("brew", "Homebrew", [])])
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", [])])
     console = Console(width=80, force_terminal=True)
     with console.capture() as captured:
         report.print_report(findings, console)
