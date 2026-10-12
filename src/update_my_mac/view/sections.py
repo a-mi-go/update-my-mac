@@ -5,7 +5,7 @@ reading the result. A section is named after what you would do about it, and
 how loud it is says what happens if you do nothing.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
@@ -55,23 +55,6 @@ class Section:
             return str(self.count)
         noun, _, rest = self.counted_as.partition(" ")
         return f"{self.count} {_pluralised(noun, self.count)} {rest}".rstrip()
-
-
-@dataclass
-class Findings:
-    """Everything one run turned up, before anyone decides how to show it."""
-
-    managers_behind: list = field(default_factory=list)
-    reports: list = field(default_factory=list)
-    untracked: list = field(default_factory=list)
-    offered: dict = field(default_factory=dict)
-    left_alone: int = 0
-    doubled: list = field(default_factory=list)
-    apps_behind: list = field(default_factory=list)
-    stale: list = field(default_factory=list)
-    foreign: list = field(default_factory=list)
-    find_cask: object = None
-    any_manager_installed: bool = True
 
 
 def of(findings):

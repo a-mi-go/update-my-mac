@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.managers.homebrew import behind_the_recipe
@@ -37,11 +38,11 @@ def find(title, found):
 
 
 def test_nothing_found_means_no_sections():
-    assert sections.of(sections.Findings()) == []
+    assert sections.of(Findings()) == []
 
 
 def test_a_check_that_could_not_run_is_the_loudest_thing():
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         reports=[ManagerReport("npm", "npm (global)", [], "ENOTFOUND")]
     ))
 
@@ -50,7 +51,7 @@ def test_a_check_that_could_not_run_is_the_loudest_thing():
 
 
 def test_a_manager_that_failed_both_questions_is_named_once():
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         reports=[ManagerReport("npm", "npm (global)", [], "ENOTFOUND")],
         managers_behind=[ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
     ))
@@ -59,7 +60,7 @@ def test_a_manager_that_failed_both_questions_is_named_once():
 
 
 def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
         apps_behind=[behind()],
     ))
@@ -70,7 +71,7 @@ def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
 
 
 def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
-    found = sections.of(sections.Findings(apps_behind=[behind(recorded="5.0.6")]))
+    found = sections.of(Findings(apps_behind=[behind(recorded="5.0.6")]))
 
     written_down = find("No upgrade will fetch these", found)
     assert written_down.level == sections.CRITICAL
@@ -78,7 +79,7 @@ def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
 
 
 def test_every_other_manager_gets_its_own_section():
-    found = sections.of(sections.Findings(reports=[
+    found = sections.of(Findings(reports=[
         ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"]),
         ManagerReport("npm", "npm (global)", ["eslint  9.0.0 → 9.12.0"]),
     ]))
@@ -92,7 +93,7 @@ def test_a_doubled_command_counts_once_although_it_takes_two_rows():
         Copy("npm (global)", Path("/b"), "@openai/codex", (), "0.157.1"),
     ])
 
-    twice = find("Installed twice", sections.of(sections.Findings(doubled=[doubled])))
+    twice = find("Installed twice", sections.of(Findings(doubled=[doubled])))
 
     assert twice.count == 1
     assert len(twice.rows) == 2
@@ -100,7 +101,7 @@ def test_a_doubled_command_counts_once_although_it_takes_two_rows():
 
 def test_an_app_whose_feed_is_quiet_is_not_also_called_self_updating():
     feed = "https://x.test/appcast.xml"
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         untracked=[app("Air", "1.0", sparkle(feed=feed))],
         offered={feed: appcast.FeedAnswer(error="its feed answers 403")},
     ))
@@ -110,7 +111,7 @@ def test_an_app_whose_feed_is_quiet_is_not_also_called_self_updating():
 
 def test_an_app_that_looks_after_itself_is_only_information():
     feed = "https://x.test/appcast.xml"
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         untracked=[app("Dockish", "1.1", sparkle(feed=feed))],
         offered={feed: appcast.FeedAnswer(version="1.2.5")},
     ))
@@ -121,7 +122,7 @@ def test_an_app_that_looks_after_itself_is_only_information():
 
 
 def test_an_app_with_a_recipe_says_which_one():
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         untracked=[app("BetterDisplay", "5.0.6")],
         find_cask=lambda a: Cask("betterdisplay", "https://x.test/", "5.0.6"),
     ))
@@ -130,7 +131,7 @@ def test_an_app_with_a_recipe_says_which_one():
 
 
 def test_the_managers_that_answered_and_had_nothing_to_say_are_named():
-    findings = sections.Findings(reports=[
+    findings = Findings(reports=[
         ManagerReport("brew", "Homebrew", []),
         ManagerReport("npm", "npm (global)", ["eslint  9.0.0 → 9.12.0"]),
         ManagerReport("mas", "Mac App Store", [], "boom"),
@@ -140,7 +141,7 @@ def test_the_managers_that_answered_and_had_nothing_to_say_are_named():
 
 
 def test_what_needs_you_is_counted_apart_from_what_can_wait():
-    found = sections.of(sections.Findings(
+    found = sections.of(Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
         untracked=[app("Evoto", "7.1.5")],
     ))
@@ -149,7 +150,7 @@ def test_what_needs_you_is_counted_apart_from_what_can_wait():
 
 
 def test_an_updater_that_is_switched_off_is_not_the_same_as_none():
-    found = sections.of(sections.Findings(untracked=[
+    found = sections.of(Findings(untracked=[
         app("Off", "1.0", sparkle(automatic=False, feed="")),
         app("Nothing", "1.0"),
     ]))
@@ -160,7 +161,7 @@ def test_an_updater_that_is_switched_off_is_not_the_same_as_none():
 
 
 def test_an_updater_nobody_answered_for_gets_its_own_line():
-    found = sections.of(sections.Findings(untracked=[
+    found = sections.of(Findings(untracked=[
         app("Unanswered", "1.0", sparkle(automatic=None, feed="")),
     ]))
 
@@ -172,7 +173,7 @@ def test_an_electron_app_is_not_counted_as_having_nothing():
     # Exodus ships Squirrel and keeps itself current, and was listed under
     # "nobody checks these" because only Sparkle was ever looked for.
     electron = UpdaterStatus(app_updaters.SQUIRREL)
-    found = sections.of(sections.Findings(untracked=[app("Exodus", "24.33.4", electron)]))
+    found = sections.of(Findings(untracked=[app("Exodus", "24.33.4", electron)]))
 
     section = find("They have an updater, and nothing says whether it runs", found)
     assert section.rows[0].name == "Exodus"
@@ -180,7 +181,7 @@ def test_an_electron_app_is_not_counted_as_having_nothing():
 
 
 def test_a_count_says_what_it_counts_where_the_title_does_not():
-    found = sections.of(sections.Findings(reports=[
+    found = sections.of(Findings(reports=[
         ManagerReport("mas", "Mac App Store", ["Xcode  14.0 → 14.1"]),
         ManagerReport("brew", "Homebrew", ["git  1 → 2", "jq  1 → 2"]),
     ]))
@@ -190,6 +191,6 @@ def test_a_count_says_what_it_counts_where_the_title_does_not():
 
 
 def test_a_title_that_already_names_the_thing_only_gets_the_number():
-    found = sections.of(sections.Findings(untracked=[app("Evoto", "7.1.5")]))
+    found = sections.of(Findings(untracked=[app("Evoto", "7.1.5")]))
 
     assert find("Untracked apps", found).counted() == "1"
