@@ -5,6 +5,7 @@ import pytest
 from update_my_mac.view.prompting import BULLET
 
 from update_my_mac.view import arrow_menu
+from update_my_mac.view import output
 from update_my_mac.view import prompting
 
 from fake_terminal import Terminal
@@ -680,3 +681,56 @@ def test_y_and_n_pick_directly():
 
 def test_a_no_default_starts_on_no():
     assert answered_with(ENTER, default=False) is False
+
+
+class Widening:
+    """An output whose window is 80 columns wide, then 100 once the first poll (at 0.5s) has seen it."""
+
+    def __init__(self):
+        import time
+
+        from prompt_toolkit.output import DummyOutput
+
+        self.output = DummyOutput()
+        self.output.get_size = self.size
+        self.started = time.monotonic()
+
+    def size(self):
+        import time
+
+        from prompt_toolkit.data_structures import Size
+
+        return Size(24, 80 if time.monotonic() - self.started < 0.7 else 100)
+
+
+def asked_in_a_window(output):
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    with create_pipe_input() as typed, create_app_session(input=typed, output=output):
+        return arrow_menu.yes_or_no("Update them now?")
+
+
+def test_a_menu_ends_when_the_window_got_another_width(monkeypatch):
+    monkeypatch.setattr(arrow_menu, "RESIZE_SETTLE", 0)
+
+    with output.redrawn_on_resize(lambda: None):
+        with pytest.raises(arrow_menu.Resized):
+            asked_in_a_window(Widening().output)
+
+
+def test_a_window_nobody_resizes_leaves_the_menu_alone():
+    # Armed, but nothing changes: the answer is still what was typed.
+    with output.redrawn_on_resize(lambda: None):
+        assert answered_with(ENTER) is True
+
+
+def test_a_menu_is_not_ended_by_a_resize_unless_asked_to(monkeypatch):
+    monkeypatch.setattr(arrow_menu, "RESIZE_SETTLE", 0)
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    # Not armed: the width changing is nothing the menu reacts to.
+    with create_pipe_input() as typed, create_app_session(input=typed, output=Widening().output):
+        typed.send_text("\r")
+        assert arrow_menu.yes_or_no("Update them now?") is True

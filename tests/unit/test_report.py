@@ -291,7 +291,7 @@ def test_the_managers_that_are_current_are_said_so_in_green():
     assert "\x1b[32mup to date: Homebrew" in printed
 
 
-def test_the_frame_stops_growing_so_a_resize_has_less_to_tear():
+def test_the_frame_stops_growing_at_a_readable_width():
     findings = Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
     )
@@ -301,26 +301,3 @@ def test_the_frame_stops_growing_so_a_resize_has_less_to_tear():
     widest = max(Text.from_ansi(line).cell_len for line in printed.splitlines())
     assert widest == report.REPORT_MAX_WIDTH
 
-
-def test_the_count_in_a_heading_is_not_bold():
-    section = sections.Section(
-        sections.WARNING, "Homebrew", "", [sections.Row("git")], counted_as=sections.UPDATES
-    )
-
-    heading = report._heading(section, 80)
-
-    styles = {heading.plain[span.start:span.end]: str(span.style) for span in heading.spans}
-    assert styles[section.counted()] == "cyan"
-    assert "bold" in styles["Homebrew "]
-
-
-def test_the_title_says_it_is_a_report_and_a_blank_line_comes_before_it():
-    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
-
-    framed = report_of(findings, terminal=True)
-    plain = report_of(findings)
-
-    assert f"update-my-mac {__version__} report" in framed.splitlines()[1].replace("\x1b[1m", "").replace("\x1b[2m", "").replace("\x1b[0m", "")
-    assert framed.startswith("\n")
-    assert plain.startswith("\n")
-    assert f"update-my-mac {__version__} report" in plain

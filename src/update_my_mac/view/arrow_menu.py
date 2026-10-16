@@ -5,6 +5,8 @@ prints numbered options and reads a typed number instead.
 import importlib.util
 import sys
 
+from update_my_mac.view import output
+
 POINTER = "❯"
 QMARK = "፧፧"
 SEPARATOR = "─" * 24
@@ -15,8 +17,17 @@ NOTE_COLOUR = "#999999"
 NOTE_INDENT = "   "
 
 
+# How long the window has to keep its width before the screen is drawn again:
+# dragging an edge resizes it at every step, and only the last one counts.
+RESIZE_SETTLE = 0.3
+
+
 class Unusable(Exception):
     """The menu could not be drawn, whatever the reason."""
+
+
+class Resized(Exception):
+    """The window got another width while the menu was asking."""
 
 
 def unusable_message(failure):
@@ -207,11 +218,34 @@ def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), star
 
 def _answer_to(prompt, warn_in_menu=False, blank_line=False):
     _ask_twice_before_aborting(prompt, warn_in_menu, blank_line)
+    if output.redraws_on_resize():
+        _end_when_resized(prompt.application)
     # A Ctrl-C is a BaseException, so it passes this by and ends the run.
     try:
         return prompt.unsafe_ask()
+    except Resized:
+        raise
     except Exception as failure:
         raise Unusable(failure) from failure
+
+
+def _end_when_resized(app):
+    """Ends the prompt with Resized once the window's width has stopped changing."""
+    width = app.output.get_size().columns
+    waiting = []
+
+    def end():
+        if not app.is_done:
+            app.exit(exception=Resized())
+
+    def look_at_the_width(_app):
+        for timer in waiting:
+            timer.cancel()
+        waiting.clear()
+        if app.output.get_size().columns != width:
+            waiting.append(app.loop.call_later(RESIZE_SETTLE, end))
+
+    app.before_render += look_at_the_width
 
 
 def _ask_twice_before_aborting(prompt, warn_in_menu=False, blank_line=False):

@@ -47,8 +47,15 @@ def run_interactive_mode():
     findings.managers_behind = managers.still_behind(managers_behind, result.updated)
     report.print_report(findings)
 
+    def print_the_report_again():
+        report.print_report(findings)
+        output.console.print()
+
     # Resolving issues first, so the update menu below lists what is left.
-    resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
+    # Until it is answered the screen shows only the report, which a terminal
+    # tore apart if the window was resized, so it is printed again then.
+    with output.redrawn_on_resize(print_the_report_again):
+        resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
 
     reports = findings.reports
     if resolved:
