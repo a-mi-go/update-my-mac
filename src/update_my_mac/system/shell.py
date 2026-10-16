@@ -16,18 +16,18 @@ class CommandResult:
 
 
 # The environment the run's commands start with. None until the run sets one.
-_prepared = None
+_run_environment = None
 
 
 def use_environment(env):
     """Makes every later command and lookup start from this environment."""
-    global _prepared
-    _prepared = env
+    global _run_environment
+    _run_environment = env
 
 
 def current_environment():
     """Returns the environment a command starts with."""
-    return os.environ if _prepared is None else _prepared
+    return os.environ if _run_environment is None else _run_environment
 
 
 def find_executable(command):
@@ -36,7 +36,7 @@ def find_executable(command):
 
 def _for_command(env):
     """Returns the environment to run with: the one given, else the run's own."""
-    return _prepared if env is None else env
+    return _run_environment if env is None else env
 
 
 def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
