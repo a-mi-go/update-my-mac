@@ -30,8 +30,8 @@ class ShadowingDefinition:
         return f"{self.kind} in {self.path}"
 
 
-def fish_config_dir(env):
-    base = env.get("XDG_CONFIG_HOME") or os.path.join(env.get("HOME", ""), ".config")
+def fish_config_dir():
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.environ.get("HOME", ""), ".config")
     return Path(base) / "fish"
 
 
@@ -72,8 +72,8 @@ def _fish_patterns(name):
     ]
 
 
-def find_shadowing_definitions(name, env):
-    home = Path(env.get("HOME", ""))
+def find_shadowing_definitions(name):
+    home = Path(os.environ.get("HOME", ""))
     found = []
 
     for file_name in ZSH_CONFIGS + BASH_CONFIGS:
@@ -81,7 +81,7 @@ def find_shadowing_definitions(name, env):
         for number, kind, can_disable in _matching_lines(path, _posix_patterns(name)):
             found.append(ShadowingDefinition(kind, path, number, can_disable))
 
-    fish_dir = fish_config_dir(env)
+    fish_dir = fish_config_dir()
     fish_files = [fish_dir / "config.fish", *sorted((fish_dir / "conf.d").glob("*.fish"))]
     for path in fish_files:
         for number, kind, can_disable in _matching_lines(path, _fish_patterns(name)):
@@ -95,9 +95,9 @@ def find_shadowing_definitions(name, env):
     return found
 
 
-def disable(definitions, now=None):
+def disable(definitions):
     """Comments out single lines, moves function files aside. Returns what changed."""
-    stamp = time.strftime("%Y%m%d%H%M%S", time.localtime(now))
+    stamp = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
     changes = []
     lines_by_file = {}
 
@@ -167,14 +167,14 @@ def parse_elapsed(elapsed):
     return ((days * 24 + hours) * 60 + minutes) * 60 + seconds
 
 
-def config_files_for(shell, name, env):
-    home = Path(env.get("HOME", ""))
+def config_files_for(shell, name):
+    home = Path(os.environ.get("HOME", ""))
     if shell == "zsh":
         return [home / file_name for file_name in ZSH_CONFIGS]
     if shell == "bash":
         return [home / file_name for file_name in BASH_CONFIGS]
     if shell == "fish":
-        fish_dir = fish_config_dir(env)
+        fish_dir = fish_config_dir()
         return [
             fish_dir / "config.fish",
             *(fish_dir / "conf.d").glob("*.fish"),
@@ -200,8 +200,11 @@ def clear_line(shell, name):
 # would take its default, and that is a change nobody agreed to.
 QUIET_FRAMEWORKS = {"DISABLE_AUTO_UPDATE": "true", "DISABLE_UPDATE_PROMPT": "true"}
 
+# How long a new terminal gets to read its config before the answer is unknown.
+NEW_TERMINAL_TIMEOUT_SECONDS = 20
 
-def found_in_new_terminal(shell, name, bin_dir, env, timeout=20):
+
+def found_in_new_terminal(shell, name, bin_dir):
     """Whether a new terminal finds bin_dir/name: True, False, or None if unknown.
 
     A fresh login shell is what a terminal tab is on macOS. It reads the whole
@@ -209,9 +212,9 @@ def found_in_new_terminal(shell, name, bin_dir, env, timeout=20):
     not in the edit that was meant to fix it. Whatever the config prints is
     ignored: only where the shell resolves name counts, so an alias or another
     program of that name is a False. A shell that is missing, or takes longer
-    than timeout (a prompt of its own, say), is just unknown.
+    than NEW_TERMINAL_TIMEOUT_SECONDS (a prompt of its own, say), is just unknown.
     """
-    if shutil.which(shell, path=env.get("PATH", "")) is None:
+    if shutil.which(shell, path=os.environ.get("PATH", "")) is None:
         return None
     scripts = {
         "bash": ["bash", "-lic", 'command -v -- "$1"', "_", name],
@@ -222,13 +225,13 @@ def found_in_new_terminal(shell, name, bin_dir, env, timeout=20):
         # Its own process group, so that a timeout can end whatever the config
         # started in the background too; it would otherwise hold the pipe open.
         shell_process = subprocess.Popen(
-            scripts[shell], env={**env, **QUIET_FRAMEWORKS}, stdin=subprocess.DEVNULL,
+            scripts[shell], env={**os.environ, **QUIET_FRAMEWORKS}, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True,
         )
     except OSError:
         return None
     try:
-        output, _ = shell_process.communicate(timeout=timeout)
+        output, _ = shell_process.communicate(timeout=NEW_TERMINAL_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(shell_process.pid, signal.SIGKILL)
