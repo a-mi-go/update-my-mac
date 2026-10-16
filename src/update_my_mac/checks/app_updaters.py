@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass
 import urllib.parse
 
+from update_my_mac.system import shell
+
 SPARKLE = "sparkle"
 SQUIRREL = "squirrel"
 NONE = "none"
@@ -18,6 +20,7 @@ NONE = "none"
 AUTOMATIC_CHECKS = "SUEnableAutomaticChecks"
 SILENT_INSTALL = "SUAutomaticallyUpdate"
 LAST_CHECK = "SULastCheckTime"
+SKIPPED_VERSION = "SUSkippedVersion"
 FEED_URL = "SUFeedURL"
 
 
@@ -28,6 +31,7 @@ class UpdaterStatus:
     installs_silently: bool = False
     last_checked: str = ""
     feed_url: str = ""
+    skipped: str = ""
 
     @property
     def looks_after_itself(self):
@@ -46,19 +50,29 @@ class UpdaterStatus:
         # Squirrel is told its feed and schedule while the app runs, so
         # nothing on disk says whether it is on.
         if self.kind == SQUIRREL:
-            return "own updater, nothing says if it runs"
+            return "state unknown"
         if self.kind != SPARKLE:
-            return "no updater"
+            return "none found"
         if self.automatic is None:
-            answer = "never answered"
+            answer = "state unknown"
         elif self.automatic:
-            answer = "updates itself" if self.installs_silently else "checks only"
+            answer = "installs updates" if self.installs_silently else "checks only"
         else:
-            answer = "checking is off"
-        return f"{answer}, last checked {self.last_checked}" if self.last_checked else answer
+            answer = "auto checking off"
+        history = self.history_note()
+        return f"{answer}, {history}" if history else answer
+
+    def history_note(self):
+        """Returns when the updater last looked and which update was waved away."""
+        parts = []
+        if self.last_checked:
+            parts.append(f"last checked {self.last_checked}")
+        if self.skipped:
+            parts.append(f"skipped version {self.skipped}")
+        return ", ".join(parts)
 
 
-def site_behind(feed_url):
+def vendor_site(feed_url):
     """Returns the vendor's site, taken from the app's own update feed."""
     if not feed_url:
         return ""
@@ -85,7 +99,7 @@ def has_squirrel(app_path):
     return (app_path / "Contents" / "Frameworks" / "Squirrel.framework").is_dir()
 
 
-def read_users_app_settings(bundle_id, shell):
+def read_users_app_settings(bundle_id):
     """Returns the app's own preferences, as `defaults export` reports them."""
     if not bundle_id:
         return {}
@@ -114,19 +128,20 @@ def _timestamp_to_date(value):
         return ""
 
 
-def detect(app_path, shell, info=None):
+def detect(app_path, info=None):
     """Returns what the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
         return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
 
-    users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""), shell)
+    users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""))
     return UpdaterStatus(
         kind=SPARKLE,
         automatic=_may_check_automatically(users_answer, info),
         installs_silently=bool(users_answer.get(SILENT_INSTALL)),
         last_checked=_timestamp_to_date(users_answer.get(LAST_CHECK)),
         feed_url=info.get(FEED_URL, ""),
+        skipped=str(users_answer.get(SKIPPED_VERSION) or ""),
     )
 
 

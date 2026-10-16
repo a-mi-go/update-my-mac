@@ -84,6 +84,11 @@ each package once, remember the answer, and pass only approved packages to
 **`--background`.** Unattended run for a scheduled job: no prompts, a macOS
 notification when something is outdated, and an example launchd agent.
 
+**A scheduler.** The tool sets up its own recurring `--background` run, so that
+nobody writes a launchd plist by hand: pick how often, install the agent, show
+when it last ran and what it found, and remove it again. Builds on
+`--background`, so it comes after it.
+
 ## Later
 
 **Apps nobody opens any more.** An app that has not been launched in months is
@@ -96,6 +101,10 @@ would have to be moved to the trash by hand. Removing an app is the one thing
 here that cannot be undone by running the tool again, so it is never part of
 "fix everything" and never happens without being asked about that app by name.
 
+- Sort every module the way `controller/app.py` and `controller/self_update.py`
+  are: types on top, then the public functions, then the helpers in the order
+  they are used. A pure move with no other change, in its own pull request after
+  the current refactor has merged, and described in `docs/structure.md`.
 - `--dry-run` for `setup.sh`: show the name and config changes it would make.
 - Check that the files setup is about to change are writable before installing,
   so nothing can fail halfway.

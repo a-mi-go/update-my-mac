@@ -1,12 +1,14 @@
 """Command line entry point. Flags in, dispatch out, no logic here."""
 
 import argparse
+import sys
 
-from rich.console import Console
 
 from update_my_mac import __version__
 from update_my_mac.controller import app
+from update_my_mac.view import output
 from update_my_mac.system import environment
+from update_my_mac.system import shell
 
 
 def build_argument_parser(prog=None):
@@ -45,17 +47,26 @@ def build_argument_parser(prog=None):
 
 
 def main(argv=None, prog=None):
+    try:
+        return _run(argv, prog)
+    finally:
+        # However it ended, the prompt comes back below an empty line. Only on
+        # a terminal: a log or a pipe has no prompt to keep apart.
+        if sys.stdout.isatty():
+            print()
+
+
+def _run(argv, prog):
     # prog is None for the installed command, so the help names whatever it
     # was invoked as, including a second name chosen during setup.
     args = build_argument_parser(prog).parse_args(argv)
-    environment.prepare()
+    shell.use_environment(environment.with_managers_on_path())
 
     try:
         return _dispatch(args)
     except KeyboardInterrupt:
-        Console(highlight=False).print(
-            "\n[yellow]Stopped.[/] Whatever had already run has run, "
-            "nothing new was started."
+        output.console.print(
+            "\n[yellow]Stopped.[/] „Keep your mind open and your software updated.“ — Unknown"
         )
         return 130
 

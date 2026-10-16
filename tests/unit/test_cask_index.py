@@ -2,6 +2,8 @@ import json
 import os
 import time
 
+from fake_run import use_environment, swap
+
 from update_my_mac.managers.homebrew import casks
 
 PUBLISHED = [
@@ -69,7 +71,8 @@ def test_a_cask_without_a_token_is_ignored():
 
 
 def cached(tmp_path, by_app, age_in_seconds=0):
-    path = casks.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    path = casks.cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(by_app))
     when = time.time() - age_in_seconds
@@ -87,52 +90,67 @@ def refusing():
 def test_a_fresh_cache_is_used_without_fetching(tmp_path):
     env = cached(tmp_path, {"Codex.app": {"token": "codex-app"}})
 
-    index = casks.load(env, refusing())
+    use_environment(env)
+    swap(casks, "download", refusing())
+    index = casks.load()
     assert index.for_app("Codex.app").token == "codex-app"
 
 
 def test_a_stale_cache_is_replaced(tmp_path):
     env = cached(tmp_path, {"Old.app": {"token": "old"}}, age_in_seconds=2 * 24 * 60 * 60)
 
-    index = casks.load(env, lambda: {"New.app": {"token": "new"}})
+    use_environment(env)
+    swap(casks, "download", lambda: {"New.app": {"token": "new"}})
+    index = casks.load()
     assert index.for_app("Old.app") is None
     assert index.for_app("New.app").token == "new"
 
 
 def test_what_was_fetched_is_kept_for_next_time(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    casks.load(env, lambda: {"New.app": {"token": "new"}})
+    use_environment(env)
+    swap(casks, "download", lambda: {"New.app": {"token": "new"}})
+    casks.load()
 
-    assert casks.load(env, refusing()).for_app("New.app").token == "new"
+    swap(casks, "download", refusing())
+    assert casks.load().for_app("New.app").token == "new"
 
 
 def test_a_stale_cache_beats_no_answer(tmp_path):
     # Offline, an old lookup table is still better than an empty one.
     env = cached(tmp_path, {"Old.app": {"token": "old"}}, age_in_seconds=9 * 24 * 60 * 60)
 
-    assert casks.load(env, refusing()).for_app("Old.app").token == "old"
+    use_environment(env)
+    swap(casks, "download", refusing())
+    assert casks.load().for_app("Old.app").token == "old"
 
 
 def test_without_a_cache_or_a_network_the_index_is_simply_empty(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
 
-    assert len(casks.load(env, refusing())) == 0
+    use_environment(env)
+    swap(casks, "download", refusing())
+    assert len(casks.load()) == 0
 
 
 def test_a_damaged_cache_does_not_stop_the_run(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    path = casks.cache_path(env)
+    use_environment(env)
+    path = casks.cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{ not json")
 
-    assert len(casks.load(env, lambda: {"New.app": {"token": "new"}})) == 1
+    swap(casks, "download", lambda: {"New.app": {"token": "new"}})
+    assert len(casks.load()) == 1
 
 
 def test_the_cache_sits_where_the_xdg_variables_say(tmp_path):
-    xdg = casks.cache_path({"XDG_CACHE_HOME": str(tmp_path)})
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    xdg = casks.cache_path()
     assert xdg == tmp_path / "update-my-mac" / "casks.json"
 
-    default = casks.cache_path({"HOME": str(tmp_path)})
+    use_environment({"HOME": str(tmp_path)})
+    default = casks.cache_path()
     assert default == tmp_path / ".cache" / "update-my-mac" / "casks.json"
 
 

@@ -9,6 +9,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from update_my_mac.system import shell
+
 
 @dataclass(frozen=True)
 class Copy:
@@ -37,7 +39,7 @@ class Duplicate:
         return self.copies[1:]
 
 
-def _asked(shell, command, args):
+def _asked(command, args):
     executable = shell.find_executable(command)
     if executable is None:
         return ""
@@ -45,19 +47,19 @@ def _asked(shell, command, args):
     return result.stdout.strip() if result.success else ""
 
 
-def bin_directories(shell):
+def bin_directories():
     """Returns where each manager puts the commands it installs."""
     found = {}
 
-    prefix = _asked(shell, "brew", ["--prefix"])
+    prefix = _asked("brew", ["--prefix"])
     if prefix:
         found["Homebrew"] = Path(prefix) / "bin"
 
-    prefix = _asked(shell, "npm", ["prefix", "-g"])
+    prefix = _asked("npm", ["prefix", "-g"])
     if prefix:
         found["npm (global)"] = Path(prefix) / "bin"
 
-    directory = _asked(shell, "pnpm", ["bin", "-g"])
+    directory = _asked("pnpm", ["bin", "-g"])
     if directory:
         found["pnpm (global)"] = Path(directory)
 
@@ -107,18 +109,17 @@ def _version_in(manifest):
         return ""
 
 
-def _in_path_order(directories, env):
+def _in_path_order(directories):
     """Returns the manager directories, in the order PATH would search them."""
-    searched = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
+    searched = [entry for entry in shell.current_environment().get("PATH", "").split(os.pathsep) if entry]
     places = {Path(entry): position for position, entry in enumerate(searched)}
     never_on_path = len(searched)
     return sorted(directories.items(), key=lambda pair: places.get(pair[1], never_on_path))
 
 
-def find(shell, env=None):
+def find():
     """Returns commands that exist in more than one manager's directory."""
-    env = os.environ if env is None else env
-    ordered = _in_path_order(bin_directories(shell), env)
+    ordered = _in_path_order(bin_directories())
 
     seen = {}
     for manager, directory in ordered:

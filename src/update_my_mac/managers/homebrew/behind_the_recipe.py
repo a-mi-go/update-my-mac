@@ -9,8 +9,9 @@ happens to have a recipe, and the way to bring that one in is the handover,
 not an upgrade.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from update_my_mac.checks import app_updaters
 from update_my_mac.checks import versions
 
 
@@ -21,9 +22,11 @@ class Behind:
     # What Homebrew wrote down when it installed the cask, which is not
     # necessarily what it put on disk.
     recorded: str = ""
+    updater: object = field(default_factory=app_updaters.UpdaterStatus)
 
     def version_change(self):
-        return f"{self.app.version} → {self.cask.version}"
+        return (f"{versions.without_build(self.app.version)} → "
+                f"{versions.without_build(self.cask.version)}")
 
     def describe(self):
         return f"{self.app.name}  {self.version_change()}"
@@ -39,16 +42,6 @@ def is_behind(app_version, cask_version):
     return versions.is_newer(cask_version, than=app_version)
 
 
-def to_reinstall(behind):
-    """Returns the casks Homebrew has a wrong version written down for."""
-    return [item.cask.token for item in behind if item.false_version_recorded]
-
-
-def to_upgrade(behind):
-    """Returns the casks a greedy upgrade would actually pick up."""
-    return [item.cask.token for item in behind if not item.false_version_recorded]
-
-
 def find(apps, casks, recorded=None, already_reported=()):
     """Returns apps behind their recipe that Homebrew says nothing about."""
     recorded = recorded or {}
@@ -60,5 +53,8 @@ def find(apps, casks, recorded=None, already_reported=()):
         if versions.any_version_matches(app.versions_named(), cask.version):
             continue
         if is_behind(app.version, cask.version):
-            found.append(Behind(app, cask, recorded[cask.token]))
+            found.append(
+                Behind(app, cask, recorded[cask.token], app_updaters.detect(app.path))
+            )
     return found
+

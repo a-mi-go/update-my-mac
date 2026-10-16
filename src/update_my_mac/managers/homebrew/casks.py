@@ -23,8 +23,8 @@ class Cask:
     installs_a_package: bool = False
 
 
-def cache_path(env):
-    base = env.get("XDG_CACHE_HOME") or os.path.join(env.get("HOME", ""), ".cache")
+def cache_path():
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.environ.get("HOME", ""), ".cache")
     return Path(base) / "update-my-mac" / "casks.json"
 
 
@@ -136,15 +136,15 @@ class CaskIndex:
         return len(self.by_app)
 
 
-def load(env=None, fetch=download):
+def load():
     """Returns the lookup table: recent from disk, else fetched, else stale from disk."""
-    path = cache_path(os.environ if env is None else env)
+    path = cache_path()
     stored, age = read_cache(path)
     if stored is not None and age < STALE_AFTER_SECONDS:
         return CaskIndex(stored)
 
     try:
-        fetched = fetch()
+        fetched = download()
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return CaskIndex(stored or {})
 

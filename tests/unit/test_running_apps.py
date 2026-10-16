@@ -3,6 +3,7 @@
 import os
 import plistlib
 import time
+from fake_run import use_environment, use_shell
 
 from update_my_mac.checks import running_apps
 from update_my_mac.system.shell import CommandResult
@@ -50,7 +51,9 @@ def test_an_app_replaced_after_it_started_is_found(tmp_path):
     app = bundle(tmp_path, "Markdown Preview", written_ago_seconds=60)
     shell = PsShell([running(app, "02:00:00")])
 
-    found = running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    found = running_apps.find()
     assert [item.name for item in found] == ["Markdown Preview"]
 
 
@@ -58,7 +61,9 @@ def test_an_app_started_after_it_was_replaced_is_current(tmp_path):
     app = bundle(tmp_path, "Current", written_ago_seconds=7200)
     shell = PsShell([running(app, "10:00")])
 
-    assert running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_a_bundle_written_as_the_app_launched_is_not_a_find(tmp_path):
@@ -67,7 +72,9 @@ def test_a_bundle_written_as_the_app_launched_is_not_a_find(tmp_path):
     app = bundle(tmp_path, "JustLaunched", written_ago_seconds=30)
     shell = PsShell([running(app, "00:30")])
 
-    assert running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_the_app_this_tool_runs_inside_is_left_alone(tmp_path):
@@ -78,14 +85,18 @@ def test_the_app_this_tool_runs_inside_is_left_alone(tmp_path):
         parents={str(os.getpid()): f"1 {ours}"},
     )
 
-    assert running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_a_process_that_is_not_an_app_is_ignored(tmp_path):
     bundle(tmp_path, "Whatever", written_ago_seconds=60)
     shell = PsShell([("200", "02:00:00", "/usr/sbin/cfprefsd")])
 
-    assert running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_an_app_somewhere_else_is_not_our_business(tmp_path):
@@ -94,18 +105,24 @@ def test_an_app_somewhere_else_is_not_our_business(tmp_path):
     app = bundle(elsewhere, "Stray", written_ago_seconds=60)
     shell = PsShell([running(app, "02:00:00")])
 
-    assert running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_each_app_is_named_once_however_many_processes_it_has(tmp_path):
     app = bundle(tmp_path, "Chatty", written_ago_seconds=60)
     shell = PsShell([running(app, "02:00:00", 1), running(app, "02:00:00", 2)])
 
-    assert len(running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})) == 1
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert len(running_apps.find()) == 1
 
 
 def test_without_ps_nothing_is_claimed(tmp_path):
-    assert running_apps.find(PsShell([], has_ps=False), {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)}) == []
+    use_shell(PsShell([], has_ps=False))
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    assert running_apps.find() == []
 
 
 def test_the_version_waiting_on_disk_is_read(tmp_path):
@@ -114,7 +131,9 @@ def test_the_version_waiting_on_disk_is_read(tmp_path):
     app = bundle(tmp_path, "Markdown Preview", written_ago_seconds=60, version="1.7.2")
     shell = PsShell([running(app, "02:00:00")])
 
-    found = running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    found = running_apps.find()
 
     assert found[0].version == "1.7.2"
     assert found[0].describe().startswith("Markdown Preview  1.7.2:")
@@ -124,6 +143,8 @@ def test_an_app_that_says_nothing_about_its_version_is_still_named(tmp_path):
     app = bundle(tmp_path, "Quiet", written_ago_seconds=60)
     shell = PsShell([running(app, "02:00:00")])
 
-    found = running_apps.find(shell, {"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    use_shell(shell)
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    found = running_apps.find()
 
     assert found[0].describe().startswith("Quiet:")

@@ -3,6 +3,7 @@ import pytest
 from update_my_mac import managers
 from update_my_mac.managers import CheckFailed
 from update_my_mac.system.shell import CommandResult
+from fake_run import use_shell
 
 NPM_OUTDATED = """{
   "typescript": {"current": "5.4.2", "wanted": "5.4.5", "latest": "5.4.5"},
@@ -65,7 +66,8 @@ def test_failing_npm_is_reported_as_an_error_not_a_package():
         installed=("npm",), result=CommandResult(True, NPM_NETWORK_FAILURE, "")
     )
 
-    report = manager("npm").outdated(shell)
+    use_shell(shell)
+    report = manager("npm").outdated()
     assert report.outdated_packages == []
     assert "ENOTFOUND" in report.error_message
 
@@ -76,14 +78,16 @@ def test_stderr_is_never_parsed_as_packages():
         result=CommandResult(True, "{}", "npm warn config global deprecated"),
     )
 
-    report = manager("npm").outdated(shell)
+    use_shell(shell)
+    report = manager("npm").outdated()
     assert report.outdated_packages == []
     assert report.error_message == ""
 
 
 def test_missing_manager_is_skipped():
     shell = FakeShell(installed=(), result=CommandResult(True, "", ""))
-    assert manager("mas").outdated(shell) is None
+    use_shell(shell)
+    assert manager("mas").outdated() is None
 
 
 def test_nonzero_exit_is_reported_with_its_stderr():
@@ -91,7 +95,8 @@ def test_nonzero_exit_is_reported_with_its_stderr():
         installed=("brew",), result=CommandResult(False, "", "brew: boom")
     )
 
-    report = manager("brew").outdated(shell)
+    use_shell(shell)
+    report = manager("brew").outdated()
     assert report.error_message == "brew: boom"
     assert report.outdated_packages == []
 
@@ -101,14 +106,27 @@ def test_brew_runs_without_an_auto_update():
         installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")
     )
 
-    manager("brew").outdated(shell)
+    use_shell(shell)
+    manager("brew").outdated()
     _, env = shell.calls[0]
     assert env["HOMEBREW_NO_AUTO_UPDATE"] == "1"
 
 
+def test_brew_runs_without_its_ask_mode():
+    shell = FakeShell(
+        installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")
+    )
+
+    use_shell(shell)
+    manager("brew").outdated()
+    _, env = shell.calls[0]
+    assert env["HOMEBREW_NO_ASK"] == "1"
+
+
 def test_checking_what_is_outdated_skips_what_is_missing():
     shell = FakeShell(installed=(), result=CommandResult(True, "", ""))
-    assert managers.check_what_is_outdated(shell) == []
+    use_shell(shell)
+    assert managers.check_what_is_outdated() == []
 
 
 def test_silent_nonzero_exit_is_a_failure_not_up_to_date():
@@ -119,7 +137,8 @@ def test_silent_nonzero_exit_is_a_failure_not_up_to_date():
         result=CommandResult(True, "", "npm error code E401", exit_code=1),
     )
 
-    report = manager("npm").outdated(shell)
+    use_shell(shell)
+    report = manager("npm").outdated()
     assert report.outdated_packages == []
     assert "E401" in report.error_message
 
@@ -127,7 +146,8 @@ def test_silent_nonzero_exit_is_a_failure_not_up_to_date():
 def test_silent_zero_exit_really_is_up_to_date():
     shell = FakeShell(installed=("mas",), result=CommandResult(True, "", ""))
 
-    report = manager("mas").outdated(shell)
+    use_shell(shell)
+    report = manager("mas").outdated()
     assert report.outdated_packages == []
     assert report.error_message == ""
 
@@ -135,7 +155,8 @@ def test_each_manager_is_asked_the_right_question():
     asked = {}
     for entry in managers.MANAGERS:
         shell = FakeShell(installed=(entry.command,), result=CommandResult(True, "{}", ""))
-        entry.outdated(shell)
+        use_shell(shell)
+        entry.outdated()
         args, env = shell.calls[0]
         asked[entry.key] = (args, env)
 
@@ -150,7 +171,8 @@ def test_each_manager_is_asked_the_right_question():
 def test_only_homebrew_gets_an_environment_override():
     for entry in managers.MANAGERS:
         shell = FakeShell(installed=(entry.command,), result=CommandResult(True, "{}", ""))
-        entry.outdated(shell)
+        use_shell(shell)
+        entry.outdated()
         _, env = shell.calls[0]
         if entry.key == "brew":
             assert env["HOMEBREW_NO_AUTO_UPDATE"] == "1"
@@ -160,14 +182,15 @@ def test_only_homebrew_gets_an_environment_override():
 
 def test_a_manager_without_upgrade_arguments_is_not_run():
     shell = FakeShell(installed=("brew",), result=CommandResult(True, "", ""))
-    shell.stream_command = lambda args, env=None: 0
+    shell.stream_command = lambda args, env=None, silent_status=None: 0
     class WithoutUpgradeArguments(managers.PackageManager):
         key, label, command = "x", "X", "brew"
         outdated_args = ("outdated",)
 
     entry = WithoutUpgradeArguments()
 
-    assert entry.upgrade(shell) is None
+    use_shell(shell)
+    assert entry.upgrade() is None
 
 
 NPM_ITSELF_OUTDATED = """{
@@ -178,13 +201,15 @@ NPM_ITSELF_OUTDATED = """{
 def test_a_manager_that_cannot_update_itself_is_never_offered():
     shell = FakeShell({"mas"}, CommandResult(True, "", ""))
 
-    assert manager("mas").check_self(shell) is None
+    use_shell(shell)
+    assert manager("mas").check_self() is None
 
 
 def test_npm_reports_its_own_new_version():
     shell = FakeShell({"npm"}, CommandResult(True, NPM_ITSELF_OUTDATED, "", 1))
 
-    update = manager("npm").check_self(shell)
+    use_shell(shell)
+    update = manager("npm").check_self()
     assert update.key == "npm"
     assert update.description == "npm  12.0.2 → 12.1.0"
 
@@ -192,7 +217,8 @@ def test_npm_reports_its_own_new_version():
 def test_a_current_npm_is_not_offered():
     shell = FakeShell({"npm"}, CommandResult(True, "{}", ""))
 
-    assert manager("npm").check_self(shell) is None
+    use_shell(shell)
+    assert manager("npm").check_self() is None
 
 
 def test_other_packages_in_the_answer_are_not_mistaken_for_npm():
@@ -200,13 +226,15 @@ def test_other_packages_in_the_answer_are_not_mistaken_for_npm():
     # by name rather than trusted to hold nothing else.
     shell = FakeShell({"npm"}, CommandResult(True, NPM_OUTDATED, "", 1))
 
-    assert manager("npm").check_self(shell) is None
+    use_shell(shell)
+    assert manager("npm").check_self() is None
 
 
 def test_a_failed_self_check_is_reported_rather_than_raised():
     shell = FakeShell({"npm"}, CommandResult(True, NPM_NETWORK_FAILURE, "", 1))
 
-    update = manager("npm").check_self(shell)
+    use_shell(shell)
+    update = manager("npm").check_self()
     assert "ENOTFOUND" in update.error_message
 
 
@@ -231,27 +259,31 @@ def homebrew_cache(tmp_path, age_in_days):
 def test_a_fresh_homebrew_index_is_not_offered(tmp_path):
     shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=0))
 
-    assert manager("brew").check_self(shell) is None
+    use_shell(shell)
+    assert manager("brew").check_self() is None
 
 
 def test_a_stale_homebrew_index_says_how_old_it_is(tmp_path):
     shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=3))
 
-    update = manager("brew").check_self(shell)
+    use_shell(shell)
+    update = manager("brew").check_self()
     assert update.description == "index is 3 days old"
 
 
 def test_one_day_is_written_in_the_singular(tmp_path):
     shell = HomebrewShell(homebrew_cache(tmp_path, age_in_days=1.5))
 
-    assert manager("brew").check_self(shell).description == "index is 1 day old"
+    use_shell(shell)
+    assert manager("brew").check_self().description == "index is 1 day old"
 
 
 def test_a_cache_without_an_index_is_offered(tmp_path):
     (tmp_path / "api").mkdir()
     shell = HomebrewShell(tmp_path)
 
-    update = manager("brew").check_self(shell)
+    use_shell(shell)
+    update = manager("brew").check_self()
     assert update.description == "index has never been fetched"
 
 
@@ -259,13 +291,15 @@ def test_a_brew_that_says_nothing_about_its_cache_is_left_alone():
     # An empty answer used to be read as the current directory.
     shell = HomebrewShell("")
 
-    assert manager("brew").check_self(shell) is None
+    use_shell(shell)
+    assert manager("brew").check_self() is None
 
 
 def test_only_installed_managers_are_asked_about_themselves():
     shell = FakeShell(set(), CommandResult(True, "{}", ""))
 
-    assert managers.check_themselves(shell) == []
+    use_shell(shell)
+    assert managers.check_themselves(managers.MANAGERS) == []
     assert shell.calls == []
 
 
@@ -274,7 +308,8 @@ def test_a_homebrew_without_an_api_cache_is_left_alone(tmp_path):
     # says nothing about whether Homebrew is behind.
     shell = HomebrewShell(tmp_path)
 
-    assert manager("brew").check_self(shell) is None
+    use_shell(shell)
+    assert manager("brew").check_self() is None
 
 
 TAP_INFO = """[
@@ -300,21 +335,24 @@ def test_a_tap_homebrew_ignores_is_carried_into_the_report():
     outdated = CommandResult(True, "git (2.48.1) < 2.49.0", "Warning: taps are not trusted:")
     shell = TwoAnswerShell(outdated, CommandResult(True, TAP_INFO, ""))
 
-    report = manager("brew").outdated(shell)
+    use_shell(shell)
+    report = manager("brew").outdated()
     assert report.ignored_taps == ["anomalyco/tap"]
 
 
 def test_nothing_is_claimed_when_homebrew_did_not_complain():
     shell = TwoAnswerShell(CommandResult(True, "", ""), CommandResult(True, TAP_INFO, ""))
 
-    assert manager("brew").outdated(shell).ignored_taps == []
+    use_shell(shell)
+    assert manager("brew").outdated().ignored_taps == []
 
 
 def test_an_unreadable_tap_list_is_not_guessed_at():
     outdated = CommandResult(True, "", "Warning: taps are not trusted:")
     shell = TwoAnswerShell(outdated, CommandResult(True, "not json", ""))
 
-    assert manager("brew").outdated(shell).ignored_taps == []
+    use_shell(shell)
+    assert manager("brew").outdated().ignored_taps == []
 
 
 def test_homebrew_versions_are_read_off_its_verbose_output():
@@ -356,3 +394,43 @@ def test_refreshing_nothing_leaves_every_manager_behind():
     behind = [behind_update("brew"), behind_update("npm")]
 
     assert managers.still_behind(behind, []) == behind
+
+
+def test_brew_leaves_running_apps_open_while_it_upgrades():
+    shell = FakeShell(
+        installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")
+    )
+
+    use_shell(shell)
+    manager("brew").outdated()
+    _, env = shell.calls[0]
+    assert env["HOMEBREW_NO_UPGRADE_QUIT_CASKS"] == "1"
+
+
+class StreamingShell:
+    def __init__(self, codes):
+        self.codes = list(codes)
+        self.streamed = []
+
+    def find_executable(self, command):
+        return f"/fake/{command}"
+
+    def stream_command(self, args, env=None, silent_status=None):
+        self.streamed.append(args[1:])
+        return self.codes.pop(0)
+
+
+def test_homebrew_clears_out_what_it_no_longer_needs():
+    shell = StreamingShell([0])
+
+    use_shell(shell)
+    assert managers.by_key("brew").cleanup() == 0
+    assert shell.streamed == [["cleanup"]]
+
+
+def test_a_manager_with_nothing_to_clear_out_runs_nothing():
+    shell = StreamingShell([])
+
+    use_shell(shell)
+    assert managers.by_key("npm").cleanup() is None
+    assert shell.streamed == []
