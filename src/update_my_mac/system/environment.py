@@ -53,4 +53,9 @@ def path_with_managers():
 
 
 def prepare():
-    os.environ["PATH"] = path_with_managers()
+    """Returns a copy of the environment with the manager locations on PATH.
+
+    The process's own environment is left alone; the run hands the copy to
+    `shell.use_environment`, and every command and lookup reads it from there.
+    """
+    return dict(os.environ, PATH=path_with_managers())

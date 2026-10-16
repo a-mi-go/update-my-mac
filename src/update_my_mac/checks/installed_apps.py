@@ -93,7 +93,7 @@ def apps_installed_by_homebrew():
     if executable is None:
         return set()
 
-    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
     result = shell.run_command(
         [executable, "info", "--json=v2", "--installed", "--cask"], (0,), env
     )

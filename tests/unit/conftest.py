@@ -42,6 +42,8 @@ def no_real_shell(request):
     yield
     for name, function in saved.items():
         setattr(shell, name, function)
+    # A test of the CLI sets the run's environment; the next test starts without.
+    shell.use_environment(None)
 
 
 @pytest.fixture(autouse=True)

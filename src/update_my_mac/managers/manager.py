@@ -2,7 +2,6 @@
 
 from abc import ABC
 import json
-import os
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from update_my_mac.system import shell
@@ -108,7 +107,7 @@ class PackageManager(ABC):
         return []
 
     def environment(self):
-        return dict(os.environ, **self.extra_env) if self.extra_env else None
+        return dict(shell.current_environment(), **self.extra_env) if self.extra_env else None
 
     def outdated(self):
         """Returns what this manager says is outdated, or None when it is absent."""

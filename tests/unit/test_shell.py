@@ -84,3 +84,17 @@ def test_a_status_is_not_started_when_the_output_is_not_a_terminal():
 
     assert shell.stream_command(["true"], silent_status=status) == 0
     assert status.events == []
+
+
+def test_commands_and_lookups_start_from_the_environment_the_run_set(tmp_path):
+    tool = tmp_path / "mytool"
+    tool.write_text("#!/bin/sh\necho $MARKER\n")
+    tool.chmod(0o755)
+    shell.use_environment({"PATH": str(tmp_path), "MARKER": "prepared"})
+    try:
+        assert shell.find_executable("mytool") == str(tool)
+        assert shell.run_command([str(tool)]).stdout == "prepared"
+        # An env a caller gives still wins.
+        assert shell.run_command([str(tool)], env={"MARKER": "given"}).stdout == "given"
+    finally:
+        shell.use_environment(None)

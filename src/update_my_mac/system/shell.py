@@ -15,8 +15,28 @@ class CommandResult:
     exit_code: int = 0
 
 
+# The environment the run's commands start with. None until the run sets one.
+_prepared = None
+
+
+def use_environment(env):
+    """Makes every later command and lookup start from this environment."""
+    global _prepared
+    _prepared = env
+
+
+def current_environment():
+    """Returns the environment a command starts with."""
+    return os.environ if _prepared is None else _prepared
+
+
 def find_executable(command):
-    return shutil.which(command)
+    return shutil.which(command, path=current_environment().get("PATH"))
+
+
+def _for_command(env):
+    """Returns the environment to run with: the one given, else the run's own."""
+    return _prepared if env is None else env
 
 
 def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
@@ -29,7 +49,7 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=env,
+            env=_for_command(env),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return CommandResult(False, "", str(exc), -1)
@@ -49,6 +69,7 @@ def stream_command(args, env=None, silent_status=None):
     which has start() and stop(), shows until the command first writes.
     """
     # Not captured: a password prompt needs the real terminal.
+    env = _for_command(env)
     try:
         if silent_status is None or not sys.stdout.isatty():
             return subprocess.run(args, env=env).returncode

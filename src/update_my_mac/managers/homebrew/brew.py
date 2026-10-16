@@ -1,7 +1,6 @@
 """The commands only Homebrew has, and what it wrote down about its casks."""
 
 import json
-import os
 
 from update_my_mac.managers.manager import nonblank_lines
 from update_my_mac.system import shell
@@ -33,7 +32,7 @@ def recorded_cask_versions():
     if executable is None:
         return {}
 
-    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
     result = shell.run_command([executable, "list", "--cask", "--versions"], (0,), env)
     if not result.success:
         return {}
@@ -51,7 +50,7 @@ def recorded_cask_version(token):
     if executable is None:
         return ""
 
-    env = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
     result = shell.run_command([executable, "list", "--cask", "--versions", token], (0,), env)
     if not result.success:
         return ""
