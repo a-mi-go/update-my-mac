@@ -98,6 +98,7 @@ class PackageManager(ABC):
     self_package = ""
     self_upgrade_args = ()
     cleanup_args = ()
+    asks_for_password = False
 
     def parse_outdated(self, stdout):
         return nonblank_lines(stdout)
@@ -180,4 +181,8 @@ class PackageManager(ABC):
         executable = shell.find_executable(self.command)
         if executable is None:
             return None
+        # sudo asks on the real terminal, not through the pty, so a status
+        # running over it would hide the question.
+        if self.asks_for_password:
+            status = None
         return shell.stream_command([executable, *args], self.environment(), silent_status=status)
