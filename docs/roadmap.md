@@ -101,10 +101,6 @@ would have to be moved to the trash by hand. Removing an app is the one thing
 here that cannot be undone by running the tool again, so it is never part of
 "fix everything" and never happens without being asked about that app by name.
 
-- Sort every module the way `controller/app.py` and `controller/self_update.py`
-  are: types on top, then the public functions, then the helpers in the order
-  they are used. A pure move with no other change, in its own pull request after
-  the current refactor has merged, and described in `docs/structure.md`.
 - `--dry-run` for `setup.sh`: show the name and config changes it would make.
 - Check that the files setup is about to change are writable before installing,
   so nothing can fail halfway.
