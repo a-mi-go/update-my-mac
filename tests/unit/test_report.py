@@ -291,7 +291,7 @@ def test_the_managers_that_are_current_are_said_so_in_green():
     assert "\x1b[32mup to date: Homebrew" in printed
 
 
-def test_the_frame_stops_growing_so_a_resize_has_less_to_tear():
+def test_the_frame_stops_growing_at_a_readable_width():
     findings = Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
     )

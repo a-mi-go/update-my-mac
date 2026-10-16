@@ -70,6 +70,9 @@ class Step:
             except KeyboardInterrupt:
                 interrupted(self.print_indented)
                 continue
+            except arrow_menu.Resized:
+                output.redraw()
+                continue
             except Stopped:
                 answered()
                 raise
@@ -83,6 +86,9 @@ class Step:
                 answer = self._yes_or_no_by_arrows_or_typed_number(question, default)
             except KeyboardInterrupt:
                 interrupted(self.print_indented)
+                continue
+            except arrow_menu.Resized:
+                output.redraw()
                 continue
             except Stopped:
                 answered()
@@ -187,6 +193,8 @@ def interrupted(print_line):
 
 def answered():
     arrow_menu.forget_ctrl_c()
+    # With an answer the screen holds more than what would be printed again.
+    output.stop_redrawing_on_resize()
 
 
 def read_answer(prompt):
