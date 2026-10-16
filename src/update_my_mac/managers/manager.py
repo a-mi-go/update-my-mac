@@ -99,6 +99,7 @@ class PackageManager(ABC):
     self_upgrade_args = ()
     cleanup_args = ()
     asks_for_password = False
+    failure_hint = ""
 
     def parse_outdated(self, stdout):
         return nonblank_lines(stdout)
