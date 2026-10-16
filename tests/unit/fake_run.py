@@ -1,9 +1,15 @@
 """Doubles for a run that changes something: a shell, a console, an answer."""
 
+import os
+from contextlib import contextmanager
+
 from rich.console import Console
 
 from update_my_mac.managers import ManagerUpdate
+from update_my_mac.system import shell
 from update_my_mac.system.shell import CommandResult
+from update_my_mac.view import output
+from update_my_mac.view import prompting
 
 
 MANAGER_UPDATES = [
@@ -26,7 +32,7 @@ class RecordingShell:
     def find_executable(self, command):
         return f"/fake/{command}"
 
-    def stream_command(self, args, env=None):
+    def stream_command(self, args, env=None, silent_status=None):
         self.streamed.append(args)
         return self.exit_code
 
@@ -38,14 +44,60 @@ def answers(*replies):
     replies = list(replies)
     return lambda _prompt: replies.pop(0)
 
-def printed_by(action):
-    console = Console(width=100, no_color=True)
-    with console.capture() as captured:
-        action(console)
-    return captured.get()
+@contextmanager
+def printing_to(console):
+    """Points the run's shared console at this one until the block ends."""
+    saved, output.console = output.console, console
+    try:
+        yield console
+    finally:
+        output.console = saved
 
-def quiet_console():
-    return Console(file=open("/dev/null", "w"), width=200)
+
+SHELL_FUNCTIONS = (
+    "find_executable", "run_command", "stream_command", "open_in_browser",
+    "ask_application_to_quit", "open_application", "is_running",
+)
+
+
+def use_shell(fake):
+    """Answers every command the run gives with this fake shell. Returns the fake."""
+    for name in SHELL_FUNCTIONS:
+        if hasattr(fake, name):
+            setattr(shell, name, getattr(fake, name))
+    return fake
+
+
+_swapped = []
+
+
+def swap(owner, name, value):
+    """Replaces owner.name for the rest of the test; undone after it."""
+    _swapped.append((owner, name, getattr(owner, name)))
+    setattr(owner, name, value)
+
+
+def undo_swaps():
+    while _swapped:
+        owner, name, value = _swapped.pop()
+        setattr(owner, name, value)
+
+
+def use_environment(env):
+    """Makes this the environment the run reads, the same dict, until the test ends."""
+    swap(os, "environ", env)
+
+
+def answer_with(ask):
+    """Answers every typed question the run asks with this function."""
+    prompting.read_answer = ask
+
+
+def printed_by(action, console=None):
+    console = console or Console(width=100, no_color=True)
+    with printing_to(console), console.capture() as captured:
+        action()
+    return captured.get()
 
 def raising(exception):
     def ask(_prompt):

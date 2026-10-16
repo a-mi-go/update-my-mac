@@ -13,8 +13,8 @@ FORMAT_VERSION = 1
 IGNORE = "ignore"
 
 
-def state_path(env):
-    base = env.get("XDG_STATE_HOME") or os.path.join(env.get("HOME", ""), ".local", "state")
+def state_path():
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.environ.get("HOME", ""), ".local", "state")
     return Path(base) / "update-my-mac" / "apps.json"
 
 
@@ -45,11 +45,11 @@ class AppDecisions:
     def ignored_names(self):
         return sorted(name for name in self.apps if self.is_ignored(name))
 
-    def ignore(self, name, version, now=None):
+    def ignore(self, name, version):
         self.apps[name] = {
             "decision": IGNORE,
             "version": version,
-            "decided": time.strftime("%Y-%m-%d", time.localtime(now)),
+            "decided": time.strftime("%Y-%m-%d", time.localtime(time.time())),
         }
 
     def forget(self, name):
@@ -72,5 +72,5 @@ class AppDecisions:
         return True
 
 
-def load(env=None):
-    return AppDecisions(state_path(os.environ if env is None else env))
+def load():
+    return AppDecisions(state_path())

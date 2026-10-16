@@ -14,18 +14,18 @@ PREFIXES = ("/opt/homebrew", "/usr/local", "/opt/local")
 PREFIX_OVERRIDE = "UPDATE_MY_MAC_PREFIXES"
 
 
-def prefixes(env):
-    configured = env.get(PREFIX_OVERRIDE)
+def prefixes():
+    configured = os.environ.get(PREFIX_OVERRIDE)
     if configured is None:
         return PREFIXES
     return tuple(entry for entry in configured.split(os.pathsep) if entry)
 
 
-def manager_directories(env):
+def manager_directories():
     """Returns everywhere a package manager might be, most personal first."""
-    home = env.get("HOME", "")
+    home = os.environ.get("HOME", "")
     # pnpm refuses to run unless its own global bin directory is on PATH.
-    pnpm_home = env.get("PNPM_HOME") or os.path.join(home, "Library", "pnpm")
+    pnpm_home = os.environ.get("PNPM_HOME") or os.path.join(home, "Library", "pnpm")
 
     directories = [
         pnpm_home,
@@ -33,25 +33,24 @@ def manager_directories(env):
         os.path.join(home, ".local", "bin"),
         os.path.join(home, ".cargo", "bin"),
     ]
-    for prefix in prefixes(env):
+    for prefix in prefixes():
         directories.append(os.path.join(prefix, "bin"))
         directories.append(os.path.join(prefix, "sbin"))
     return directories
 
 
-def path_with_managers(env, exists=os.path.isdir):
+def path_with_managers():
     """Returns PATH with the manager locations it does not already have appended."""
-    entries = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
-    for directory in manager_directories(env):
+    entries = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
+    for directory in manager_directories():
         # Absolute only: without HOME these come out relative, and a relative
         # PATH entry runs whatever the current directory happens to contain.
         if not os.path.isabs(directory) or directory in entries:
             continue
-        if exists(directory):
+        if os.path.isdir(directory):
             entries.append(directory)
     return os.pathsep.join(entries)
 
 
-def prepare(env=None):
-    env = os.environ if env is None else env
-    env["PATH"] = path_with_managers(env)
+def prepare():
+    os.environ["PATH"] = path_with_managers()

@@ -13,6 +13,7 @@ from update_my_mac.checks import installed_apps
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.system.shell import describe_exit
 from update_my_mac.checks import versions
+from update_my_mac.system import shell
 
 
 SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
@@ -44,24 +45,29 @@ def can_take_over(app, cask):
     return cask is not None and not cask.installs_a_package
 
 
+def _shown(version):
+    """Returns a version as a person should read it, without the build."""
+    return versions.without_build(version)
+
+
 def handover_label(app, cask):
     """Returns the menu wording for what the handover would do to this app."""
     if not can_take_over(app, cask):
         return ""
     standing = compare_to_app(app, cask)
     if standing == SAME:
-        return f"add to Homebrew ({cask.token} {cask.version})"
+        return f"add to Homebrew ({cask.token} {_shown(cask.version)})"
     if standing == NEWER:
-        return f"update to {cask.token} {cask.version} and let Homebrew take over"
+        return f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over"
     # What it costs goes in brackets after the offer, because the cost is what
     # makes this a different answer from the one above it.
     if standing == OLDER:
         return (
-            f"let Homebrew take over (downgrade {app.version} → {cask.version})"
+            f"let Homebrew take over (downgrade {_shown(app.version)} → {_shown(cask.version)})"
         )
     if standing == UNCLEAR:
         return (
-            f"let Homebrew take over (replace {app.version} with {cask.version}, "
+            f"let Homebrew take over (replace {_shown(app.version)} with {_shown(cask.version)}, "
             f"no telling which is newer)"
         )
     return ""
@@ -74,24 +80,24 @@ def homebrew_note(app, cask):
         return "Homebrew has no recipe for this app."
     if cask.installs_a_package:
         return (
-            f"Homebrew knows it as {cask.token} {cask.version}, but installs it from a "
+            f"Homebrew knows it as {cask.token} {_shown(cask.version)}, but installs it from a "
             f"package, which it cannot take an app over from."
         )
     if standing == OLDER:
         return (
-            f"Homebrew's recipe {cask.token} is still {cask.version}, older than the "
-            f"{app.version} you have, so handing the app over would put that older "
+            f"Homebrew's recipe {cask.token} is still {_shown(cask.version)}, older than the "
+            f"{_shown(app.version)} you have, so handing the app over would put that older "
             f"build back in its place."
         )
     if standing == UNCLEAR:
         return (
-            f"Homebrew's recipe {cask.token} says {cask.version}, which is not counted "
-            f"the way your {app.version} is, so neither one is clearly the newer."
+            f"Homebrew's recipe {cask.token} says {_shown(cask.version)}, which is not counted "
+            f"the way your {_shown(app.version)} is, so neither one is clearly the newer."
         )
     return ""
 
 
-def hand_to_homebrew(app, cask, shell):
+def hand_to_homebrew(app, cask):
     """Hands the app over. Returns whether it is now looked after, and why."""
     if cask is None:
         return False, "Homebrew has no recipe for this app."
@@ -101,16 +107,16 @@ def hand_to_homebrew(app, cask, shell):
         return False, "Homebrew is not installed."
 
     if can_adopt(app, cask):
-        exit_code = brew.adopt_cask(cask.token, shell)
+        exit_code = brew.adopt_cask(cask.token)
     else:
         # Any other version, ahead or behind, has to be downloaded and put in
         # place, because --adopt takes nothing but an identical copy.
-        exit_code = brew.install_cask_over(cask.token, shell)
+        exit_code = brew.install_cask_over(cask.token)
     if exit_code != 0:
         how = describe_exit(exit_code)
         return False, f"Homebrew could not take it over, {cask.token} {how}."
 
-    recorded = brew.recorded_cask_version(cask.token, shell)
+    recorded = brew.recorded_cask_version(cask.token)
     on_disk = installed_apps.read_version(app.path)
     if recorded and not versions.same_release(on_disk, recorded):
         return False, (

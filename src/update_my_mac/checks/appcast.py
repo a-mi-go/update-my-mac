@@ -41,8 +41,8 @@ class FeedAnswer:
     error: str = ""
 
 
-def cache_path(env):
-    base = env.get("XDG_CACHE_HOME") or os.path.join(env.get("HOME", ""), ".cache")
+def cache_path():
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.environ.get("HOME", ""), ".cache")
     return Path(base) / "update-my-mac" / "appcasts.json"
 
 
@@ -84,51 +84,50 @@ def fetch(url):
         return response.read().decode("utf-8", "replace")
 
 
-def read_feed(url, fetch_one=fetch):
+def read_feed(url):
     """Asks one feed what it offers."""
     if not url.startswith("https://"):
-        return FeedAnswer(error="its feed is not served over https, so it was not read")
+        return FeedAnswer(error="update source is not https, so it was not read")
 
     try:
-        feed = fetch_one(url)
+        feed = fetch(url)
     except urllib.error.HTTPError as failure:
-        return FeedAnswer(error=f"its feed answers {failure.code}")
-    except (urllib.error.URLError, OSError, ValueError) as failure:
-        return FeedAnswer(error=f"its feed could not be read ({failure})")
+        return FeedAnswer(error=f"update source answers {failure.code}")
+    except (urllib.error.URLError, OSError, ValueError):
+        return FeedAnswer(error="update source could not be read")
 
     try:
         version = newest_version(feed)
     except NotAnAppcast:
         # Sparkle reports this as an improperly signed update, which is why
         # nobody ever guesses that the feed itself is gone.
-        return FeedAnswer(error="its feed is not an appcast any more")
+        return FeedAnswer(error="update source answers with something else now")
 
     if not version:
-        return FeedAnswer(error="its feed names no version")
+        return FeedAnswer(error="update source names no version")
     return FeedAnswer(version=version)
 
 
-def check(apps, env=None, fetch_one=fetch, now=time.time):
+def check(apps):
     """Asks every app's feed what it offers. Returns the answers by feed URL."""
-    env = os.environ if env is None else env
-    cached = _read_cache(cache_path(env))
+    cached = _read_cache(cache_path())
     answers = {}
-    started = now()
+    started = time.time()
 
     for app in apps:
         url = app.updater.feed_url
         if not url or url in answers:
             continue
 
-        kept = _still_good(cached.get(url), now)
+        kept = _still_good(cached.get(url))
         if kept is not None:
             answers[url] = kept
             continue
-        if now() - started >= BUDGET_FOR_ALL_FEEDS_SECONDS:
+        if time.time() - started >= BUDGET_FOR_ALL_FEEDS_SECONDS:
             answers[url] = FeedAnswer(error="there was no time left to ask its feed")
             continue
 
-        answer = read_feed(url, fetch_one)
+        answer = read_feed(url)
         # A version that once came back is still worth showing, but it never
         # covers up the fact that the feed is not answering now.
         known = cached.get(url, {}).get("version", "")
@@ -138,19 +137,19 @@ def check(apps, env=None, fetch_one=fetch, now=time.time):
         cached[url] = {
             "version": answer.version,
             "error": answer.error,
-            "fetched": now(),
+            "fetched": time.time(),
         }
 
-    _write_cache(cache_path(env), _only_asked_about(cached, apps))
+    _write_cache(cache_path(), _only_asked_about(cached, apps))
     return answers
 
 
-def _still_good(kept, now):
+def _still_good(kept):
     """Returns the kept answer while it is recent enough to reuse, else None."""
     if not kept:
         return None
     keep_for = STALE_AFTER_A_FAILURE if kept.get("error") else STALE_AFTER_SECONDS
-    if now() - kept.get("fetched", 0) >= keep_for:
+    if time.time() - kept.get("fetched", 0) >= keep_for:
         return None
     return FeedAnswer(kept.get("version", ""), kept.get("error", ""))
 
