@@ -1,4 +1,9 @@
+from update_my_mac.view.prompting import BULLET
 from pathlib import Path
+
+from fake_run import swap
+
+import pytest
 
 from rich.text import Text
 
@@ -19,9 +24,10 @@ def app(name, version="1.0"):
 def decisions_in(tmp_path):
     return app_decisions.AppDecisions(tmp_path / "apps.json")
 
+    # With nothing Homebrew could take over there is nothing to do in bulk, so the
+    # question is skipped and the first answer is already about the first app.
 
-# With nothing Homebrew could take over there is nothing to do in bulk, so the
-# question is skipped and the first answer is already about the first app.
+
 ADOPT_ALL, DECIDE_AFTER_ADOPT_ALL = "1", "2"
 # Inside the walk-through, for an app Homebrew cannot take over.
 IGNORE, LATER, CANCEL = "1", "2", "3"
@@ -44,7 +50,7 @@ def test_nothing_is_asked_when_every_app_is_accounted_for(tmp_path):
 
     dealt_with = track_apps.ask_what_to_do([], decisions_in(tmp_path), terminal.step)
 
-    assert dealt_with == 0
+    assert len(dealt_with) == 0
     assert terminal.text == ""
 
 
@@ -56,7 +62,7 @@ def test_an_answer_that_means_nothing_is_asked_again(tmp_path):
         [app("TokenEater")], decisions, terminal.step
     )
 
-    assert dealt_with == 0
+    assert len(dealt_with) == 0
     assert "Didn't catch that" in terminal.text
     assert not (tmp_path / "apps.json").exists()
 
@@ -69,7 +75,7 @@ def test_leaving_an_app_alone_is_remembered(tmp_path):
         [app("TokenEater", "5.12.2")], decisions, terminal.step
     )
 
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     assert decisions_in(tmp_path).is_ignored("TokenEater")
 
 
@@ -85,13 +91,10 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 def test_doing_nothing_asks_about_no_app_at_all(tmp_path):
     terminal = Terminal("3")
 
-    dealt_with = track_apps.ask_what_to_do(
-        [app("BetterDisplay")], decisions_in(tmp_path), terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopting(True),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("Other")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
-    assert dealt_with == 0
+    assert len(dealt_with) == 0
     assert "BetterDisplay" not in terminal.text
 
 
@@ -115,7 +118,7 @@ def test_stopping_partway_keeps_what_was_decided_so_far(tmp_path):
         [app("First"), app("Second"), app("Third")], decisions, terminal.step
     )
 
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     stored = decisions_in(tmp_path)
     assert stored.ignored_names() == ["First"]
     assert not stored.is_ignored("Third")
@@ -130,18 +133,10 @@ def test_apps_already_left_alone_are_not_asked_about_again(tmp_path):
         [app("TokenEater")], decisions, terminal.step
     )
 
-    assert dealt_with == 0
+    assert len(dealt_with) == 0
     assert terminal.text == ""
 
 
-def test_without_a_terminal_nothing_is_asked(tmp_path):
-    terminal = Terminal()
-
-    track_apps.ask_what_to_do(
-        [app("TokenEater")], decisions_in(tmp_path), terminal.step, interactive=False
-    )
-
-    assert terminal.text == ""
 
 
 def test_revisiting_says_so_when_there_is_nothing_to_revisit(tmp_path):
@@ -178,16 +173,6 @@ def test_answering_nothing_leaves_the_list_as_it_is(tmp_path):
     assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
 
 
-def test_without_a_terminal_it_only_lists(tmp_path):
-    decisions = decisions_in(tmp_path)
-    decisions.ignore("Alpha", "1.0")
-    decisions.save()
-    terminal = Terminal()
-
-    track_apps.ask_about_the_ignored(decisions, terminal.step, interactive=False)
-
-    assert "Alpha" in terminal.text
-    assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
 
 
 def test_no_more_input_stops_instead_of_crashing(tmp_path):
@@ -198,7 +183,7 @@ def test_no_more_input_stops_instead_of_crashing(tmp_path):
         [app("TokenEater")], decisions, terminal.step
     )
 
-    assert dealt_with == 0
+    assert len(dealt_with) == 0
     assert not (tmp_path / "apps.json").exists()
 
 
@@ -210,7 +195,7 @@ def test_running_out_of_input_partway_keeps_what_was_decided(tmp_path):
         [app("First"), app("Second")], decisions, terminal.step
     )
 
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     assert decisions_in(tmp_path).ignored_names() == ["First"]
 
 
@@ -233,9 +218,11 @@ def test_a_decision_that_cannot_be_saved_is_said_out_loud(tmp_path):
     decisions = app_decisions.AppDecisions(locked / "update-my-mac" / "apps.json")
     terminal = Terminal(IGNORE)
 
-    dealt_with = track_apps.ask_what_to_do([app("TokenEater")], decisions, terminal.step)
+    dealt_with = track_apps.ask_what_to_do(
+        [app("TokenEater")], decisions, terminal.step
+    )
 
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     assert "won't be remembered" in terminal.text
 
 
@@ -290,28 +277,22 @@ def adopting(taken, message="done"):
 
 def test_an_app_can_be_handed_to_homebrew(tmp_path):
     decisions = decisions_in(tmp_path)
-    terminal = Terminal(DECIDE_AFTER_ADOPT_ALL, ADOPT)
+    terminal = Terminal(ADOPT)
 
-    dealt_with = track_apps.ask_what_to_do(
-        [app("BetterDisplay")], decisions, terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."): adopt(app))
+    dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "Homebrew looks after it now, as betterdisplay." in terminal.text
     # Handed over, so it is dealt with without being ignored.
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     assert decisions_in(tmp_path).ignored_names() == []
 
 
 def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
     terminal = Terminal(LATER)
 
-    track_apps.ask_what_to_do(
-        [app("TokenEater")], decisions_in(tmp_path), terminal.step,
-        find_cask=cask_for({}),
-        adopt=adopting(True),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    track_apps.ask_what_to_do([app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
 
     assert "add to Homebrew" not in terminal.text
 
@@ -321,27 +302,21 @@ def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
     # Adopting it did not work, so the same app is asked about again.
     terminal = Terminal(DECIDE_AFTER_ADOPT_ALL, ADOPT, IGNORE_AFTER_ADOPT)
 
-    dealt_with = track_apps.ask_what_to_do(
-        [app("BetterDisplay")], decisions, terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopting(False, "Homebrew could not take it over."),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
+    dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     # The second answer still counted, so nothing was swallowed.
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
     assert decisions_in(tmp_path).is_ignored("BetterDisplay")
 
 
 def test_the_menu_says_which_cask_would_take_the_app(tmp_path):
     terminal = Terminal(DECIDE_AFTER_ADOPT_ALL, "4")
 
-    track_apps.ask_what_to_do(
-        [app("BetterDisplay")], decisions_in(tmp_path), terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopting(True),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    track_apps.ask_what_to_do([app("BetterDisplay")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
-    assert "1) add to Homebrew (betterdisplay 1.0)" in terminal.text
+    assert f"1) {BULLET}add to Homebrew (betterdisplay 1.0)" in terminal.text
 
 
 def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
@@ -352,26 +327,18 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
         asked.append(app.name)
         return True, "done"
 
-    dealt_with = track_apps.ask_what_to_do(
-        [app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path),
-        terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopt,
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopt: adopt(app))
+    dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert asked == ["BetterDisplay"]
-    assert dealt_with == 1
+    assert len(dealt_with) == 1
 
 
 def test_the_menu_counts_how_many_homebrew_could_take(tmp_path):
     terminal = Terminal("3")
 
-    track_apps.ask_what_to_do(
-        [app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path),
-        terminal.step,
-        find_cask=cask_for({"BetterDisplay": cask()}),
-        adopt=adopting(True),
-    )
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "add all to Homebrew (1 of 2)" in terminal.text
 
@@ -409,16 +376,19 @@ def test_an_app_with_no_recipe_counts_as_neither():
     assert track_apps.known_to_homebrew(found) == 0
     assert track_apps.ready_for_homebrew(found) == 0
 
+    # An app with an updater and a feed is offered both, so its own options sit
+    # two places further down than an app with neither.
 
-# An app with an updater and a feed is offered both, so its own options sit
-# two places further down than an app with neither.
+
 START_IT, LATER_AFTER_START = "1", "4"
 LATER_AFTER_SITE = "3"
 
 
 def sparkle_app(name="Dockish", version="1.1", feed="https://appish.app/appcast.xml"):
     return InstalledApp(
-        name, version, Path(f"/Applications/{name}.app"),
+        name,
+        version,
+        Path(f"/Applications/{name}.app"),
         UpdaterStatus(app_updaters.SPARKLE, True, False, "2026-08-16", feed),
     )
 
@@ -427,23 +397,20 @@ def test_an_app_with_an_updater_can_be_asked_to_update_itself(tmp_path):
     started = []
     terminal = Terminal(START_IT, LATER_AFTER_START)
 
-    track_apps.ask_what_to_do(
-        [sparkle_app()], decisions_in(tmp_path), terminal.step,
-        open_app=lambda path: started.append(path) or True,
-    )
+    swap(track_apps.shell, "open_application", lambda path: started.append(path) or True)
+    track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
 
-    assert "1) open Dockish and let it update itself" in terminal.text
+    assert f"1) {BULLET}open Dockish and let it update itself" in terminal.text
     assert started == [Path("/Applications/Dockish.app")]
     # Starting it settles nothing, so the same app is asked about again.
-    assert "2) download and install manually" in terminal.text
+    assert f"2) {BULLET}download and install manually" in terminal.text
 
 
 def test_an_app_that_will_not_start_says_so(tmp_path):
     terminal = Terminal(START_IT, LATER_AFTER_START)
 
-    track_apps.ask_what_to_do(
-        [sparkle_app()], decisions_in(tmp_path), terminal.step, open_app=lambda path: False,
-    )
+    swap(track_apps.shell, "open_application", lambda path: False)
+    track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
 
     assert "would not start" in terminal.text
 
@@ -451,9 +418,8 @@ def test_an_app_that_will_not_start_says_so(tmp_path):
 def test_an_app_with_no_updater_is_not_offered_to_be_started(tmp_path):
     terminal = Terminal(LATER)
 
-    track_apps.ask_what_to_do(
-        [app("Evoto")], decisions_in(tmp_path), terminal.step, open_app=lambda path: True,
-    )
+    swap(track_apps.shell, "open_application", lambda path: True)
+    track_apps.ask_what_to_do([app("Evoto")], decisions_in(tmp_path), terminal.step)
 
     assert "let it update itself" not in terminal.text
 
@@ -463,14 +429,11 @@ def test_an_app_whose_feed_is_gone_is_not_told_to_ask_it(tmp_path):
     feed = "https://appish.app/appcast.xml"
     terminal = Terminal(LATER_AFTER_SITE)
 
-    track_apps.ask_what_to_do(
-        [sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step,
-        open_app=lambda path: True,
-        offered={feed: appcast.FeedAnswer(error="its feed answers 403")},
-    )
+    swap(track_apps.shell, "open_application", lambda path: True)
+    track_apps.ask_what_to_do([sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step, offered={feed: appcast.FeedAnswer(error="update source answers 403")})
 
     assert "let it update itself" not in terminal.text
-    assert "But its feed answers 403." in terminal.text
+    assert "But update source answers 403." in terminal.text
 
 
 def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
@@ -478,16 +441,20 @@ def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
     terminal = Terminal(LATER_AFTER_SITE)
 
     track_apps.ask_what_to_do(
-        [sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step,
+        [sparkle_app(feed=feed)],
+        decisions_in(tmp_path),
+        terminal.step,
         offered={feed: appcast.FeedAnswer(version="1.2.5")},
     )
 
-    assert "Its own feed offers 1.2.5." in terminal.text
+    assert "Update source offers 1.2.5." in terminal.text
 
 
 def self_updating(name="Codex", version="26.831.21537"):
     return InstalledApp(
-        name, version, Path(f"/Applications/{name}.app"),
+        name,
+        version,
+        Path(f"/Applications/{name}.app"),
         UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
     )
 
@@ -501,9 +468,13 @@ def test_an_app_that_keeps_itself_ahead_of_its_recipe_is_no_problem():
 
 
 def test_an_app_that_looks_after_itself_and_has_nothing_pending_is_no_problem():
-    assert not track_apps.worth_sorting_out(self_updating("uTorrent Web", "1.6.0"), None)
     assert not track_apps.worth_sorting_out(
-        self_updating("uTorrent Web", "1.6.0"), None, appcast.FeedAnswer(version="1.6.0")
+        self_updating("uTorrent Web", "1.6.0"), None
+    )
+    assert not track_apps.worth_sorting_out(
+        self_updating("uTorrent Web", "1.6.0"),
+        None,
+        appcast.FeedAnswer(version="1.6.0"),
     )
 
 
@@ -511,7 +482,9 @@ def test_a_recipe_matching_the_build_rather_than_the_short_version_is_no_problem
     # Dockish says 6.2 for itself and carries 6.2.1 as its build, which is the
     # version the recipe names.
     on_disk = InstalledApp(
-        "Dockish", "6.2", Path("/Applications/Dockish.app"),
+        "Dockish",
+        "6.2",
+        Path("/Applications/Dockish.app"),
         UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
         build="6.2.1",
     )
@@ -528,9 +501,11 @@ def test_an_app_whose_own_feed_offers_more_than_it_installed_is_a_problem():
 
 
 def test_an_app_whose_feed_stopped_answering_is_a_problem():
-    broken = appcast.FeedAnswer(error="its feed answers 403")
+    broken = appcast.FeedAnswer(error="update source answers 403")
 
-    assert track_apps.worth_sorting_out(self_updating("Air", "262.579.44"), None, broken)
+    assert track_apps.worth_sorting_out(
+        self_updating("Air", "262.579.44"), None, broken
+    )
 
 
 def test_an_app_that_does_not_update_itself_is_still_worth_asking_about():
@@ -545,3 +520,27 @@ def test_a_self_updating_app_its_recipe_leads_is_still_worth_asking_about():
     ahead = cask(token="codex-app", version="26.999.1")
 
     assert track_apps.worth_sorting_out(self_updating(), ahead)
+
+
+def test_one_app_has_no_walk_through_to_cancel(tmp_path):
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    ask = lambda apps, terminal: track_apps.ask_what_to_do(apps, decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
+    one, two = Terminal("2"), Terminal("2", "2", "2")
+
+    ask([app("A")], one)
+    ask([app("A"), app("B")], two)
+
+    assert "cancel the walk-through" not in one.text
+    assert "cancel the walk-through" in two.text
+
+
+def test_an_app_left_alone_is_remembered_even_if_the_run_is_interrupted_after(tmp_path):
+    decisions = decisions_in(tmp_path)
+    terminal = Terminal(IGNORE, then=KeyboardInterrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        track_apps.ask_what_to_do(
+            [app("First"), app("Second")], decisions, terminal.step
+        )
+
+    assert decisions_in(tmp_path).ignored_names() == ["First"]

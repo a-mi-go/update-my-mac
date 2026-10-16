@@ -1,17 +1,12 @@
-"""The question before the updates: shall we sort anything out first?
-
-The run finds several kinds of trouble that are not updates at all, and asking
-about each of them in turn is three questions too many. They are offered
-together, and only the kinds that actually turned up.
-"""
+"""Resolve issues interactively before updating."""
 
 from dataclasses import dataclass
 
-from update_my_mac.view.prompting import Step, Stopped
+from update_my_mac.view.prompting import Markup, Step, Stopped
 
-QUESTION = "[bold]Should we sort things out before updating?[/]"
-FIX_EVERYTHING = "yes, just fix everything, I trust you"
-NOT_NOW = "No, I'm here for the updates (I'll take care of this next time)"
+QUESTION = "Should we sort things out before updating?"
+FIX_EVERYTHING = Markup("⎷ [bold]FIX EVERYTHING[/]......... I trust you !!! [red](use at your own risk)[/]")
+NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]!")
 
 
 @dataclass
@@ -19,21 +14,30 @@ class Problem:
     label: str
     walk_through: object
     fix_all: object
+    # Called before the menu is drawn: updates the label and says whether
+    # anything is left to deal with.
+    refresh: object = None
 
 
-def ask_what_to_fix(problems, step=None, interactive=True):
+def ask_what_to_fix(problems, step=None):
     """Offers to deal with what turned up. Returns how many issues were dealt with."""
     step = step or Step()
-    if not problems or not interactive:
+    if not problems:
         return 0
 
-    options = [(problem, problem.label) for problem in problems]
-    options += [(FIX_EVERYTHING, FIX_EVERYTHING), (NOT_NOW, NOT_NOW)]
-
     dealt_with = 0
+    asked_before = False
     try:
         while True:
-            step.say()
+            problems = [one for one in problems if one.refresh is None or one.refresh(one)]
+            if not problems:
+                break
+            options = [(problem, problem.label) for problem in problems]
+            options += [(FIX_EVERYTHING, FIX_EVERYTHING), (NOT_NOW, NOT_NOW)]
+
+            # The first time it follows the report, which is divider enough.
+            step.begin_menu() if asked_before else step.print_empty_line()
+            asked_before = True
             chosen = step.choose(options, QUESTION)
 
             if chosen == NOT_NOW:
@@ -44,10 +48,6 @@ def ask_what_to_fix(problems, step=None, interactive=True):
                 break
             dealt_with += chosen.walk_through(step.inside())
     except Stopped:
-        step.say()
+        step.print_empty_line()
 
-    # A line closes the phase, so the update menu below is not read as part
-    # of it.
-    step.say()
-    step.close_section()
     return dealt_with
