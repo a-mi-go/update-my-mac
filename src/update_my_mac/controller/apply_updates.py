@@ -118,6 +118,8 @@ def run_each_manager(manager_keys, announce, run_one, dotted=False):
             status = console.status(Text(label, style="dim"), spinner=report.SPINNER)
         else:
             console.print(f"\n{label}")
+            if manager.asks_for_password:
+                console.print("[dim]It may ask for your password.[/]")
             status = console.status(
                 Text(f"waiting for {manager.label}", style="dim"), spinner=report.SPINNER
             )

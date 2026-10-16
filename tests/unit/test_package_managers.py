@@ -434,3 +434,14 @@ def test_a_manager_with_nothing_to_clear_out_runs_nothing():
     use_shell(shell)
     assert managers.by_key("npm").cleanup() is None
     assert shell.streamed == []
+
+
+def test_the_app_store_upgrade_shows_no_status_because_sudo_asks_for_a_password():
+    statuses = []
+    shell = StreamingShell([0, 0])
+    shell.stream_command = lambda args, env=None, silent_status=None: statuses.append(silent_status) or 0
+
+    use_shell(shell)
+    managers.by_key("mas").upgrade(status="spinner")
+    managers.by_key("npm").upgrade(status="spinner")
+    assert statuses == [None, "spinner"]

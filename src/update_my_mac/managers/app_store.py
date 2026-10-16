@@ -12,6 +12,7 @@ class AppStore(PackageManager):
     outdated_args = ("outdated",)
     upgrade_args = ("upgrade",)
     counted_as = "apps"
+    asks_for_password = True
 
     def parse_outdated(self, stdout):
         apps = []
