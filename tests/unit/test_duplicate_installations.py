@@ -1,6 +1,7 @@
 """Finding a command that two managers have each installed."""
 
 import os
+from fake_run import use_environment, use_shell
 
 from update_my_mac.checks import duplicate_installations
 from update_my_mac.system.shell import CommandResult
@@ -51,7 +52,9 @@ def test_a_command_only_one_manager_has_is_not_reported(tmp_path):
     brew = make_brew(tmp_path / "brew", "ripgrep", "rg")
     shell = ManagerShell(brew=brew)
 
-    assert duplicate_installations.find(shell, path_of(brew)) == []
+    use_shell(shell)
+    use_environment(path_of(brew))
+    assert duplicate_installations.find() == []
 
 
 def test_the_same_command_from_two_managers_is_found(tmp_path):
@@ -59,7 +62,9 @@ def test_the_same_command_from_two_managers_is_found(tmp_path):
     npm = make_npm(tmp_path / "npm", "@openai/codex", "codex")
     shell = ManagerShell(brew=brew, npm=npm)
 
-    found = duplicate_installations.find(shell, path_of(brew, npm))
+    use_shell(shell)
+    use_environment(path_of(brew, npm))
+    found = duplicate_installations.find()
     assert [d.command for d in found] == ["codex"]
     assert found[0].winner.manager == "Homebrew"
     assert [c.manager for c in found[0].shadowed] == ["npm (global)"]
@@ -71,7 +76,9 @@ def test_path_order_decides_which_one_runs(tmp_path):
     shell = ManagerShell(brew=brew, npm=npm)
 
     # Same two copies, npm's directory searched first.
-    found = duplicate_installations.find(shell, path_of(npm, brew))
+    use_shell(shell)
+    use_environment(path_of(npm, brew))
+    found = duplicate_installations.find()
     assert found[0].winner.manager == "npm (global)"
 
 
@@ -80,7 +87,9 @@ def test_a_directory_path_never_mentions_cannot_win(tmp_path):
     npm = make_npm(tmp_path / "npm", "@openai/codex", "codex")
     shell = ManagerShell(brew=brew, npm=npm)
 
-    found = duplicate_installations.find(shell, path_of(npm))
+    use_shell(shell)
+    use_environment(path_of(npm))
+    found = duplicate_installations.find()
     assert found[0].winner.manager == "npm (global)"
 
 
@@ -89,7 +98,9 @@ def test_the_package_and_the_way_to_remove_it_are_read_off_the_link(tmp_path):
     npm = make_npm(tmp_path / "npm", "@openai/codex", "codex")
     shell = ManagerShell(brew=brew, npm=npm)
 
-    copies = duplicate_installations.find(shell, path_of(brew, npm))[0].copies
+    use_shell(shell)
+    use_environment(path_of(brew, npm))
+    copies = duplicate_installations.find()[0].copies
     assert copies[0].package == "codex"
     assert copies[0].remove_with == ("brew", "uninstall", "--cask", "codex")
     assert copies[1].package == "@openai/codex"
@@ -110,14 +121,17 @@ def test_a_formula_is_removed_differently_from_a_cask(tmp_path):
 
 
 def test_a_manager_that_is_not_installed_is_skipped(tmp_path):
-    assert duplicate_installations.bin_directories(ManagerShell()) == {}
+    use_shell(ManagerShell())
+    assert duplicate_installations.bin_directories() == {}
 
 
 def test_a_directory_that_cannot_be_read_does_not_stop_the_run(tmp_path):
     brew = tmp_path / "gone"
     shell = ManagerShell(brew=brew)
 
-    assert duplicate_installations.find(shell, {"PATH": ""}) == []
+    use_shell(shell)
+    use_environment({"PATH": ""})
+    assert duplicate_installations.find() == []
 
 
 def test_a_homebrew_copy_says_which_version_is_installed(tmp_path):

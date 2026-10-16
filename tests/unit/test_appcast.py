@@ -4,6 +4,8 @@ import json
 import urllib.error
 from pathlib import Path
 
+from fake_run import use_environment, swap
+
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.checks.app_updaters import UpdaterStatus
@@ -73,20 +75,23 @@ def test_a_feed_with_no_entries_offers_nothing():
 def test_an_error_page_in_place_of_a_feed_is_said_out_loud():
     # A host that dropped the feed serves its 404 page, and Sparkle then calls
     # the update improperly signed.
-    answer = appcast.read_feed(FEED, answering("<html><body>Not found</body></html>"))
+    swap(appcast, "fetch", answering("<html><body>Not found</body></html>"))
+    answer = appcast.read_feed(FEED)
 
     assert answer.version == ""
-    assert "not an appcast any more" in answer.error
+    assert "answers with something else now" in answer.error
 
 
 def test_a_feed_that_answers_with_a_code_says_which():
     error = urllib.error.HTTPError(FEED, 403, "Forbidden", {}, None)
 
-    assert appcast.read_feed(FEED, failing(error)).error == "its feed answers 403"
+    swap(appcast, "fetch", failing(error))
+    assert appcast.read_feed(FEED).error == "update source answers 403"
 
 
 def test_a_feed_that_cannot_be_reached_at_all_says_so():
-    answer = appcast.read_feed(FEED, failing(urllib.error.URLError("no route")))
+    swap(appcast, "fetch", failing(urllib.error.URLError("no route")))
+    answer = appcast.read_feed(FEED)
 
     assert "could not be read" in answer.error
 
@@ -98,14 +103,16 @@ def test_a_feed_that_is_not_https_is_left_alone():
         asked.append(url)
         return ""
 
-    answer = appcast.read_feed("http://appish.app/appcast.xml", fetch_one)
+    swap(appcast, "fetch", fetch_one)
+    answer = appcast.read_feed("http://appish.app/appcast.xml")
 
     assert asked == []
-    assert "not served over https" in answer.error
+    assert "is not https" in answer.error
 
 
 def test_a_feed_that_names_no_version_says_so():
-    assert "names no version" in appcast.read_feed(FEED, answering(appcast_xml())).error
+    swap(appcast, "fetch", answering(appcast_xml()))
+    assert "names no version" in appcast.read_feed(FEED).error
 
 
 def test_every_feed_is_asked_once(tmp_path):
@@ -116,7 +123,9 @@ def test_every_feed_is_asked_once(tmp_path):
         return appcast_xml(item(short="1.2.5"))
 
     apps = [app("Dockish"), app("Dockish Helper")]
-    answers = appcast.check(apps, {"XDG_CACHE_HOME": str(tmp_path)}, fetch_one)
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    swap(appcast, "fetch", fetch_one)
+    answers = appcast.check(apps)
 
     assert asked == [FEED]
     assert answers[FEED].version == "1.2.5"
@@ -129,14 +138,18 @@ def test_an_app_with_no_feed_is_not_asked_about(tmp_path):
         asked.append(url)
         return ""
 
-    appcast.check([app(updater=UpdaterStatus())], {"XDG_CACHE_HOME": str(tmp_path)}, fetch_one)
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    swap(appcast, "fetch", fetch_one)
+    appcast.check([app(updater=UpdaterStatus())])
 
     assert asked == []
 
 
 def test_a_recent_answer_is_not_asked_for_again(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
     asked = []
 
@@ -144,7 +157,8 @@ def test_a_recent_answer_is_not_asked_for_again(tmp_path):
         asked.append(url)
         return appcast_xml(item(short="9.9"))
 
-    answers = appcast.check([app()], env, fetch_one)
+    swap(appcast, "fetch", fetch_one)
+    answers = appcast.check([app()])
 
     assert asked == []
     assert answers[FEED].version == "1.2.5"
@@ -152,12 +166,14 @@ def test_a_recent_answer_is_not_asked_for_again(tmp_path):
 
 def test_an_old_answer_is_asked_for_again(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
-    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
-    answers = appcast.check(
-        [app()], env, answering(appcast_xml(item(short="9.9"))), now=later
-    )
+    later = lambda moment=__import__("time").time() + appcast.STALE_AFTER_SECONDS + 1: moment
+    swap(appcast, "fetch", answering(appcast_xml(item(short="9.9"))))
+    swap(appcast.time, "time", later)
+    answers = appcast.check([app()])
 
     assert answers[FEED].version == "9.9"
 
@@ -167,10 +183,9 @@ def test_a_cache_that_cannot_be_read_costs_nothing(tmp_path):
     cache.parent.mkdir(parents=True)
     cache.write_text("not json at all")
 
-    answers = appcast.check(
-        [app()], {"XDG_CACHE_HOME": str(tmp_path)},
-        answering(appcast_xml(item(short="1.2.5"))),
-    )
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    answers = appcast.check([app()])
 
     assert answers[FEED].version == "1.2.5"
     assert json.loads(cache.read_text())[FEED]["version"] == "1.2.5"
@@ -194,9 +209,10 @@ def test_a_feed_is_left_unasked_once_the_time_is_up(tmp_path):
         return appcast_xml(item(short="1.2.5"))
 
     apps = [app("Dockish"), app("Slow", updater=sparkle("https://slow.test/appcast.xml"))]
-    answers = appcast.check(
-        apps, {"XDG_CACHE_HOME": str(tmp_path)}, fetch_one, now=lambda: next(clock)
-    )
+    use_environment({"XDG_CACHE_HOME": str(tmp_path)})
+    swap(appcast, "fetch", fetch_one)
+    swap(appcast.time, "time", lambda: next(clock))
+    answers = appcast.check(apps)
 
     assert asked == [FEED]
     assert "no time left" in answers["https://slow.test/appcast.xml"].error
@@ -204,19 +220,23 @@ def test_a_feed_is_left_unasked_once_the_time_is_up(tmp_path):
 
 def test_a_version_already_known_survives_one_bad_day(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
-    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
-    answers = appcast.check(
-        [app()], env, failing(urllib.error.URLError("no route")), now=later
-    )
+    later = lambda moment=__import__("time").time() + appcast.STALE_AFTER_SECONDS + 1: moment
+    swap(appcast, "fetch", failing(urllib.error.URLError("no route")))
+    swap(appcast.time, "time", later)
+    answers = appcast.check([app()])
 
     assert answers[FEED].version == "1.2.5"
 
 
 def test_a_failure_is_asked_about_again_sooner_than_an_answer(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering("<html>gone</html>"))
+    use_environment(env)
+    swap(appcast, "fetch", answering("<html>gone</html>"))
+    appcast.check([app()])
 
     asked = []
 
@@ -224,8 +244,10 @@ def test_a_failure_is_asked_about_again_sooner_than_an_answer(tmp_path):
         asked.append(url)
         return appcast_xml(item(short="1.2.5"))
 
-    later = lambda: __import__("time").time() + appcast.STALE_AFTER_A_FAILURE + 1
-    answers = appcast.check([app()], env, fetch_one, now=later)
+    later = lambda moment=__import__("time").time() + appcast.STALE_AFTER_A_FAILURE + 1: moment
+    swap(appcast, "fetch", fetch_one)
+    swap(appcast.time, "time", later)
+    answers = appcast.check([app()])
 
     assert asked == [FEED]
     assert answers[FEED].version == "1.2.5"
@@ -233,12 +255,14 @@ def test_a_failure_is_asked_about_again_sooner_than_an_answer(tmp_path):
 
 def test_a_feed_nobody_has_an_app_for_any_more_is_dropped(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
-    appcast.check([app(updater=sparkle("https://other.test/appcast.xml"))], env,
-                  answering(appcast_xml(item(short="2.0"))))
+    swap(appcast, "fetch", answering(appcast_xml(item(short="2.0"))))
+    appcast.check([app(updater=sparkle("https://other.test/appcast.xml"))])
 
-    kept = json.loads(appcast.cache_path(env).read_text())
+    kept = json.loads(appcast.cache_path().read_text())
     assert list(kept) == ["https://other.test/appcast.xml"]
 
 
@@ -247,24 +271,32 @@ def test_a_feed_that_went_quiet_says_so_even_though_a_version_is_known(tmp_path)
     # whether an app has stopped updating itself by the error, so covering it
     # up would make a dead feed look healthy for good.
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
-    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
+    later = lambda moment=__import__("time").time() + appcast.STALE_AFTER_SECONDS + 1: moment
     error = urllib.error.HTTPError(FEED, 403, "Forbidden", {}, None)
-    answers = appcast.check([app()], env, failing(error), now=later)
+    swap(appcast, "fetch", failing(error))
+    swap(appcast.time, "time", later)
+    answers = appcast.check([app()])
 
     assert answers[FEED].version == "1.2.5"
-    assert answers[FEED].error == "its feed answers 403"
+    assert answers[FEED].error == "update source answers 403"
 
 
 def test_the_error_is_remembered_too_so_a_later_run_still_sees_it(tmp_path):
     env = {"XDG_CACHE_HOME": str(tmp_path)}
-    appcast.check([app()], env, answering(appcast_xml(item(short="1.2.5"))))
+    use_environment(env)
+    swap(appcast, "fetch", answering(appcast_xml(item(short="1.2.5"))))
+    appcast.check([app()])
 
-    later = lambda: __import__("time").time() + appcast.STALE_AFTER_SECONDS + 1
+    later = lambda moment=__import__("time").time() + appcast.STALE_AFTER_SECONDS + 1: moment
     error = urllib.error.HTTPError(FEED, 403, "Forbidden", {}, None)
-    appcast.check([app()], env, failing(error), now=later)
+    swap(appcast, "fetch", failing(error))
+    swap(appcast.time, "time", later)
+    appcast.check([app()])
 
-    kept = json.loads(appcast.cache_path(env).read_text())
-    assert kept[FEED]["error"] == "its feed answers 403"
+    kept = json.loads(appcast.cache_path().read_text())
+    assert kept[FEED]["error"] == "update source answers 403"
     assert kept[FEED]["version"] == "1.2.5"

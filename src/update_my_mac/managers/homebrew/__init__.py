@@ -11,6 +11,7 @@ from update_my_mac.managers.manager import (
     PackageManager,
     nonblank_lines,
 )
+from update_my_mac.system import shell
 
 INDEX_STALE_AFTER_SECONDS = 24 * 60 * 60
 
@@ -21,10 +22,18 @@ class Homebrew(PackageManager):
     command = "brew"
     outdated_args = ("outdated", "--verbose")
     upgrade_args = ("upgrade",)
-    # A scheduled run should report against what Homebrew already knows
-    # rather than pulling a new index first.
-    extra_env = MappingProxyType({"HOMEBREW_NO_AUTO_UPDATE": "1"})
+    extra_env = MappingProxyType({
+        # A scheduled run should report against what Homebrew already knows
+        # rather than pulling a new index first.
+        "HOMEBREW_NO_AUTO_UPDATE": "1",
+        # Ask mode prints a plan table wider than a terminal, with download
+        # sizes for formulae only, and asks before adding dependencies.
+        "HOMEBREW_NO_ASK": "1",
+        # A running app stays open, and the run offers to restart it afterwards.
+        "HOMEBREW_NO_UPGRADE_QUIT_CASKS": "1",
+    })
     self_upgrade_args = ("update",)
+    cleanup_args = ("cleanup",)
 
     def parse_outdated(self, stdout):
         """Returns what `brew outdated --verbose` names, formulae and casks alike."""
@@ -38,13 +47,13 @@ class Homebrew(PackageManager):
                 packages.append(line.strip())
         return packages
 
-    def ignored_sources(self, shell, result):
+    def ignored_sources(self, result):
         """Returns the taps Homebrew left out of its answer without saying so."""
         if "not trusted" not in result.stderr:
             return []
-        return brew.untrusted_taps(shell)
+        return brew.untrusted_taps()
 
-    def check_self(self, shell):
+    def check_self(self):
         """Returns whether Homebrew's index is old enough to be worth refreshing."""
         executable = shell.find_executable(self.command)
         if executable is None:

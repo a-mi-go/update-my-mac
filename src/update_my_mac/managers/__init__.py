@@ -10,25 +10,26 @@ from update_my_mac.managers.manager import (
 )
 from update_my_mac.managers.npm import Npm
 from update_my_mac.managers.pnpm import Pnpm
+from update_my_mac.system import shell
 
 MANAGERS = (AppStore(), Homebrew(), Npm(), Pnpm())
 
 
-def by_key(key, managers=MANAGERS):
-    return next(manager for manager in managers if manager.key == key)
+def by_key(key):
+    return next(manager for manager in MANAGERS if manager.key == key)
 
 
-def installed(shell, managers=MANAGERS):
-    return [one for one in managers if shell.find_executable(one.command) is not None]
+def installed():
+    return [one for one in MANAGERS if shell.find_executable(one.command) is not None]
 
 
-def check_what_is_outdated(shell, managers=MANAGERS):
-    reports = (one.outdated(shell) for one in managers)
+def check_what_is_outdated():
+    reports = (one.outdated() for one in MANAGERS)
     return [report for report in reports if report is not None]
 
 
-def check_themselves(shell, managers=MANAGERS):
-    updates = (one.check_self(shell) for one in managers)
+def check_themselves(managers):
+    updates = (one.check_self() for one in managers)
     return [update for update in updates if update is not None]
 
 

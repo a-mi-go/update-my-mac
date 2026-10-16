@@ -1,6 +1,7 @@
 """Handing an app to Homebrew, and checking that it really took."""
 
 import plistlib
+from fake_run import use_shell
 
 from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import versions
@@ -32,7 +33,7 @@ class BrewShell:
     def find_executable(self, command):
         return f"/fake/{command}" if self.installed else None
 
-    def stream_command(self, args, env=None):
+    def stream_command(self, args, env=None, silent_status=None):
         self.streamed.append(args)
         return self.exit_code
 
@@ -44,7 +45,8 @@ def test_a_matching_app_is_handed_over(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
     shell = BrewShell("betterdisplay 5.0.6")
 
-    taken, message = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, CASK)
     assert taken
     assert "looks after it now" in message
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--adopt"]]
@@ -56,7 +58,8 @@ def test_an_older_app_gets_the_recipe_version_put_over_it(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.5")
     shell = BrewShell("")
 
-    taken, _ = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, _ = adopting.hand_to_homebrew(app, CASK)
     assert taken
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--force"]]
 
@@ -68,7 +71,8 @@ def test_an_app_newer_than_the_recipe_is_put_back_when_that_is_asked_for(tmp_pat
     app = bundle(tmp_path, "BetterDisplay", "5.0.7")
     shell = BrewShell("")
 
-    taken, _ = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, _ = adopting.hand_to_homebrew(app, CASK)
     assert taken
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--force"]]
 
@@ -126,7 +130,8 @@ def test_homebrew_writing_down_a_version_it_did_not_install_is_caught(tmp_path):
     )
     shell = BrewShell("betterdisplay 5.0.6")
 
-    taken, message = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, CASK)
     assert not taken
     assert "wrote down betterdisplay 5.0.6, but the app is still 5.0.5" in message
     assert "brew reinstall --cask betterdisplay" in message
@@ -137,13 +142,15 @@ def test_a_build_number_after_the_comma_is_not_a_difference(tmp_path):
     cask = Cask("docker-desktop", "https://docker.com/", "4.92.0,240144")
     shell = BrewShell("docker-desktop 4.92.0,240144")
 
-    assert adopting.hand_to_homebrew(app, cask, shell)[0]
+    use_shell(shell)
+    assert adopting.hand_to_homebrew(app, cask)[0]
 
 
 def test_an_app_no_cask_ships_is_said_so(tmp_path):
     app = bundle(tmp_path, "TokenEater", "5.13.0")
 
-    taken, message = adopting.hand_to_homebrew(app, None, BrewShell(""))
+    use_shell(BrewShell(""))
+    taken, message = adopting.hand_to_homebrew(app, None)
     assert not taken
     assert "no recipe" in message
 
@@ -152,7 +159,8 @@ def test_without_homebrew_nothing_is_attempted(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
     shell = BrewShell("", installed=False)
 
-    taken, message = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, CASK)
     assert not taken
     assert "not installed" in message
 
@@ -161,7 +169,8 @@ def test_a_failed_handover_is_reported(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
     shell = BrewShell("betterdisplay 5.0.6", exit_code=1)
 
-    taken, message = adopting.hand_to_homebrew(app, CASK, shell)
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, CASK)
     assert not taken
     assert "exited with 1" in message
 
@@ -170,7 +179,8 @@ def test_an_unreadable_record_is_not_treated_as_a_mismatch(tmp_path):
     # Saying nothing beats inventing a problem out of a missing answer.
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
 
-    assert adopting.hand_to_homebrew(app, CASK, BrewShell(""))[0]
+    use_shell(BrewShell(""))
+    assert adopting.hand_to_homebrew(app, CASK)[0]
 
 
 def test_a_recipe_that_lags_the_app_says_so_in_the_option(tmp_path):
@@ -248,7 +258,8 @@ def test_handing_over_a_package_cask_is_refused_before_anything_runs(tmp_path):
     app = bundle(tmp_path, "Google Drive", "131.0")
     shell = BrewShell("")
 
-    taken, message = adopting.hand_to_homebrew(app, PACKAGE, shell)
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, PACKAGE)
 
     assert not taken
     assert "installs a package" in message

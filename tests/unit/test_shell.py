@@ -1,3 +1,5 @@
+import os
+
 from update_my_mac.system import shell
 
 
@@ -18,3 +20,81 @@ def test_a_command_that_cannot_start_has_no_exit_code():
 def test_a_command_that_never_ran_is_not_described_by_a_number():
     assert shell.describe_exit(None) == "could not be run"
     assert shell.describe_exit(2) == "exited with 2"
+
+
+class Status:
+    """What the runner starts and stops, and when it did so relative to the output."""
+
+    def __init__(self):
+        self.events = []
+
+    def start(self):
+        self.events.append("start")
+
+    def stop(self):
+        self.events.append("stop")
+
+
+def test_a_status_shows_until_the_command_first_writes(capfd):
+    status = Status()
+
+    code = shell._run_until_it_writes(["sh", "-c", "sleep 0.3; printf hello"], None, status)
+
+    assert code == 0
+    assert status.events == ["start", "stop"]
+    assert capfd.readouterr().out == "hello"
+
+
+def test_the_status_has_stopped_before_the_first_byte_is_passed_on(capfd):
+    class Marking(Status):
+        def stop(self):
+            os.write(1, b"[stopped]")
+            super().stop()
+
+    shell._run_until_it_writes(["sh", "-c", "printf hello"], None, Marking())
+
+    assert capfd.readouterr().out == "[stopped]hello"
+
+
+def test_a_command_that_never_writes_still_stops_the_status():
+    status = Status()
+
+    assert shell._run_until_it_writes(["sh", "-c", "exit 3"], None, status) == 3
+    assert status.events == ["start", "stop"]
+
+
+def test_the_command_still_sees_a_terminal(capfd):
+    shell._run_until_it_writes(["sh", "-c", "[ -t 1 ] && printf yes || printf no"], None, Status())
+
+    assert capfd.readouterr().out == "yes"
+
+
+def test_something_the_command_left_running_does_not_hold_the_run_up():
+    import time
+
+    started = time.time()
+    code = shell._run_until_it_writes(["sh", "-c", "(sleep 5 &) ; printf hi"], None, Status())
+
+    assert code == 0
+    assert time.time() - started < 2
+
+
+def test_a_status_is_not_started_when_the_output_is_not_a_terminal():
+    status = Status()
+
+    assert shell.stream_command(["true"], silent_status=status) == 0
+    assert status.events == []
+
+
+def test_commands_and_lookups_start_from_the_environment_the_run_set(tmp_path):
+    tool = tmp_path / "mytool"
+    tool.write_text("#!/bin/sh\necho $MARKER\n")
+    tool.chmod(0o755)
+    shell.use_environment({"PATH": str(tmp_path), "MARKER": "prepared"})
+    try:
+        assert shell.find_executable("mytool") == str(tool)
+        assert shell.run_command([str(tool)]).stdout == "prepared"
+        # An env a caller gives still wins.
+        assert shell.run_command([str(tool)], env={"MARKER": "given"}).stdout == "given"
+    finally:
+        shell.use_environment(None)

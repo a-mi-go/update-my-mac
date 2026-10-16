@@ -14,7 +14,6 @@ class AppStore(PackageManager):
     counted_as = "apps"
 
     def parse_outdated(self, stdout):
-        """Returns what `mas outdated` names: "497799835  Xcode  (14.0 -> 14.1)"."""
         apps = []
         for line in nonblank_lines(stdout):
             match = re.match(r"\d+\s+(.+?)\s+\((.+?)\s*->\s*(.+?)\)", line.strip())

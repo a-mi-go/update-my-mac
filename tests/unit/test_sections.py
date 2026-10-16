@@ -23,9 +23,11 @@ def sparkle(automatic=True, silently=False, feed="https://x.test/appcast.xml"):
     return UpdaterStatus(app_updaters.SPARKLE, automatic, silently, "2026-08-16", feed)
 
 
-def behind(name="BetterDisplay", app_version="5.0.5", cask_version="5.0.6", recorded="5.0.5"):
+def behind(name="BetterDisplay", app_version="5.0.5", cask_version="5.0.6", recorded="5.0.5",
+           updater=None):
     return behind_the_recipe.Behind(
-        app(name, app_version), Cask(name.lower(), "https://x.test/", cask_version), recorded
+        app(name, app_version), Cask(name.lower(), "https://x.test/", cask_version), recorded,
+        updater or UpdaterStatus(),
     )
 
 
@@ -46,8 +48,8 @@ def test_a_check_that_could_not_run_is_the_loudest_thing():
         reports=[ManagerReport("npm", "npm (global)", [], "ENOTFOUND")]
     ))
 
-    assert titles(found) == ["A check could not run"]
-    assert find("A check could not run", found).level == sections.CRITICAL
+    assert titles(found) == ["Checks that could not run"]
+    assert find("Checks that could not run", found).level == sections.CRITICAL
 
 
 def test_a_manager_that_failed_both_questions_is_named_once():
@@ -56,10 +58,10 @@ def test_a_manager_that_failed_both_questions_is_named_once():
         managers_behind=[ManagerUpdate("npm", "npm (global)", error_message="ENOTFOUND")],
     ))
 
-    assert find("A check could not run", found).count == 1
+    assert find("Checks that could not run", found).count == 1
 
 
-def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
+def test_homebrew_packages_and_apps_behind_the_recipe_share_one_section():
     found = sections.of(Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
         apps_behind=[behind()],
@@ -73,9 +75,19 @@ def test_what_homebrew_reports_and_what_it_overlooks_share_one_section():
 def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
     found = sections.of(Findings(apps_behind=[behind(recorded="5.0.6")]))
 
-    written_down = find("No upgrade will fetch these", found)
+    written_down = find("Need action to update", found)
     assert written_down.level == sections.CRITICAL
+    assert written_down.rows[0].note == ""
     assert "Homebrew" not in titles(found)
+
+
+def test_an_app_with_a_false_record_says_what_its_own_updater_does():
+    switched_off = sparkle(automatic=False)
+    found = sections.of(Findings(apps_behind=[behind(recorded="5.0.6", updater=switched_off)]))
+
+    written_down = find("Need action to update", found)
+    assert written_down.rows[0].note == "auto checking off, last checked 2026-08-16"
+    assert written_down.note == "fix issues or update manually"
 
 
 def test_every_other_manager_gets_its_own_section():
@@ -103,10 +115,10 @@ def test_an_app_whose_feed_is_quiet_is_not_also_called_self_updating():
     feed = "https://x.test/appcast.xml"
     found = sections.of(Findings(
         untracked=[app("Air", "1.0", sparkle(feed=feed))],
-        offered={feed: appcast.FeedAnswer(error="its feed answers 403")},
+        offered={feed: appcast.FeedAnswer(error="update source answers 403")},
     ))
 
-    assert titles(found) == ["Their update feed has gone quiet"]
+    assert titles(found) == ["Update source not answering"]
 
 
 def test_an_app_that_looks_after_itself_is_only_information():
@@ -116,7 +128,7 @@ def test_an_app_that_looks_after_itself_is_only_information():
         offered={feed: appcast.FeedAnswer(version="1.2.5")},
     ))
 
-    section = find("They look after themselves", found)
+    section = find("Apps that update themselves", found)
     assert section.level == sections.INFO
     assert section.rows[0].version == "1.1 → 1.2.5"
 
@@ -155,8 +167,8 @@ def test_an_updater_that_is_switched_off_is_not_the_same_as_none():
         app("Nothing", "1.0"),
     ]))
 
-    assert "Their updater is switched off" in titles(found)
-    assert find("Their updater is switched off", found).rows[0].name == "Off"
+    assert "Built-in updater switched off" in titles(found)
+    assert find("Built-in updater switched off", found).rows[0].name == "Off"
     assert find("Untracked apps", found).rows[0].name == "Nothing"
 
 
@@ -165,8 +177,8 @@ def test_an_updater_nobody_answered_for_gets_its_own_line():
         app("Unanswered", "1.0", sparkle(automatic=None, feed="")),
     ]))
 
-    section = find("They have an updater, and nothing says whether it runs", found)
-    assert section.rows[0].note == "never answered, last checked 2026-08-16"
+    section = find("Built-in updater, state unknown", found)
+    assert section.rows[0].note == "last checked 2026-08-16"
 
 
 def test_an_electron_app_is_not_counted_as_having_nothing():
@@ -175,9 +187,9 @@ def test_an_electron_app_is_not_counted_as_having_nothing():
     electron = UpdaterStatus(app_updaters.SQUIRREL)
     found = sections.of(Findings(untracked=[app("Exodus", "24.33.4", electron)]))
 
-    section = find("They have an updater, and nothing says whether it runs", found)
+    section = find("Built-in updater, state unknown", found)
     assert section.rows[0].name == "Exodus"
-    assert "nothing says if it runs" in section.rows[0].note
+    assert "Untracked apps" not in titles(found)
 
 
 def test_a_count_says_what_it_counts_where_the_title_does_not():
@@ -194,3 +206,24 @@ def test_a_title_that_already_names_the_thing_only_gets_the_number():
     found = sections.of(Findings(untracked=[app("Evoto", "7.1.5")]))
 
     assert find("Untracked apps", found).counted() == "1"
+
+
+def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
+    from update_my_mac.managers.homebrew import flagged, mounted_downloads
+
+    found = sections.of(Findings(
+        flagged=[
+            flagged.Flagged("tap/clerk", flagged.DIFFERS, installed="64", available="3.4.1"),
+            flagged.Flagged("google-trends", flagged.DISABLED, True, "1.0",
+                            reason="fails gatekeeper check since 2026-10-12"),
+            flagged.Flagged("old", flagged.DEPRECATED, installed="1"),
+        ],
+        mounted=[mounted_downloads.MountedImage(Path("/c/downloads/ab--charles.dmg"), "/dev/disk8")],
+    ))
+
+    assert find("Different from Homebrew's recipe", found).level == sections.CRITICAL
+    assert find("Different from Homebrew's recipe", found).rows[0].cells() == (
+        "tap/clerk", "64 → 3.4.1", "versions cannot be compared")
+    assert find("Disabled in Homebrew", found).level == sections.WARNING
+    assert find("Deprecated in Homebrew", found).level == sections.INFO
+    assert find("Downloads still attached", found).rows[0].name == "charles.dmg"

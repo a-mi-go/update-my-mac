@@ -27,8 +27,8 @@ classes would be misled.
 | --- | --- | --- |
 | Managers | `managers/` and `managers/homebrew/` | everything specific to the four tools: what they report, and the commands that drive them |
 | Checks | `installed_apps`, `app_updaters`, `appcast`, `running_apps`, `duplicate_installations`, `app_decisions`, `versions` | establishes what is on this Mac apart from the tools. Prints nothing, asks nothing |
-| View | `report`, `sections`, `prompting`, `keys` | turns findings into text and questions into answers |
-| Controller | `app`, `self_update`, `resolve_issues`, `apply_updates`, `track_apps`, `catch_up_casks`, `resolve_duplicates`, `restart_apps` | decides what happens: asks the checks, drives the view, runs the command |
+| View | `report`, `sections`, `prompting`, `arrow_menu` | turns findings into text and questions into answers |
+| Controller | `app`, `self_update`, `resolve_issues`, `apply_updates`, `track_apps`, `homebrew_fixes`, `resolve_by_command`, `walkthrough`, `resolve_duplicates`, `restart_apps` | decides what happens: asks the checks, drives the view, runs the command |
 | System | `shell`, `environment` | runs commands, finds executables |
 
 Three reading rules follow. A module in `checks/` that imports `rich` is in
@@ -135,7 +135,7 @@ update_my_mac/
         report.py                 the run's one report
         sections.py               rows and sections, loudest first
         prompting.py              a question, a menu, an answer
-        keys.py                   the arrow keys, where the terminal allows
+        arrow_menu.py             the arrow-key menu, where the terminal can draw it
 
     controller/
         __init__.py
@@ -144,7 +144,9 @@ update_my_mac/
         resolve_issues.py         the one question before the updates
         apply_updates.py          the upgrade menu and what it runs
         track_apps.py             the walk-through for untracked apps
-        catch_up_casks.py         casks Homebrew stopped noticing
+        homebrew_fixes.py         the fix for each thing Homebrew got wrong
+        resolve_by_command.py     offering a fix that is one command
+        walkthrough.py            all at once, or one at a time
         resolve_duplicates.py     dropping the copy PATH never reaches
         restart_apps.py           restarting what still runs old
 
@@ -188,7 +190,7 @@ an argument, and because the later moves would otherwise travel twice.
 pieces rather than the one this note first planned, and the three read better
 than one would have.
 
-`controller/self_update.py` asks and does: `pick_managers` and `update`.
+`controller/self_update.py` asks and does: `update_managers`, which confirms and then updates.
 `managers/__init__.py` keeps the registry and the questions that go to every
 manager at once. `managers/homebrew/brew.py` holds the 83 lines only Homebrew
 needed, so `adopting.py` stops reaching up for `adopt_cask` and the others.

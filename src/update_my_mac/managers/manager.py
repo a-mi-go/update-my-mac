@@ -1,9 +1,10 @@
 """What every manager has in common: the shape of one, and of its answers."""
 
+from abc import ABC
 import json
-import os
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from update_my_mac.system import shell
 
 
 class CheckFailed(Exception):
@@ -81,8 +82,8 @@ class ManagerUpdate:
     error_message: str = ""
 
 
-class PackageManager:
-    """One package manager: what it is called, and how to ask it anything."""
+class PackageManager(ABC):
+    """Base abstract class that provides a common interface for all package managers."""
 
     key: str
     label: str
@@ -96,25 +97,26 @@ class PackageManager:
     self_check_args = ()
     self_package = ""
     self_upgrade_args = ()
+    cleanup_args = ()
 
     def parse_outdated(self, stdout):
         return nonblank_lines(stdout)
 
-    def ignored_sources(self, shell, result):
+    def ignored_sources(self, result):
         """Returns what this manager left out of its answer without saying so."""
         return []
 
-    def _env(self):
-        return dict(os.environ, **self.extra_env) if self.extra_env else None
+    def environment(self):
+        return dict(shell.current_environment(), **self.extra_env) if self.extra_env else None
 
-    def outdated(self, shell):
+    def outdated(self):
         """Returns what this manager says is outdated, or None when it is absent."""
         executable = shell.find_executable(self.command)
         if executable is None:
             return None
 
         result = shell.run_command(
-            [executable, *self.outdated_args], self.success_exit_codes, self._env()
+            [executable, *self.outdated_args], self.success_exit_codes, self.environment()
         )
         if not result.success:
             return ManagerReport(
@@ -132,9 +134,9 @@ class PackageManager:
             return ManagerReport(self.key, self.label, [], str(failure))
 
         return ManagerReport(self.key, self.label, packages,
-                             ignored_taps=self.ignored_sources(shell, result))
+                             ignored_taps=self.ignored_sources(result))
 
-    def check_self(self, shell):
+    def check_self(self):
         """Returns a newer version of this manager, or None when there is none."""
         if not self.self_upgrade_args:
             return None
@@ -146,7 +148,7 @@ class PackageManager:
             return None
 
         result = shell.run_command(
-            [executable, *self.self_check_args], self.success_exit_codes, self._env()
+            [executable, *self.self_check_args], self.success_exit_codes, self.environment()
         )
         if not result.success:
             return ManagerUpdate(
@@ -159,19 +161,23 @@ class PackageManager:
             return ManagerUpdate(self.key, self.label, error_message=str(failure))
         return ManagerUpdate(self.key, self.label, described) if described else None
 
-    def upgrade(self, shell):
+    def upgrade(self, status=None):
         """Upgrades the packages with the terminal attached. Returns the exit code or None."""
-        return self._stream(shell, self.upgrade_args)
+        return self._stream(self.upgrade_args, status)
 
-    def upgrade_self(self, shell):
+    def upgrade_self(self, status=None):
         """Updates this manager with the terminal attached. Returns the exit code or None."""
-        return self._stream(shell, self.self_upgrade_args)
+        return self._stream(self.self_upgrade_args, status)
 
-    def _stream(self, shell, args):
+    def cleanup(self, status=None):
+        """Clears out what this manager no longer needs. Returns the exit code or None."""
+        return self._stream(self.cleanup_args, status)
+
+    def _stream(self, args, status):
         if not args:
             return None
 
         executable = shell.find_executable(self.command)
         if executable is None:
             return None
-        return shell.stream_command([executable, *args], self._env())
+        return shell.stream_command([executable, *args], self.environment(), silent_status=status)

@@ -1,5 +1,7 @@
 """The one question that offers everything the run found to sort out."""
 
+from update_my_mac.view.prompting import BULLET
+
 import pytest
 from rich.rule import Rule
 from rich.text import Text
@@ -33,9 +35,11 @@ def test_only_what_turned_up_is_offered():
 
     resolve_issues.ask_what_to_fix([problem("untracked apps")], terminal.step)
 
-    assert "1) untracked apps" in terminal.text
-    assert "2) " + resolve_issues.FIX_EVERYTHING in terminal.text
-    assert f"3) {prompting.WAY_OUT}{resolve_issues.NOT_NOW}" in terminal.text
+    assert f"1) {BULLET}untracked apps" in terminal.text
+    assert (
+        "2) " + Text.from_markup(resolve_issues.FIX_EVERYTHING).plain in terminal.text
+    )
+    assert "3) " + Text.from_markup(resolve_issues.NOT_NOW).plain in terminal.text
 
 
 def test_picking_one_opens_its_walk_through():
@@ -86,12 +90,6 @@ def test_saying_no_leaves_everything_as_it_is():
     assert (walked, fixed, dealt_with) == ([], [], 0)
 
 
-def test_without_a_terminal_nothing_is_asked():
-    terminal = Terminal()
-
-    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, interactive=False)
-
-    assert terminal.text == ""
 
 
 def test_ctrl_c_is_left_to_end_the_run():
@@ -102,40 +100,25 @@ def test_ctrl_c_is_left_to_end_the_run():
         resolve_issues.ask_what_to_fix([problem("apps")], terminal.step)
 
 
-def test_a_line_closes_the_phase():
-    # The question and everything under it belong together, and the update
-    # menu below is a different part of the run.
-    for answers in (("3",), ("1", "3")):
-        terminal = Terminal(*answers)
+def test_the_next_menu_draws_the_line_not_this_one():
+    terminal = Terminal("3")
 
-        resolve_issues.ask_what_to_fix([problem("apps")], terminal.step)
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step)
 
-        assert "-" * prompting.CLOSING_WIDTH in terminal.text
+    assert prompting.SEPARATOR_CHARACTER not in terminal.text
 
 
-def test_the_line_comes_after_what_was_fixed():
-    terminal = Terminal("2")
-
-    def took_it_over(step):
-        step.say("took it over")
-        return 1
-
-    resolve_issues.ask_what_to_fix([resolve_issues.Problem("apps", None, took_it_over)], terminal.step)
-
-    line = "-" * prompting.CLOSING_WIDTH
-    assert terminal.text.index(line) > terminal.text.index("took it over")
-
-
-def test_the_line_is_dashed_white_and_at_most_84_wide():
-    # Drawn with characters="-" rather than Rule("-"), whose first argument is
-    # the title, so it would come out with a dash in the middle of it.
+def test_the_line_is_thin_grey_like_the_menu_separators_and_at_most_84_wide():
+    # Drawn with characters=... rather than Rule("─"), whose first argument is
+    # the title, so it would come out with a character in the middle of it.
     drawn = []
-    prompting.Step(lambda rule, **options: drawn.append((rule, options))).close_section()
+    prompting.print_unwrapped = lambda rule, **options: drawn.append((rule, options))
+    prompting.Step().print_separator()
 
     rule, options = drawn[0]
-    assert (rule.characters, rule.style) == ("-", "white")
+    assert (rule.characters, rule.style) == ("─", "#666666")
     assert options["width"] == 84
-    assert prompting.CLOSING_WIDTH == 84
+    assert prompting.SEPARATOR_WIDTH == 84
 
 
 def stopping(exception):
@@ -169,6 +152,58 @@ def test_a_step_that_ran_out_of_input_does_not_take_the_others_with_it():
 
     terminal = Terminal("2")
 
-    assert resolve_issues.ask_what_to_fix(
-        [resolve_issues.Problem("apps", None, out_of_input)], terminal.step
-    ) == 0
+    assert (
+        resolve_issues.ask_what_to_fix(
+            [resolve_issues.Problem("apps", None, out_of_input)], terminal.step
+        )
+        == 0
+    )
+
+
+def shrinking(things):
+    """An entry whose walk-through settles one thing each time it is opened."""
+
+    def refresh(one):
+        one.label = f"fix things ({len(things)})"
+        return bool(things)
+
+    def walk(_step):
+        things.pop()
+        return 1
+
+    return resolve_issues.Problem(f"fix things ({len(things)})", walk, walk, refresh)
+
+
+def test_the_count_follows_what_has_been_dealt_with():
+    things = ["a", "b", "c"]
+    # Open it, then open it again, then leave.
+    terminal = Terminal("1", "1", "3")
+
+    resolve_issues.ask_what_to_fix([shrinking(things)], terminal.step)
+
+    assert terminal.text.count(f"1) {BULLET}fix things (3)") == 1
+    assert terminal.text.count(f"1) {BULLET}fix things (2)") == 1
+    assert terminal.text.count(f"1) {BULLET}fix things (1)") == 1
+
+
+def test_an_entry_with_nothing_left_is_no_longer_offered():
+    things = ["a"]
+    terminal = Terminal("1")
+
+    dealt_with = resolve_issues.ask_what_to_fix([shrinking(things)], terminal.step)
+
+    assert dealt_with == 1
+    assert terminal.text.count("Should we sort things out") == 1
+
+
+def test_the_menu_comes_back_after_a_line_but_does_not_open_with_one():
+    terminal = Terminal("1", "2")
+    walked = []
+
+    resolve_issues.ask_what_to_fix([problem("apps", walked)], terminal.step)
+
+    first, second = terminal.text.split(
+        resolve_issues.QUESTION.replace("[bold]", "").replace("[/]", "")
+    )[1:3]
+    assert prompting.SEPARATOR_CHARACTER not in terminal.text.split("1) ")[0]
+    assert prompting.SEPARATOR_CHARACTER in first

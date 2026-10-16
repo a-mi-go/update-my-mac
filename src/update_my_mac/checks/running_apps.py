@@ -12,6 +12,7 @@ from pathlib import Path
 
 from update_my_mac.checks import installed_apps
 from update_my_mac.shell_configs import parse_elapsed
+from update_my_mac.system import shell
 
 # A bundle written at about the moment the app started is the app being
 # launched, not an upgrade underneath it.
@@ -34,13 +35,15 @@ class StillRunningOld:
         replaced = time.strftime("%d %b %H:%M", time.localtime(self.written))
         return f"running since {started}, replaced {replaced}"
 
-    def describe(self):
+    def title(self):
         known = self.version and self.version != installed_apps.UNKNOWN_VERSION
-        named = f"{self.name}  {self.version}" if known else self.name
-        return f"{named}:  {self.comment()}"
+        return f"{self.name}  {self.version}" if known else self.name
+
+    def describe(self):
+        return f"{self.title()}:  {self.comment()}"
 
 
-def _processes(shell):
+def _processes():
     """Returns every running process as (pid, seconds running, executable path)."""
     executable = shell.find_executable("ps")
     if executable is None:
@@ -69,7 +72,7 @@ def _bundle_of(command):
     return Path(match.group(1)) if match else None
 
 
-def _our_own_ancestors(shell):
+def _our_own_ancestors():
     """Returns the app this tool is running inside."""
     executable = shell.find_executable("ps")
     if executable is None:
@@ -91,15 +94,14 @@ def _our_own_ancestors(shell):
     return ours
 
 
-def find(shell, env=None):
+def find():
     """Returns running apps whose bundle was replaced after they were started."""
-    env = os.environ if env is None else env
-    directories = {path.resolve() for path in installed_apps.app_directories(env)}
-    ours = _our_own_ancestors(shell)
+    directories = {path.resolve() for path in installed_apps.app_directories()}
+    ours = _our_own_ancestors()
     now = time.time()
 
     found = {}
-    for pid, seconds, command in _processes(shell):
+    for pid, seconds, command in _processes():
         bundle = _bundle_of(command)
         if bundle is None or bundle in ours or bundle.parent not in directories:
             continue

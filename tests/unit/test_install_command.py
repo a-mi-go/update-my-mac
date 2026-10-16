@@ -7,6 +7,7 @@ from rich.text import Text
 from update_my_mac import install_command
 from update_my_mac import shell_configs
 from fake_terminal import Terminal
+from fake_run import swap, use_environment
 
 
 class FakeUv:
@@ -47,22 +48,23 @@ def machine(tmp_path):
     return home, bin_dir, env
 
 
-def run(machine, *argv, answers=(), interactive=True, now=None, uv=None, update_shell=None):
+def run(machine, *argv, answers=(), ask=None, interactive=True, now=None, uv=None,
+        update_shell=None):
     home, bin_dir, env = machine
     terminal = Terminal(*answers)
     uv = uv or FakeUv(bin_dir)
     update_shell = update_shell or FakeUpdateShell()
-    code = install_command.main(
-        ["--project-dir", "/repo", "--bin-dir", str(bin_dir), *argv],
-        ask=terminal.ask,
-        out=terminal.out,
-        err=terminal.out,
-        env=env,
-        interactive=interactive,
-        now=now,
-        install=uv,
-        update_shell=update_shell,
-    )
+    printed = lambda *pieces, style=None: terminal.out(Text.assemble(*pieces, style=style or ""))
+    use_environment(env)
+    swap(install_command, "read_answer", ask or terminal.ask)
+    swap(install_command, "print_line", printed)
+    swap(install_command, "print_problem", printed)
+    swap(install_command, "is_interactive", lambda: interactive)
+    swap(install_command, "install_with_uv", uv)
+    swap(install_command, "update_shell_with_uv", update_shell)
+    if now is not None:
+        swap(install_command.time, "time", lambda: now)
+    code = install_command.main(["--project-dir", "/repo", "--bin-dir", str(bin_dir), *argv])
     return code, terminal.text, uv
 
 
@@ -173,37 +175,21 @@ def test_a_clash_without_a_terminal_installs_nothing(machine):
 
 
 def test_ctrl_c_at_a_question_installs_nothing(machine):
-    _, bin_dir, env = machine
-    terminal = Terminal()
-    uv = FakeUv(bin_dir)
-
     def ctrl_c(_prompt):
         raise KeyboardInterrupt
 
-    code = install_command.main(
-        ["--project-dir", "/repo", "--bin-dir", str(bin_dir)],
-        ask=ctrl_c, out=terminal.out, err=terminal.out,
-        env=env, interactive=True, install=uv,
-    )
+    code, text, uv = run(machine, ask=ctrl_c)
 
     assert code == 130
-    assert "Nothing was installed or changed" in terminal.text
+    assert "Nothing was installed or changed" in text
     assert uv.calls == 0
 
 
 def test_running_out_of_input_installs_nothing(machine):
-    _, bin_dir, env = machine
-    terminal = Terminal()
-    uv = FakeUv(bin_dir)
-
     def end_of_input(_prompt):
         raise EOFError
 
-    code = install_command.main(
-        ["--project-dir", "/repo", "--bin-dir", str(bin_dir)],
-        ask=end_of_input, out=terminal.out, err=terminal.out,
-        env=env, interactive=True, install=uv,
-    )
+    code, _, uv = run(machine, ask=end_of_input)
 
     assert code == 1
     assert uv.calls == 0
@@ -296,18 +282,11 @@ def test_a_bracket_in_a_path_is_text_not_colour_markup(tmp_path):
     (home / ".zshrc").write_text("alias update=old\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    terminal = Terminal()
+    machine = (home, bin_dir, {"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin"})
 
-    install_command.main(
-        ["--project-dir", "/repo", "--bin-dir", str(bin_dir)],
-        out=terminal.out,
-        err=terminal.out,
-        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin"},
-        interactive=False,
-        install=FakeUv(bin_dir),
-    )
+    _, text, _ = run(machine, interactive=False)
 
-    assert "we[ird]/.zshrc" in terminal.text
+    assert "we[ird]/.zshrc" in text
 
 
 def test_a_first_run_asks_for_a_name(machine):
@@ -469,7 +448,7 @@ def test_a_config_that_hides_the_fixed_path_is_pointed_out(machine, monkeypatch)
     _, bin_dir, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: False)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir: False)
 
     _, text, _ = run(machine, answers=["", ""])
 
@@ -481,7 +460,7 @@ def test_a_command_a_new_terminal_finds_is_done(machine, monkeypatch):
     _, _, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: True)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir: True)
 
     _, text, _ = run(machine, answers=["", ""])
 
@@ -492,7 +471,7 @@ def test_a_new_terminal_that_cannot_be_asked_does_not_block_done(machine, monkey
     _, _, env = machine
     env["PATH"] = "/usr/bin:/bin"
     env["SHELL"] = "/bin/zsh"
-    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir, env: None)
+    monkeypatch.setattr(shell_configs, "found_in_new_terminal", lambda shell, name, bin_dir: None)
 
     _, text, _ = run(machine, answers=["", ""])
 

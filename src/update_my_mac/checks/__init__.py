@@ -16,5 +16,7 @@ class Findings:
     apps_behind: list = field(default_factory=list)
     stale: list = field(default_factory=list)
     foreign: list = field(default_factory=list)
+    flagged: list = field(default_factory=list)
+    mounted: list = field(default_factory=list)
     find_cask: object = None
     any_manager_installed: bool = True

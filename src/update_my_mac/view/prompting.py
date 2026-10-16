@@ -1,89 +1,74 @@
 """Asking a question at the terminal, for the walk-throughs that do that."""
 
-from rich.console import Console
-from rich.markup import escape
+import re
+
 from rich.rule import Rule
 from rich.text import Text
+from update_my_mac.view import arrow_menu
+from update_my_mac.view import output
 
-from update_my_mac.view import keys
-
-# Marked rather than set below a line, because a separator is a row of its own
-# and a cursor can land on it.
+# Leads an answer that leaves the menu without doing anything.
 WAY_OUT = "↩ "
+WAYS_OUT = (WAY_OUT, "↳ ", "⏭ ")
 
 # How far one step of the conversation sits inside the one that opened it.
 STEP = "  "
 
-# The line that closes a section, capped so it reads as a divider rather than
+# The line that sets a menu apart, capped so it reads as a divider rather than
 # as the edge of the terminal.
-CLOSING_WIDTH = 84
+SEPARATOR_WIDTH = 84
+SEPARATOR_CHARACTER = "─"
 
-
-_pressed_ctrl_c = False
-
-
-def interrupted(say):
-    global _pressed_ctrl_c
-    if _pressed_ctrl_c:
-        raise KeyboardInterrupt
-    _pressed_ctrl_c = True
-    say("[yellow]Press Ctrl-C again to stop the run.[/]")
-
-
-def answered():
-    global _pressed_ctrl_c
-    _pressed_ctrl_c = False
+# Leads an option that has no symbol of its own, so all texts start in line.
+BULLET = "• "
+STARTS_WITH_SYMBOL = re.compile(r"[^\w\s(\[\"'] ")
 
 
 class Stopped(Exception):
     """No more input to answer with. Ctrl-C is the other one, and it ends the run."""
 
 
-def _with_way_out_mark(label, at, total):
-    return f"{WAY_OUT}{label}" if at == total - 1 else label
-
-
-def _without_markup(text):
-    return Text.from_markup(text).plain if text else ""
-
-
-def printer(out):
-    return out or Console(highlight=False, soft_wrap=True).print
+class Markup(str):
+    """A menu label that carries rich markup, drawn styled instead of escaped."""
 
 
 class Step:
     """One level of the conversation, and the only way to reach the next."""
 
-    def __init__(self, out=None, ask=input, depth=0, with_keys=None):
-        self.out = printer(out)
-        self.ask = ask
+    def __init__(self, depth=0):
         self.depth = depth
         self.margin = STEP * depth
-        self.with_keys = keys.available() if with_keys is None else with_keys
 
     def inside(self):
-        return Step(self.out, self.ask, self.depth + 1, self.with_keys)
+        return Step(self.depth + 1)
 
-    def say(self, text=""):
-        # A blank line is left as it is: indenting it would leave trailing spaces.
-        self.out(f"{self.margin}{text}" if text else "")
+    def print_indented(self, *pieces, style=None):
+        """Prints one line at this step's indent.
+
+        Each piece is plain text, a (text, style) pair, or a rich Text.
+        """
+        print_unwrapped(Text.assemble(self.margin, Text.assemble(*pieces, style=style or "")))
+
+    def print_empty_line(self):
+        # Not indented, which would leave trailing spaces.
+        print_unwrapped("")
 
     def read(self, question):
         try:
-            return self.ask(f"{self.margin}{question}").strip()
+            return read_answer(f"{self.margin}{question}").strip()
         except EOFError:
             raise Stopped
 
-    def choose(self, options, question=""):
+    def choose(self, options, question="", note=""):
         """Returns the key that was picked, after drawing the question and the options."""
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
         while True:
             try:
-                chosen = self._ask_by_keys_or_number(options, question)
+                chosen = self._ask_by_arrows_or_typed_number(options, question, note)
             except KeyboardInterrupt:
-                interrupted(self.say)
+                interrupted(self.print_indented)
                 continue
             except Stopped:
                 answered()
@@ -91,15 +76,49 @@ class Step:
             answered()
             return chosen
 
-    def _ask_by_keys_or_number(self, options, question):
-        if self.with_keys:
+    def yes_or_no(self, question, default=True):
+        """Returns True for yes. Asked with the arrow keys, or by number without them."""
+        while True:
             try:
-                return self._choose_with_keys(options, question)
-            except keys.Unusable as failure:
-                self.say(keys.unusable_message(failure))
+                answer = self._yes_or_no_by_arrows_or_typed_number(question, default)
+            except KeyboardInterrupt:
+                interrupted(self.print_indented)
+                continue
+            except Stopped:
+                answered()
+                raise
+            answered()
+            return answer
 
-        if question:
-            self.say(question)
+    def _yes_or_no_by_arrows_or_typed_number(self, question, default):
+        if arrow_menu.can_be_drawn():
+            try:
+                return bool(arrow_menu.yes_or_no(question, default))
+            except arrow_menu.Unusable as failure:
+                self.print_indented(arrow_menu.unusable_message(failure))
+        return self._ask_by_typed_number([(True, "yes"), (False, "no")], question, "")
+
+    def _ask_by_arrows_or_typed_number(self, options, question, note):
+        if arrow_menu.can_be_drawn():
+            try:
+                return self._choose_with_arrows(options, question, note)
+            except arrow_menu.Unusable as failure:
+                self.print_indented(arrow_menu.unusable_message(failure))
+        return self._ask_by_typed_number(options, question, note)
+
+    def _ask_by_typed_number(self, options, question, note):
+        # An empty question still takes its line, as it does with the arrow keys.
+        first, *rest = note.splitlines() or [""]
+        if first:
+            self.print_indented((question, "bold"), "  ", (first, arrow_menu.NOTE_COLOUR))
+        elif question:
+            self.print_indented(question, style="bold")
+        else:
+            self.print_empty_line()
+        for line in rest:
+            self.inside().print_indented(line, style=arrow_menu.NOTE_COLOUR)
+        if question or note:
+            self.print_empty_line()
         self._print_numbered(options)
         while True:
             # Asked again rather than guessed at, because guessing wrong here
@@ -107,24 +126,83 @@ class Step:
             given = self.read("> ")
             if given.isdigit() and 1 <= int(given) <= len(options):
                 return options[int(given) - 1][0]
-            self.say("[yellow]Didn't catch that.[/]")
+            self.print_indented("Didn't catch that.", style="yellow")
 
-    def _choose_with_keys(self, options, question):
-        entries = list(options)
+    def _choose_with_arrows(self, options, question, note):
+        entries = [
+            (key, arrow_menu.styled(_bulleted(label)) if isinstance(label, Markup) else _bulleted(label))
+            for key, label in options
+        ]
         # A line the cursor skips sets the way out apart.
-        entries.insert(len(entries) - 1, None)
+        way_out = next(
+            (at for at, (_, label) in enumerate(options)
+             if _plain(label).startswith(WAYS_OUT)),
+            None,
+        )
+        if way_out is not None:
+            entries.insert(way_out, None)
 
-        picked = keys.pick_one(_without_markup(question), entries)
+        picked = arrow_menu.pick_one(question, entries, note)
         if picked is None:
             # questionary gives None when the menu was aborted.
             raise Stopped
         return picked
 
     def _print_numbered(self, options):
-        listed = self.inside()
+        listed_items = self.inside()
         for at, (_, label) in enumerate(options):
-            marked = escape(_with_way_out_mark(label, at, len(options)))
-            listed.say(f"[bold cyan]{at + 1})[/] {marked}")
+            label = _bulleted(label)
+            shown = Text.from_markup(label) if isinstance(label, Markup) else label
+            listed_items.print_indented((f"{at + 1})", "cyan"), " ", shown)
 
-    def close_section(self):
-        self.out(Rule(characters="-", style="white"), width=CLOSING_WIDTH)
+    def print_separator(self):
+        print_separator()
+
+    def begin_menu(self):
+        """Sets the next menu apart from the answer above it."""
+        self.print_empty_line()
+        self.print_separator()
+
+
+def print_unwrapped(renderable, **options):
+    """Prints to the shared console without letting it re-wrap long lines."""
+    if isinstance(renderable, str):
+        renderable = Text(renderable)
+    output.console.print(renderable, soft_wrap=True, **options)
+
+
+def print_separator():
+    """Draws the line that sets a new menu apart from what came before."""
+    print_unwrapped(
+        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOUR), width=SEPARATOR_WIDTH
+    )
+
+
+def interrupted(print_line):
+    if arrow_menu.pressed_ctrl_c():
+        raise KeyboardInterrupt
+    arrow_menu.press_ctrl_c()
+    print_line(arrow_menu.WARNING, style="yellow")
+
+
+def answered():
+    arrow_menu.forget_ctrl_c()
+
+
+def read_answer(prompt):
+    return input(prompt)
+
+
+def _bulleted(label):
+    if STARTS_WITH_SYMBOL.match(_plain(label)):
+        return label
+    return Markup(BULLET + label) if isinstance(label, Markup) else BULLET + label
+
+
+def _plain(label):
+    """Returns the text a label shows, without its markup if it carries any."""
+    return _without_markup(label) if isinstance(label, Markup) else label
+
+
+def _without_markup(text):
+    return Text.from_markup(text).plain if text else ""

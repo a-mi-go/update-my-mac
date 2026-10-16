@@ -1,21 +1,23 @@
 from pathlib import Path
 
 from rich.console import Console
+from rich.text import Text
 
 from update_my_mac import __version__
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.view import report
+from update_my_mac.view import sections
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.installed_apps import InstalledApp
-from update_my_mac.managers import ManagerReport
+from update_my_mac.managers import ManagerReport, ManagerUpdate
+
+from fake_run import printed_by
 
 
 def rendered(reports):
-    console = Console(width=200, no_color=True, soft_wrap=True)
-    with console.capture() as captured:
-        report.print_outdated_summary(reports, console)
-    return captured.get()
+    return printed_by(lambda: report.print_outdated_summary(reports),
+                      Console(width=200, no_color=True, soft_wrap=True))
 
 
 def test_no_managers_at_all():
@@ -60,62 +62,64 @@ def outdated(count):
     return [ManagerReport("brew", "Homebrew", [f"package-{n}" for n in range(count)])]
 
 
-def test_a_short_list_stays_one_per_line(capsys):
-    report.print_outdated_summary(outdated(5), Console(width=120, no_color=True))
-
-    printed = capsys.readouterr().out
+def test_a_short_list_stays_one_per_line():
+    printed = printed_by(
+        lambda: report.print_outdated_summary(outdated(5)),
+        Console(width=120, no_color=True),
+    )
     assert "package-0" in printed.splitlines()[1]
     assert len([line for line in printed.splitlines() if "package-" in line]) == 5
 
 
-def test_a_longer_list_goes_into_four_columns(capsys):
-    report.print_outdated_summary(outdated(6), Console(width=120, no_color=True))
+def test_a_longer_list_goes_into_three_columns():
+    printed = printed_by(
+        lambda: report.print_outdated_summary(outdated(6)),
+        Console(width=120, no_color=True),
+    )
 
-    rows = [line for line in capsys.readouterr().out.splitlines() if "package-" in line]
+    rows = [line for line in printed.splitlines() if "package-" in line]
     assert len(rows) == 2
-    assert rows[0].split() == ["package-0", "package-1", "package-2", "package-3"]
-    assert rows[1].split() == ["package-4", "package-5"]
+    assert rows[0].split() == ["package-0", "package-1", "package-2"]
+    assert rows[1].split() == ["package-3", "package-4", "package-5"]
 
 
 BRACKETS = ["oops[/]", "[bold]weird[/bold]"]
 
 
-def test_a_short_list_prints_brackets_as_text(capsys):
-    report.print_outdated_summary(
-        [ManagerReport("brew", "Homebrew", BRACKETS)], Console(width=120, no_color=True)
+def test_a_short_list_prints_brackets_as_text():
+    printed = printed_by(
+        lambda: report.print_outdated_summary([ManagerReport("brew", "Homebrew", BRACKETS)]),
+        Console(width=120, no_color=True),
     )
-
-    printed = capsys.readouterr().out
     assert "oops[/]" in printed
     assert "[bold]weird[/bold]" in printed
 
 
-def test_the_columns_print_brackets_as_text(capsys):
+def test_the_columns_print_brackets_as_text():
     # As a plain string, "oops[/]" raised MarkupError and "[bold]x[/bold]"
     # vanished into styling, which is worse because nobody notices.
     packages = [f"package-{n}" for n in range(5)] + BRACKETS
-    report.print_outdated_summary(
-        [ManagerReport("brew", "Homebrew", packages)], Console(width=200, no_color=True)
+    printed = printed_by(
+        lambda: report.print_outdated_summary([ManagerReport("brew", "Homebrew", packages)]),
+        Console(width=200, no_color=True),
     )
-
-    printed = capsys.readouterr().out
     assert "oops[/]" in printed
     assert "[bold]weird[/bold]" in printed
 
 
-def test_a_manager_says_when_it_left_something_out(capsys):
+def test_a_manager_says_when_it_left_something_out():
     reports = [ManagerReport("brew", "Homebrew", [], ignored_taps=["anomalyco/tap", "clerk/stable"])]
-    report.print_outdated_summary(reports, Console(width=120, no_color=True))
-
-    printed = capsys.readouterr().out
+    printed = printed_by(
+        lambda: report.print_outdated_summary(reports),
+        Console(width=120, no_color=True),
+    )
     assert "Nothing from anomalyco/tap, clerk/stable was checked" in printed
 
 
 def printed_list(items, width=100):
-    console = Console(width=width, no_color=True)
-    with console.capture() as captured:
-        report.print_as_list_or_grid(console, "    ", items)
-    return [line.rstrip() for line in captured.get().splitlines()]
+    printed = printed_by(lambda: report.print_as_list_or_grid("    ", items),
+                         Console(width=width, no_color=True))
+    return [line.rstrip() for line in printed.splitlines()]
 
 
 def test_names_alone_take_one_column():
@@ -133,10 +137,10 @@ def test_versions_line_up_under_each_other():
 def test_a_comment_gets_a_column_of_its_own():
     lines = printed_list([
         report.Item("Air", "262.5", "checks only"),
-        report.Item("Dockish", "1.1", "never answered"),
+        report.Item("Dockish", "1.1", "state unknown"),
     ])
 
-    assert lines[0].index("checks only") == lines[1].index("never answered")
+    assert lines[0].index("checks only") == lines[1].index("state unknown")
 
 
 def test_a_column_nobody_fills_is_left_out():
@@ -152,18 +156,38 @@ def test_a_column_nobody_fills_is_left_out():
     assert lines[0].index("running") == len("    Google Drive") + 3
 
 
-def test_a_long_list_of_bare_names_goes_into_four_columns():
+def test_a_long_list_of_bare_names_goes_into_three_columns():
     lines = printed_list([report.Item(f"app-{n}") for n in range(6)])
 
     assert len(lines) == 2
-    assert lines[0].split() == ["app-0", "app-1", "app-2", "app-3"]
+    assert lines[0].split() == ["app-0", "app-1", "app-2"]
 
 
-def test_a_long_list_with_versions_stays_one_per_line():
+def test_a_long_list_with_versions_goes_three_to_a_line_each_beside_its_version():
     items = [report.Item(f"app-{n}", f"1.{n}") for n in range(6)]
     lines = printed_list(items)
 
-    assert len(lines) == 6
+    assert len(lines) == 2
+    assert lines[0].split() == ["app-0", "1.0", "app-1", "1.1", "app-2", "1.2"]
+
+
+def test_fewer_items_go_to_a_line_where_three_would_wrap():
+    items = [report.Item(f"application-{n}", f"1.2.{n} → 1.3.{n}") for n in range(6)]
+
+    wide = printed_list(items, width=120)
+    narrow = printed_list(items, width=80)
+    tight = printed_list(items, width=40)
+
+    assert [len(wide), len(narrow), len(tight)] == [2, 3, 6]
+    assert max(len(line) for line in narrow) <= 80
+    assert max(len(line) for line in tight) <= 40
+
+
+def test_a_short_list_with_versions_stays_one_per_line():
+    items = [report.Item(f"app-{n}", f"1.{n}") for n in range(5)]
+    lines = printed_list(items)
+
+    assert len(lines) == 5
     assert lines[0].split() == ["app-0", "1.0"]
 
 
@@ -179,10 +203,8 @@ def with_feed(name, version, url="https://x.test/appcast.xml"):
 
 
 def report_of(findings, width=80, terminal=False):
-    console = Console(width=width, no_color=True, force_terminal=terminal or None)
-    with console.capture() as captured:
-        report.print_report(findings, console)
-    return captured.get()
+    return printed_by(lambda: report.print_report(findings),
+                      Console(width=width, no_color=True, force_terminal=terminal or None))
 
 
 def test_the_report_is_framed_for_someone_watching():
@@ -246,7 +268,7 @@ def test_a_section_says_how_many_and_why_it_is_there():
     heading = next(line for line in report_of(findings).splitlines() if "Mac App Store" in line)
 
     assert "Mac App Store 1" in heading
-    assert "one menu answer away" in heading
+    assert "update from the menu below" in heading
 
 
 def test_a_reason_that_would_not_fit_is_left_off_rather_than_wrapped():
@@ -257,16 +279,48 @@ def test_a_reason_that_would_not_fit_is_left_off_rather_than_wrapped():
     printed = report_of(findings, width=40)
 
     assert "Mac App Store 1" in printed
-    assert "one menu answer away" not in printed
+    assert "update from the menu below" not in printed
 
 
 def test_the_managers_that_are_current_are_said_so_in_green():
     findings = Findings(reports=[ManagerReport("brew", "Homebrew", [])])
-    console = Console(width=80, force_terminal=True)
-    with console.capture() as captured:
-        report.print_report(findings, console)
-
-    printed = captured.get()
+    printed = printed_by(lambda: report.print_report(findings),
+                         Console(width=80, force_terminal=True))
     assert "✅" in printed
     # 32 is green, and this line is the only thing wearing it.
     assert "\x1b[32mup to date: Homebrew" in printed
+
+
+def test_the_frame_stops_growing_so_a_resize_has_less_to_tear():
+    findings = Findings(
+        reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
+    )
+
+    printed = report_of(findings, width=200, terminal=True)
+
+    widest = max(Text.from_ansi(line).cell_len for line in printed.splitlines())
+    assert widest == report.REPORT_MAX_WIDTH
+
+
+def test_the_count_in_a_heading_is_not_bold():
+    section = sections.Section(
+        sections.WARNING, "Homebrew", "", [sections.Row("git")], counted_as=sections.UPDATES
+    )
+
+    heading = report._heading(section, 80)
+
+    styles = {heading.plain[span.start:span.end]: str(span.style) for span in heading.spans}
+    assert styles[section.counted()] == "cyan"
+    assert "bold" in styles["Homebrew "]
+
+
+def test_the_title_says_it_is_a_report_and_a_blank_line_comes_before_it():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    framed = report_of(findings, terminal=True)
+    plain = report_of(findings)
+
+    assert f"update-my-mac {__version__} report" in framed.splitlines()[1].replace("\x1b[1m", "").replace("\x1b[2m", "").replace("\x1b[0m", "")
+    assert framed.startswith("\n")
+    assert plain.startswith("\n")
+    assert f"update-my-mac {__version__} report" in plain

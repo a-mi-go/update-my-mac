@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from fake_run import swap
+
 import pytest
 from rich.text import Text
 
@@ -39,8 +41,9 @@ class Remover:
 
 
 def test_which_one_runs_and_which_one_never_does_is_spelled_out():
-    terminal = Terminal(DECIDE, LEAVE_BOTH)
-    resolve_duplicates.ask_what_to_do([doubled()], Remover(), terminal.step)
+    terminal = Terminal(LEAVE_BOTH)
+    swap(resolve_duplicates, "_remove", Remover())
+    resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
 
     assert "runs now:   Homebrew, codex" in terminal.text
     assert "never used: npm (global), @openai/codex" in terminal.text
@@ -48,30 +51,29 @@ def test_which_one_runs_and_which_one_never_does_is_spelled_out():
 
 def test_the_shadowed_copy_can_be_dropped():
     remover = Remover()
-    terminal = Terminal(DECIDE, DROP_NPM)
+    terminal = Terminal(DROP_NPM)
 
-    removed = resolve_duplicates.ask_what_to_do(
-        [doubled()], remover, terminal.step
-    )
-    assert removed == 1
+    swap(resolve_duplicates, "_remove", remover)
+    removed = resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
+    assert len(removed) == 1
     assert remover.removed == ["@openai/codex"]
 
 
 def test_the_one_that_runs_can_be_dropped_instead():
     remover = Remover()
-    terminal = Terminal(DECIDE, DROP_HOMEBREW)
+    terminal = Terminal(DROP_HOMEBREW)
 
-    resolve_duplicates.ask_what_to_do([doubled()], remover, terminal.step)
+    swap(resolve_duplicates, "_remove", remover)
+    resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
     assert remover.removed == ["codex"]
 
 
 def test_leaving_both_removes_nothing():
     remover = Remover()
-    terminal = Terminal(DECIDE, LEAVE_BOTH)
+    terminal = Terminal(LEAVE_BOTH)
 
-    assert resolve_duplicates.ask_what_to_do(
-        [doubled()], remover, terminal.step
-    ) == 0
+    swap(resolve_duplicates, "_remove", remover)
+    assert resolve_duplicates.ask_what_to_do([doubled()], terminal.step) == []
     assert remover.removed == []
 
 
@@ -79,19 +81,17 @@ def test_stopping_partway_leaves_the_rest_alone():
     remover = Remover()
     terminal = Terminal(DECIDE, CANCEL)
 
-    resolve_duplicates.ask_what_to_do(
-        [doubled(), doubled()], remover, terminal.step
-    )
+    swap(resolve_duplicates, "_remove", remover)
+    resolve_duplicates.ask_what_to_do([doubled(), doubled()], terminal.step)
     assert remover.removed == []
 
 
 def test_a_removal_that_failed_is_not_counted():
-    terminal = Terminal(DECIDE, DROP_NPM)
+    terminal = Terminal(DROP_NPM)
 
-    removed = resolve_duplicates.ask_what_to_do(
-        [doubled()], Remover(exit_code=1), terminal.step
-    )
-    assert removed == 0
+    swap(resolve_duplicates, "_remove", Remover(exit_code=1))
+    removed = resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
+    assert len(removed) == 0
     assert "exited with 1" in terminal.text
 
 
@@ -101,38 +101,32 @@ def test_a_copy_of_unknown_origin_is_not_guessed_at():
         Copy("npm (global)", Path("/b"), "", ()),
     ])
     remover = Remover()
-    terminal = Terminal(DECIDE, DROP_HOMEBREW)
+    terminal = Terminal(DROP_HOMEBREW)
 
-    resolve_duplicates.ask_what_to_do([unknown], remover, terminal.step)
+    swap(resolve_duplicates, "_remove", remover)
+    resolve_duplicates.ask_what_to_do([unknown], terminal.step)
     assert remover.removed == []
     assert "Nothing here says how that one was installed" in terminal.text
 
 
-def test_no_terminal_means_nothing_is_asked():
-    terminal = Terminal()
-
-    assert resolve_duplicates.ask_what_to_do(
-        [doubled()], Remover(), terminal.step, interactive=False
-    ) == 0
-    assert terminal.text == ""
 
 
 def test_ctrl_c_is_left_to_end_the_run():
     terminal = Terminal(then=KeyboardInterrupt)
 
     with pytest.raises(KeyboardInterrupt):
-        resolve_duplicates.ask_what_to_do([doubled()], Remover(), terminal.step)
+        swap(resolve_duplicates, "_remove", Remover())
+        resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
 
 
 def test_every_copy_that_never_runs_can_go_in_one_step():
     remover = Remover()
     terminal = Terminal(DROP_SHADOWED)
 
-    removed = resolve_duplicates.ask_what_to_do(
-        [doubled(), doubled()], remover, terminal.step
-    )
+    swap(resolve_duplicates, "_remove", remover)
+    removed = resolve_duplicates.ask_what_to_do([doubled(), doubled()], terminal.step)
 
-    assert removed == 2
+    assert len(removed) == 2
     # The copy PATH reaches is the one left standing.
     assert remover.removed == ["@openai/codex", "@openai/codex"]
 
@@ -141,9 +135,8 @@ def test_doing_nothing_asks_about_no_command_at_all():
     remover = Remover()
     terminal = Terminal("3")
 
-    assert resolve_duplicates.ask_what_to_do(
-        [doubled()], remover, terminal.step
-    ) == 0
+    swap(resolve_duplicates, "_remove", remover)
+    assert resolve_duplicates.ask_what_to_do([doubled(), doubled()], terminal.step) == []
     assert "runs now" not in terminal.text
 
 
@@ -156,4 +149,27 @@ def test_ctrl_c_during_a_removal_ends_the_run():
     terminal = Terminal(DROP_SHADOWED)
 
     with pytest.raises(KeyboardInterrupt):
-        resolve_duplicates.ask_what_to_do([doubled()], Interrupting(), terminal.step)
+        swap(resolve_duplicates, "_remove", Interrupting())
+        resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
+
+
+def test_a_single_doubled_command_goes_straight_to_its_own_question():
+    terminal = Terminal(LEAVE_BOTH)
+
+    swap(resolve_duplicates, "_remove", Remover())
+    resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
+
+    assert "remove every copy that never runs" not in terminal.text
+    assert "runs now:   Homebrew, codex" in terminal.text
+
+
+def test_one_doubled_command_has_no_walk_through_to_cancel():
+    one, two = Terminal(LEAVE_BOTH), Terminal(DECIDE, LEAVE_BOTH, LEAVE_BOTH)
+
+    swap(resolve_duplicates, "_remove", Remover())
+    resolve_duplicates.ask_what_to_do([doubled()], one.step)
+    swap(resolve_duplicates, "_remove", Remover())
+    resolve_duplicates.ask_what_to_do([doubled(), doubled()], two.step)
+
+    assert "cancel the walk-through" not in one.text
+    assert "cancel the walk-through" in two.text

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.checks import versions
+from update_my_mac.managers.homebrew import flagged
 
 # Critical: a crooked state that should be taken care of, such as Homebrew
 #   holding a version it never installed, a feed that has stopped answering,
@@ -20,6 +21,9 @@ from update_my_mac.checks import versions
 CRITICAL, WARNING, INFO = "critical", "warning", "info"
 
 UPDATES = "update available"
+
+STILL_ATTACHED = "still attached, the next upgrade cannot attach it again"
+NOT_RESTARTED = "Updated but the old version is still running"
 
 
 def _pluralised(noun, count):
@@ -64,6 +68,8 @@ def of(findings):
         + _false_version_recorded(findings)
         + _feeds_gone_quiet(findings)
         + _owned_by_someone_else(findings)
+        + _flagged_by_homebrew(findings)
+        + _mounted_downloads(findings)
         + _homebrew_outdated(findings)
         + _outdated_per_manager(findings)
         + _managers_needing_an_update(findings)
@@ -92,7 +98,7 @@ def count_findings(sections):
 
 def _version_change(change):
     """Returns a manager's "1.2.3 → 1.2.4" as it should be shown."""
-    return change.strip()
+    return versions.change_without_builds(change)
 
 
 def _checks_that_failed(findings):
@@ -103,18 +109,26 @@ def _checks_that_failed(findings):
         if thing.error_message:
             failed.setdefault(thing.label, thing.error_message)
     rows = [Row(label, "", f"check failed: {message}") for label, message in failed.items()]
-    return [Section(CRITICAL, "A check could not run", "this report is incomplete", rows)]
+    return [Section(CRITICAL, "Checks that could not run", "results below are incomplete", rows)]
 
 
 def _false_version_recorded(findings):
     rows = [
-        Row(item.app.name, item.version_change())
+        Row(item.app.name, item.version_change(), _own_updater_note(item.updater))
         for item in findings.apps_behind
         if item.false_version_recorded
     ]
     return [
-        Section(CRITICAL, "No upgrade will fetch these", "only a reinstall will", rows)
+        Section(CRITICAL, "Need action to update",
+                "fix issues or update manually", rows)
     ]
+
+
+def _own_updater_note(updater):
+    """Returns what the app's own updater is doing, where it has one."""
+    if updater.kind == app_updaters.NONE:
+        return ""
+    return updater.update_method_note()
 
 
 def _feeds_gone_quiet(findings):
@@ -124,21 +138,56 @@ def _feeds_gone_quiet(findings):
         if appcast.answer_for(app, findings.offered).error
     ]
     return [
-        Section(CRITICAL, "Their update feed has gone quiet",
-                "they cannot update themselves any more", rows)
+        Section(CRITICAL, "Update source not answering", "update manually", rows)
     ]
 
 
 def _owned_by_someone_else(findings):
     rows = [Row(path.name, "", "chown it to yourself first") for path in findings.foreign]
     return [
-        Section(CRITICAL, "Owned by another user",
-                "an upgrade would break halfway through", rows)
+        Section(CRITICAL, "Owned by another user", "take ownership before updating", rows)
+    ]
+
+
+def doubt_about(item):
+    """Returns what Homebrew holds against a package it flagged."""
+    return "versions cannot be compared" if item.kind == flagged.DIFFERS else item.reason
+
+
+def download_name(image):
+    # Homebrew prefixes the file name with a hash and two dashes.
+    return image.path.name.split("--", 1)[-1]
+
+
+def _flagged_by_homebrew(findings):
+    """Returns what Homebrew has doubts about, one section per kind of doubt."""
+    def rows(kind):
+        return [
+            Row(item.name, versions.change_without_builds(f"{item.installed} → {item.available}")
+                if item.available else item.installed, doubt_about(item))
+            for item in findings.flagged
+            if item.kind == kind
+        ]
+
+    return [
+        Section(CRITICAL, "Different from Homebrew's recipe", "reinstall to match it",
+                rows(flagged.DIFFERS)),
+        Section(WARNING, "Disabled in Homebrew", "never updated, uninstall or replace",
+                rows(flagged.DISABLED)),
+        Section(INFO, "Deprecated in Homebrew", "still works, expect no more updates",
+                rows(flagged.DEPRECATED)),
+    ]
+
+
+def _mounted_downloads(findings):
+    rows = [Row(download_name(image), "", STILL_ATTACHED) for image in findings.mounted]
+    return [
+        Section(WARNING, "Downloads still attached", "detach them so upgrades can run", rows)
     ]
 
 
 def _homebrew_outdated(findings):
-    """Returns what brew outdated says, and what it overlooks."""
+    """Returns Homebrew's outdated packages, plus the apps behind their recipe."""
     report = next((r for r in findings.reports if r.manager == "brew"), None)
     rows = []
     if report and not report.error_message:
@@ -148,8 +197,8 @@ def _homebrew_outdated(findings):
         for item in findings.apps_behind
         if not item.false_version_recorded
     ]
-    note = "what it reports, and what it overlooks" if findings.apps_behind else ""
-    section = Section(WARNING, "Homebrew", note, rows, counted_as=UPDATES)
+    section = Section(WARNING, "Homebrew", "update from the menu below", rows,
+                      counted_as=UPDATES)
     if report and report.ignored_taps:
         named = ", ".join(report.ignored_taps)
         section.rows.append(Row("", "", f"nothing from {named} was checked"))
@@ -163,7 +212,7 @@ def _outdated_per_manager(findings):
         if report.manager == "brew" or report.error_message:
             continue
         rows = [_package_row(package) for package in report.outdated_packages]
-        built.append(Section(WARNING, report.label, "one menu answer away", rows,
+        built.append(Section(WARNING, report.label, "update from the menu below", rows,
                              counted_as=UPDATES))
     return built
 
@@ -180,8 +229,7 @@ def _managers_needing_an_update(findings):
         if not update.error_message
     ]
     return [
-        Section(WARNING, "The package managers themselves",
-                "worth doing before the rest", rows, counted_as=UPDATES)
+        Section(WARNING, "The package managers themselves", "update these first", rows, counted_as=UPDATES)
     ]
 
 
@@ -191,7 +239,7 @@ def _installed_twice(findings):
         rows.append(Row(duplicate.command, duplicate.winner.describe(), "runs now"))
         rows += [Row("", copy.describe(), "never used") for copy in duplicate.shadowed]
     return [
-        Section(WARNING, "Installed twice", "PATH picks the winner", rows,
+        Section(WARNING, "Installed twice", "uninstall the unused copy", rows,
                 # One row per copy, so the count cannot come from the rows.
                 count=len(findings.doubled), counted_as="command")
     ]
@@ -200,8 +248,7 @@ def _installed_twice(findings):
 def _not_restarted(findings):
     rows = [Row(app.name, app.version, app.comment()) for app in findings.stale]
     return [
-        Section(WARNING, "Updated but not restarted",
-                "still running the old version", rows)
+        Section(WARNING, NOT_RESTARTED, "restart the app", rows)
     ]
 
 
@@ -211,15 +258,14 @@ def _untracked_apps(findings):
         _untracked_not_already_listed(findings)
     )
     return [
-        Section(INFO, "They look after themselves", "nothing to do",
+        Section(INFO, "Apps that update themselves", "nothing to do",
                 _rows_for_apps(self_updating, findings)),
-        Section(INFO, "Their updater is switched off", "turning it on would keep them current",
+        Section(INFO, "Built-in updater switched off", "update manually or activate autoupdate",
                 _rows_for_apps(switched_off, findings)),
-        Section(INFO, "They have an updater, and nothing says whether it runs",
-                "it may never have run", _rows_for_apps(unclear, findings)),
+        Section(INFO, "Built-in updater, state unknown", "check for updates in the app", _rows_for_apps(unclear, findings)),
         # Untracked, not unknown: a recipe can exist for a copy Homebrew
         # never installed.
-        Section(INFO, "Untracked apps", "nothing says they update themselves",
+        Section(INFO, "Untracked apps", "no package manager, no built-in updater found",
                 _rows_for_apps(unattended, findings)),
     ]
 
@@ -232,9 +278,10 @@ def _rows_for_apps(apps, findings):
 
 
 def _what_is_known_about(app, findings):
-    """Returns what updates this app, or the recipe that could take it over."""
+    """Returns when the updater last checked, or the recipe that could take it over."""
     if app.updater.kind != app_updaters.NONE:
-        return app.updater.update_method_note()
+        # The section these rows sit under already names the updater's state.
+        return app.updater.history_note()
     cask = findings.find_cask(app) if findings.find_cask else None
     if not cask:
         return ""
@@ -253,11 +300,12 @@ def _untracked_not_already_listed(findings):
 def _updates_available(app, findings):
     """Returns the installed version, and the newer one on offer for it."""
     answer = appcast.answer_for(app, findings.offered)
+    shown = versions.without_build(app.version)
     if appcast.offers_newer(app, answer):
-        return f"{app.version} → {answer.version}"
+        return f"{shown} → {versions.without_build(answer.version)}"
 
     cask = findings.find_cask(app) if findings.find_cask else None
     if cask and not versions.any_version_matches(app.versions_named(), cask.version):
         if versions.is_newer(cask.version, than=app.version):
-            return f"{app.version} → {cask.version}"
-    return app.version
+            return f"{shown} → {versions.without_build(cask.version)}"
+    return shown
