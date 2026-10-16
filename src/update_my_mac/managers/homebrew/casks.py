@@ -23,6 +23,38 @@ class Cask:
     installs_a_package: bool = False
 
 
+class CaskIndex:
+    def __init__(self, by_app):
+        self.by_app = by_app
+
+    def for_app(self, app_path):
+        """Returns the cask that installs this app, matched on the exact file name."""
+        name = Path(app_path).name
+        # Exact: two unrelated programs can ship the same name capitalised
+        # differently.
+        found = self.by_app.get(name)
+        if found is None:
+            found = self._installer_cask_named(name)
+        if not isinstance(found, dict):
+            return None
+        return Cask(
+            found.get("token", ""),
+            found.get("homepage", ""),
+            found.get("version", ""),
+            found.get("installs_a_package", False),
+        )
+
+    def _installer_cask_named(self, app_name):
+        """Returns a cask that ships an installer, matched on its token alone."""
+        found = self.by_app.get(app_name.removesuffix(".app").lower())
+        if isinstance(found, dict) and found.get("installs_a_package"):
+            return found
+        return None
+
+    def __len__(self):
+        return len(self.by_app)
+
+
 def cache_path():
     base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.environ.get("HOME", ""), ".cache")
     return Path(base) / "update-my-mac" / "casks.json"
@@ -102,38 +134,6 @@ def write_cache(path, by_app):
         # Not being able to save the table only means the next run has to
         # fetch it again. That is not worth interrupting anything over.
         pass
-
-
-class CaskIndex:
-    def __init__(self, by_app):
-        self.by_app = by_app
-
-    def for_app(self, app_path):
-        """Returns the cask that installs this app, matched on the exact file name."""
-        name = Path(app_path).name
-        # Exact: two unrelated programs can ship the same name capitalised
-        # differently.
-        found = self.by_app.get(name)
-        if found is None:
-            found = self._installer_cask_named(name)
-        if not isinstance(found, dict):
-            return None
-        return Cask(
-            found.get("token", ""),
-            found.get("homepage", ""),
-            found.get("version", ""),
-            found.get("installs_a_package", False),
-        )
-
-    def _installer_cask_named(self, app_name):
-        """Returns a cask that ships an installer, matched on its token alone."""
-        found = self.by_app.get(app_name.removesuffix(".app").lower())
-        if isinstance(found, dict) and found.get("installs_a_package"):
-            return found
-        return None
-
-    def __len__(self):
-        return len(self.by_app)
 
 
 def load():

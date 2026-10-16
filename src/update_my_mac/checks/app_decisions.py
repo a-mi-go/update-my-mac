@@ -13,11 +13,6 @@ FORMAT_VERSION = 1
 IGNORE = "ignore"
 
 
-def state_path():
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.environ.get("HOME", ""), ".local", "state")
-    return Path(base) / "update-my-mac" / "apps.json"
-
-
 class AppDecisions:
     """The decisions file, read once and written when something changes."""
 
@@ -70,6 +65,11 @@ class AppDecisions:
         except OSError:
             return False
         return True
+
+
+def state_path():
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.environ.get("HOME", ""), ".local", "state")
+    return Path(base) / "update-my-mac" / "apps.json"
 
 
 def load():

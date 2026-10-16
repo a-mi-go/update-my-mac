@@ -30,10 +30,6 @@ def find(installed, already_reported=()):
     return [item for item in found if item and item.name.rsplit("/", 1)[-1] not in already_reported]
 
 
-def _is_installed(formula):
-    return bool(formula.get("installed"))
-
-
 def _formula(formula):
     name = formula.get("full_name") or formula.get("name", "")
     reason = _reason(formula, "disable")
@@ -54,6 +50,20 @@ def _formula(formula):
     return Flagged(name, DIFFERS, installed=held[-1], available=stable)
 
 
+def _reason(package, prefix):
+    reason = str(package.get(f"{prefix}_reason") or "").replace("_", " ")
+    date = package.get(f"{prefix}_date")
+    return f"{reason} since {date}" if reason and date else reason
+
+
+def _without_revision(version):
+    return re.sub(r"_\d+$", "", version)
+
+
+def _is_installed(formula):
+    return bool(formula.get("installed"))
+
+
 def _cask(cask):
     token = cask.get("token", "")
     if cask.get("disabled"):
@@ -62,13 +72,3 @@ def _cask(cask):
         return Flagged(token, DEPRECATED, True, cask["installed"],
                        reason=_reason(cask, "deprecation"))
     return None
-
-
-def _without_revision(version):
-    return re.sub(r"_\d+$", "", version)
-
-
-def _reason(package, prefix):
-    reason = str(package.get(f"{prefix}_reason") or "").replace("_", " ")
-    date = package.get(f"{prefix}_date")
-    return f"{reason} since {date}" if reason and date else reason

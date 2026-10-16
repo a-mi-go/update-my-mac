@@ -46,20 +46,6 @@ def cache_path():
     return Path(base) / "update-my-mac" / "appcasts.json"
 
 
-def _version_of(item):
-    """Returns the readable version from an appcast entry, element or attribute."""
-    enclosure = item.find("enclosure")
-    for found in (
-        item.findtext(f"{SPARKLE}shortVersionString"),
-        enclosure.get(f"{SPARKLE}shortVersionString") if enclosure is not None else None,
-        item.findtext(f"{SPARKLE}version"),
-        enclosure.get(f"{SPARKLE}version") if enclosure is not None else None,
-    ):
-        if found and found.strip():
-            return found.strip()
-    return ""
-
-
 def newest_version(feed):
     """Returns the highest version an appcast offers. Raises NotAnAppcast if not one."""
     try:
@@ -144,22 +130,6 @@ def check(apps):
     return answers
 
 
-def _still_good(kept):
-    """Returns the kept answer while it is recent enough to reuse, else None."""
-    if not kept:
-        return None
-    keep_for = STALE_AFTER_A_FAILURE if kept.get("error") else STALE_AFTER_SECONDS
-    if time.time() - kept.get("fetched", 0) >= keep_for:
-        return None
-    return FeedAnswer(kept.get("version", ""), kept.get("error", ""))
-
-
-def _only_asked_about(cached, apps):
-    """Returns the cache without the feeds of apps that are not installed any more."""
-    wanted = {app.updater.feed_url for app in apps if app.updater.feed_url}
-    return {url: answer for url, answer in cached.items() if url in wanted}
-
-
 def answer_for(app, answers):
     return answers.get(app.updater.feed_url, FeedAnswer())
 
@@ -171,12 +141,36 @@ def offers_newer(app, answer):
     return versions.is_newer(answer.version, than=app.version)
 
 
+def _version_of(item):
+    """Returns the readable version from an appcast entry, element or attribute."""
+    enclosure = item.find("enclosure")
+    for found in (
+        item.findtext(f"{SPARKLE}shortVersionString"),
+        enclosure.get(f"{SPARKLE}shortVersionString") if enclosure is not None else None,
+        item.findtext(f"{SPARKLE}version"),
+        enclosure.get(f"{SPARKLE}version") if enclosure is not None else None,
+    ):
+        if found and found.strip():
+            return found.strip()
+    return ""
+
+
 def _read_cache(path):
     try:
         stored = json.loads(path.read_text())
     except (OSError, ValueError):
         return {}
     return stored if isinstance(stored, dict) else {}
+
+
+def _still_good(kept):
+    """Returns the kept answer while it is recent enough to reuse, else None."""
+    if not kept:
+        return None
+    keep_for = STALE_AFTER_A_FAILURE if kept.get("error") else STALE_AFTER_SECONDS
+    if time.time() - kept.get("fetched", 0) >= keep_for:
+        return None
+    return FeedAnswer(kept.get("version", ""), kept.get("error", ""))
 
 
 def _write_cache(path, answers):
@@ -187,3 +181,9 @@ def _write_cache(path, answers):
         # A cache that cannot be written costs a round trip next time, and
         # nothing else.
         pass
+
+
+def _only_asked_about(cached, apps):
+    """Returns the cache without the feeds of apps that are not installed any more."""
+    wanted = {app.updater.feed_url for app in apps if app.updater.feed_url}
+    return {url: answer for url, answer in cached.items() if url in wanted}

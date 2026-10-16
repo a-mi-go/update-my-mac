@@ -81,6 +81,15 @@ def _restart_all(apps, step):
     return restarted
 
 
+def _restart_one(app, step):
+    done, message = restart(app)
+    # Which of the two it is, is the whole point of the line: green for an app
+    # that is back on the version on disk, red for one still running the old one.
+    colour = "green" if done else "red"
+    step.print_indented(message, style=colour)
+    return done
+
+
 def _walk_through(apps, step):
     """Lets the user decide how to deal with each app. Returns the restarted ones."""
     results = step.inside()
@@ -100,12 +109,3 @@ def _walk_through(apps, step):
     except Stopped:
         step.print_empty_line()
     return restarted
-
-
-def _restart_one(app, step):
-    done, message = restart(app)
-    # Which of the two it is, is the whole point of the line: green for an app
-    # that is back on the version on disk, red for one still running the old one.
-    colour = "green" if done else "red"
-    step.print_indented(message, style=colour)
-    return done
