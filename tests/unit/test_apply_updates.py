@@ -432,3 +432,30 @@ def test_no_line_is_drawn_when_there_is_no_menu():
     ))
 
     assert "─" not in printed
+
+
+def test_the_app_store_upgrade_says_it_may_ask_for_a_password():
+    use_shell(RecordingShell())
+
+    printed = printed_by(lambda: apply_updates.upgrade_managers(["mas", "npm"]))
+
+    assert printed.count("It may ask for your password.") == 1
+    assert printed.index("Mac App Store") < printed.index("password") < printed.index("npm")
+
+
+def test_an_app_the_app_store_cannot_download_comes_with_the_likely_reason():
+    reports = [ManagerReport("mas", "Mac App Store", ["PDFgear  2.27 → 2.28"])]
+    shell = RecordingShell(exit_code=1, still_outdated={"mas": "6469021132  PDFgear  (2.27 -> 2.28)"})
+
+    printed = printed_by(lambda: run(shell, "1", reports=reports))
+
+    assert "PDFgear" in printed
+    assert "another Apple Account" in printed
+
+
+def test_a_manager_without_a_known_reason_adds_no_explanation():
+    shell = RecordingShell(exit_code=1, still_outdated={"brew": "git 2.48.1 -> 2.49.0"})
+
+    printed = printed_by(lambda: update_menu(REPORTS, shell, answers("2")))
+
+    assert "Apple Account" not in printed
