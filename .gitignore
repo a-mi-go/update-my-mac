@@ -1,6 +1,7 @@
 # Local-only notes (spike findings, personal decisions)
 docs/decisions.md
 docs/findings.md
+docs/structure.md
 
 # Python / uv
 __pycache__/
