@@ -84,6 +84,11 @@ each package once, remember the answer, and pass only approved packages to
 **`--background`.** Unattended run for a scheduled job: no prompts, a macOS
 notification when something is outdated, and an example launchd agent.
 
+**A scheduler.** The tool sets up its own recurring `--background` run, so that
+nobody writes a launchd plist by hand: pick how often, install the agent, show
+when it last ran and what it found, and remove it again. Builds on
+`--background`, so it comes after it.
+
 ## Later
 
 **Apps nobody opens any more.** An app that has not been launched in months is
