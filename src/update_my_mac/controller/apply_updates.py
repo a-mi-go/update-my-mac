@@ -118,6 +118,8 @@ def run_each_manager(manager_keys, announce, run_one, dotted=False):
             status = console.status(Text(label, style="dim"), spinner=report.SPINNER)
         else:
             console.print(f"\n{label}")
+            if manager.asks_for_password:
+                console.print("[dim]It may ask for your password.[/]")
             status = console.status(
                 Text(f"waiting for {manager.label}", style="dim"), spinner=report.SPINNER
             )
@@ -208,6 +210,8 @@ def print_what_changed(entries):
         report.print_as_list_or_grid(
             "    ", [report.item_for_package(package) for package in remaining]
         )
+        if manager.failure_hint:
+            output.print_plain(f"    {manager.failure_hint}", style="dim")
     return could_not_confirm
 
 

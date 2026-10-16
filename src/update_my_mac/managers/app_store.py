@@ -12,6 +12,11 @@ class AppStore(PackageManager):
     outdated_args = ("outdated",)
     upgrade_args = ("upgrade",)
     counted_as = "apps"
+    asks_for_password = True
+    failure_hint = (
+        "The App Store refuses an app bought with another Apple Account, "
+        "or one that was refunded."
+    )
 
     def parse_outdated(self, stdout):
         apps = []
