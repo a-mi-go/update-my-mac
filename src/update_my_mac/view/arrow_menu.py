@@ -34,23 +34,6 @@ def can_be_drawn():
         return False
 
 
-def _style(for_note=False):
-    from questionary import Style
-
-    # Every row needs noinherit: questionary merges this onto its own defaults
-    # instead of replacing them.
-    return Style([
-        ("qmark", "noinherit fg:ansicyan"),
-        # The hint questionary writes itself stays plain; only a note is lighter.
-        ("instruction", f"noinherit fg:{NOTE_COLOUR}" if for_note else "noinherit"),
-        ("answer", "noinherit fg:#f2a900"), # d48d37
-        ("pointer", "noinherit fg:ansicyan"),
-        ("highlighted", "noinherit fg:ansicyan"),
-        ("selected", "noinherit"),
-        ("separator", f"noinherit fg:{SEPARATOR_COLOUR}"),
-    ])
-
-
 def styled(markup):
     """Returns rich markup as the (style, text) pieces a menu row is drawn from."""
     import io
@@ -72,6 +55,23 @@ def styled(markup):
         else:
             pieces.append((style, text))
     return pieces
+
+
+def _style(for_note=False):
+    from questionary import Style
+
+    # Every row needs noinherit: questionary merges this onto its own defaults
+    # instead of replacing them.
+    return Style([
+        ("qmark", "noinherit fg:ansicyan"),
+        # The hint questionary writes itself stays plain; only a note is lighter.
+        ("instruction", f"noinherit fg:{NOTE_COLOUR}" if for_note else "noinherit"),
+        ("answer", "noinherit fg:#f2a900"), # d48d37
+        ("pointer", "noinherit fg:ansicyan"),
+        ("highlighted", "noinherit fg:ansicyan"),
+        ("selected", "noinherit"),
+        ("separator", f"noinherit fg:{SEPARATOR_COLOUR}"),
+    ])
 
 
 BLANK_LINE = object()
@@ -109,82 +109,6 @@ def press_ctrl_c():
 def forget_ctrl_c():
     global _pressed_ctrl_c
     _pressed_ctrl_c = False
-
-
-def _ask_twice_before_aborting(prompt, warn_in_menu=False, blank_line=False):
-    """Makes a Ctrl-C take the prompt off the screen, and in a menu only the second one end it.
-
-    In a menu the first one warns, in a row under the options. A prompt without
-    options ends at once, and whoever asked prints the warning.
-    """
-    from prompt_toolkit.filters import Always, Condition, IsDone
-    from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
-    from prompt_toolkit.keys import Keys
-    from prompt_toolkit.layout import ConditionalContainer, Window
-    from prompt_toolkit.layout.controls import FormattedTextControl
-    from questionary.prompts.common import InquirerControl
-
-    app = prompt.application
-    parts = app.layout.container.children if warn_in_menu else None
-    if parts is not None:
-        # The options would stretch over the free space below them, and a row
-        # after them would end up at the bottom of the screen.
-        for window in app.layout.find_all_windows():
-            if isinstance(window.content, InquirerControl):
-                window.dont_extend_height = Always()
-
-        if blank_line:
-            parts.insert(1, ConditionalContainer(
-                Window(FormattedTextControl(""), height=1, dont_extend_height=True),
-                filter=~IsDone(),
-            ))
-        parts.append(ConditionalContainer(
-            Window(
-                FormattedTextControl([("fg:ansiyellow", WARNING)]),
-                height=1,
-                dont_extend_height=True,
-            ),
-            filter=Condition(pressed_ctrl_c) & ~IsDone(),
-        ))
-
-    # Any other key takes the warning back. The Ctrl-C that raised it is also
-    # followed by this event, and must not be the one to take it back.
-    just_pressed = []
-
-    def forget_after_another_key(_key_processor):
-        if just_pressed:
-            just_pressed.clear()
-        elif pressed_ctrl_c():
-            forget_ctrl_c()
-            app.invalidate()
-
-    if parts is not None:
-        app.key_processor.after_key_press += forget_after_another_key
-
-    bindings = KeyBindings()
-
-    @bindings.add(Keys.ControlQ, eager=True)
-    @bindings.add(Keys.ControlC, eager=True)
-    def _(event):
-        just_pressed.append(True)
-        if parts is not None and not pressed_ctrl_c():
-            press_ctrl_c()
-            event.app.invalidate()
-            return
-        event.app.erase_when_done = True
-        event.app.exit(exception=KeyboardInterrupt, style="class:aborting")
-
-    # The last binding for a key wins, so this one replaces questionary's own.
-    app.key_bindings = merge_key_bindings([b for b in (app.key_bindings, bindings) if b])
-
-
-def _answer_to(prompt, warn_in_menu=False, blank_line=False):
-    _ask_twice_before_aborting(prompt, warn_in_menu, blank_line)
-    # A Ctrl-C is a BaseException, so it passes this by and ends the run.
-    try:
-        return prompt.unsafe_ask()
-    except Exception as failure:
-        raise Unusable(failure) from failure
 
 
 def beside_the_question(note):
@@ -259,22 +183,102 @@ def yes_or_no(question, default=True):
     return _answer_to(Question(app))
 
 
-def _without_box(row, labels, boxes):
-    if any(token[1] in labels for token in row):
-        return [token for token in row if token[1] not in boxes]
-    return row
+def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), start_at=None):
+    """Returns the values that are ticked, or just the one from `ends_menu` Enter was pressed on.
 
-
-def _cyan_only_under_the_pointer(row):
-    """Returns the row with everything after the pointer highlighted, or a ticked row plain.
-
-    questionary paints a ticked row cyan wherever the pointer is, which hides
-    where the pointer is.
+    The rows named in `checked` start ticked, and the pointer starts on `start_at`.
     """
-    if not any(token[0] == "class:pointer" for token in row):
-        return [("class:text", token[1]) if token[0] == "class:selected" else token for token in row]
-    marked = ("class:selected", "class:text", "class:highlighted")
-    return [("class:highlighted", token[1]) if token[0] in marked else token for token in row]
+    import questionary
+    from questionary.prompts import common
+
+    common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED = "[X]", "[ ]"
+    prompt = questionary.checkbox(
+        question,
+        choices=_choices(entries, checked),
+        pointer=POINTER,
+        style=_style(),
+        qmark=QMARK,
+        instruction="(Use arrow keys to move, <space> to select)",
+        initial_choice=start_at,
+    )
+    _shape_checkbox(prompt, ends_menu, confirm)
+    return _answer_to(prompt, warn_in_menu=True, blank_line=True)
+
+
+def _answer_to(prompt, warn_in_menu=False, blank_line=False):
+    _ask_twice_before_aborting(prompt, warn_in_menu, blank_line)
+    # A Ctrl-C is a BaseException, so it passes this by and ends the run.
+    try:
+        return prompt.unsafe_ask()
+    except Exception as failure:
+        raise Unusable(failure) from failure
+
+
+def _ask_twice_before_aborting(prompt, warn_in_menu=False, blank_line=False):
+    """Makes a Ctrl-C take the prompt off the screen, and in a menu only the second one end it.
+
+    In a menu the first one warns, in a row under the options. A prompt without
+    options ends at once, and whoever asked prints the warning.
+    """
+    from prompt_toolkit.filters import Always, Condition, IsDone
+    from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+    from prompt_toolkit.keys import Keys
+    from prompt_toolkit.layout import ConditionalContainer, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from questionary.prompts.common import InquirerControl
+
+    app = prompt.application
+    parts = app.layout.container.children if warn_in_menu else None
+    if parts is not None:
+        # The options would stretch over the free space below them, and a row
+        # after them would end up at the bottom of the screen.
+        for window in app.layout.find_all_windows():
+            if isinstance(window.content, InquirerControl):
+                window.dont_extend_height = Always()
+
+        if blank_line:
+            parts.insert(1, ConditionalContainer(
+                Window(FormattedTextControl(""), height=1, dont_extend_height=True),
+                filter=~IsDone(),
+            ))
+        parts.append(ConditionalContainer(
+            Window(
+                FormattedTextControl([("fg:ansiyellow", WARNING)]),
+                height=1,
+                dont_extend_height=True,
+            ),
+            filter=Condition(pressed_ctrl_c) & ~IsDone(),
+        ))
+
+    # Any other key takes the warning back. The Ctrl-C that raised it is also
+    # followed by this event, and must not be the one to take it back.
+    just_pressed = []
+
+    def forget_after_another_key(_key_processor):
+        if just_pressed:
+            just_pressed.clear()
+        elif pressed_ctrl_c():
+            forget_ctrl_c()
+            app.invalidate()
+
+    if parts is not None:
+        app.key_processor.after_key_press += forget_after_another_key
+
+    bindings = KeyBindings()
+
+    @bindings.add(Keys.ControlQ, eager=True)
+    @bindings.add(Keys.ControlC, eager=True)
+    def _(event):
+        just_pressed.append(True)
+        if parts is not None and not pressed_ctrl_c():
+            press_ctrl_c()
+            event.app.invalidate()
+            return
+        event.app.erase_when_done = True
+        event.app.exit(exception=KeyboardInterrupt, style="class:aborting")
+
+    # The last binding for a key wins, so this one replaces questionary's own.
+    app.key_bindings = merge_key_bindings([b for b in (app.key_bindings, bindings) if b])
 
 
 def _shape_checkbox(prompt, ends_menu, confirm):
@@ -340,23 +344,19 @@ def _shape_checkbox(prompt, ends_menu, confirm):
     app.key_bindings = merge_key_bindings([app.key_bindings, bindings])
 
 
-def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), start_at=None):
-    """Returns the values that are ticked, or just the one from `ends_menu` Enter was pressed on.
+def _cyan_only_under_the_pointer(row):
+    """Returns the row with everything after the pointer highlighted, or a ticked row plain.
 
-    The rows named in `checked` start ticked, and the pointer starts on `start_at`.
+    questionary paints a ticked row cyan wherever the pointer is, which hides
+    where the pointer is.
     """
-    import questionary
-    from questionary.prompts import common
+    if not any(token[0] == "class:pointer" for token in row):
+        return [("class:text", token[1]) if token[0] == "class:selected" else token for token in row]
+    marked = ("class:selected", "class:text", "class:highlighted")
+    return [("class:highlighted", token[1]) if token[0] in marked else token for token in row]
 
-    common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED = "[X]", "[ ]"
-    prompt = questionary.checkbox(
-        question,
-        choices=_choices(entries, checked),
-        pointer=POINTER,
-        style=_style(),
-        qmark=QMARK,
-        instruction="(Use arrow keys to move, <space> to select)",
-        initial_choice=start_at,
-    )
-    _shape_checkbox(prompt, ends_menu, confirm)
-    return _answer_to(prompt, warn_in_menu=True, blank_line=True)
+
+def _without_box(row, labels, boxes):
+    if any(token[1] in labels for token in row):
+        return [token for token in row if token[1] not in boxes]
+    return row

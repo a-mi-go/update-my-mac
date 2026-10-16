@@ -113,29 +113,6 @@ def apps_installed_by_homebrew():
     return names
 
 
-def _app_names_in(artifact):
-    """Returns the app file names an artifact mentions, however it phrases them."""
-    found = []
-    for app in _as_path_list(artifact.get("app")):
-        if isinstance(app, str):
-            found.append(os.path.basename(app))
-
-    for removal in _as_path_list(artifact.get("uninstall")) + _as_path_list(artifact.get("zap")):
-        if not isinstance(removal, dict):
-            continue
-        for path in _as_path_list(removal.get("delete")) + _as_path_list(removal.get("trash")):
-            if isinstance(path, str) and path.endswith(".app"):
-                found.append(os.path.basename(path))
-    return found
-
-
-def _as_path_list(value):
-    """Returns the paths an artifact names, written as a string or as a list."""
-    if value is None:
-        return []
-    return value if isinstance(value, list) else [value]
-
-
 def find_all():
     """Returns every app in the usual places that is somebody's to update."""
 
@@ -227,3 +204,26 @@ def owned_by_someone_else():
             if owner not in (mine, 0):
                 found.append(app_path)
     return found
+
+
+def _app_names_in(artifact):
+    """Returns the app file names an artifact mentions, however it phrases them."""
+    found = []
+    for app in _as_path_list(artifact.get("app")):
+        if isinstance(app, str):
+            found.append(os.path.basename(app))
+
+    for removal in _as_path_list(artifact.get("uninstall")) + _as_path_list(artifact.get("zap")):
+        if not isinstance(removal, dict):
+            continue
+        for path in _as_path_list(removal.get("delete")) + _as_path_list(removal.get("trash")):
+            if isinstance(path, str) and path.endswith(".app"):
+                found.append(os.path.basename(path))
+    return found
+
+
+def _as_path_list(value):
+    """Returns the paths an artifact names, written as a string or as a list."""
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]

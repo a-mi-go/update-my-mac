@@ -62,20 +62,20 @@ def _walk_through(duplicates, step):
     return resolved
 
 
-def _what_runs(duplicate):
-    """Returns which copy PATH reaches and which ones it never does."""
-    return "\n".join(
-        [f"runs now:   {duplicate.winner.describe()}"]
-        + [f"never used: {copy.describe()}" for copy in duplicate.shadowed]
-    )
-
-
 def _copy_choices(duplicate, is_walkthrough):
     """Returns the copies as options, each carrying the copy it stands for."""
     return walkthrough.options_for_single_item(
         [(copy, f"remove the {copy.manager} one") for copy in duplicate.copies]
         + [(KEEP_BOTH, "leave both")],
         is_walkthrough,
+    )
+
+
+def _what_runs(duplicate):
+    """Returns which copy PATH reaches and which ones it never does."""
+    return "\n".join(
+        [f"runs now:   {duplicate.winner.describe()}"]
+        + [f"never used: {copy.describe()}" for copy in duplicate.shadowed]
     )
 
 

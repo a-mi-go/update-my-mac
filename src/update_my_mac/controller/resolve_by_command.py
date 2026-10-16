@@ -58,6 +58,16 @@ def run_all(fixes, step):
     return done
 
 
+def run_command(command):
+    """Runs a fix's command with the terminal attached. Returns its exit code, or None."""
+    program, *arguments = command
+    executable = shell.find_executable(program)
+    if executable is None:
+        return None
+    environment = managers.by_key("brew").environment() if program == "brew" else None
+    return shell.stream_command([executable, *arguments], environment)
+
+
 def _walk_through(fixes, step):
     results = step.inside()
     done = []
@@ -93,13 +103,3 @@ def _run_one(fix, option, step):
     worked, result = fix.confirm(option.command) if fix.confirm else (True, None)
     step.print_indented(result or (f"{fix.label}: {option.done}", "green"))
     return worked and option.settles
-
-
-def run_command(command):
-    """Runs a fix's command with the terminal attached. Returns its exit code, or None."""
-    program, *arguments = command
-    executable = shell.find_executable(program)
-    if executable is None:
-        return None
-    environment = managers.by_key("brew").environment() if program == "brew" else None
-    return shell.stream_command([executable, *arguments], environment)

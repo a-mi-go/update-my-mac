@@ -11,60 +11,6 @@ class CheckFailed(Exception):
     """The manager ran but its answer says something went wrong."""
 
 
-def nonblank_lines(output):
-    return [line for line in output.splitlines() if line.strip()]
-
-
-def _describe_error(error):
-    if not isinstance(error, dict):
-        return str(error)
-    described = ": ".join(part for part in (error.get("code"), error.get("summary")) if part)
-    return described or str(error)
-
-
-def parse_json_packages(stdout):
-    if not stdout:
-        return []
-
-    try:
-        data = json.loads(stdout)
-    except ValueError:
-        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
-
-    if not isinstance(data, dict):
-        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
-
-    if "error" in data:
-        raise CheckFailed(_describe_error(data["error"]))
-
-    packages = []
-    for name, info in sorted(data.items()):
-        current = info.get("current", "?") if isinstance(info, dict) else "?"
-        latest = info.get("latest", "?") if isinstance(info, dict) else "?"
-        packages.append(f"{name}  {current} → {latest}")
-    return packages
-
-
-def describe_own_version(stdout, package):
-    """Returns one named package's line from `outdated --json`."""
-    if not stdout.strip():
-        return ""
-
-    try:
-        data = json.loads(stdout)
-    except ValueError:
-        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
-    if not isinstance(data, dict):
-        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
-    if "error" in data:
-        raise CheckFailed(_describe_error(data["error"]))
-
-    found = data.get(package)
-    if not isinstance(found, dict):
-        return ""
-    return f"{package}  {found.get('current', '?')} → {found.get('latest', '?')}"
-
-
 @dataclass
 class ManagerReport:
     manager: str
@@ -187,3 +133,57 @@ class PackageManager(ABC):
         if self.asks_for_password:
             status = None
         return shell.stream_command([executable, *args], self.environment(), silent_status=status)
+
+
+def nonblank_lines(output):
+    return [line for line in output.splitlines() if line.strip()]
+
+
+def parse_json_packages(stdout):
+    if not stdout:
+        return []
+
+    try:
+        data = json.loads(stdout)
+    except ValueError:
+        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
+
+    if not isinstance(data, dict):
+        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
+
+    if "error" in data:
+        raise CheckFailed(_describe_error(data["error"]))
+
+    packages = []
+    for name, info in sorted(data.items()):
+        current = info.get("current", "?") if isinstance(info, dict) else "?"
+        latest = info.get("latest", "?") if isinstance(info, dict) else "?"
+        packages.append(f"{name}  {current} → {latest}")
+    return packages
+
+
+def describe_own_version(stdout, package):
+    """Returns one named package's line from `outdated --json`."""
+    if not stdout.strip():
+        return ""
+
+    try:
+        data = json.loads(stdout)
+    except ValueError:
+        raise CheckFailed(f"unreadable JSON: {stdout[:200]}")
+    if not isinstance(data, dict):
+        raise CheckFailed(f"unexpected JSON: {stdout[:200]}")
+    if "error" in data:
+        raise CheckFailed(_describe_error(data["error"]))
+
+    found = data.get(package)
+    if not isinstance(found, dict):
+        return ""
+    return f"{package}  {found.get('current', '?')} → {found.get('latest', '?')}"
+
+
+def _describe_error(error):
+    if not isinstance(error, dict):
+        return str(error)
+    described = ": ".join(part for part in (error.get("code"), error.get("summary")) if part)
+    return described or str(error)

@@ -36,6 +36,11 @@ the wrong folder. A controller that holds a rule about apps or packages is in
 the wrong folder. And a controller that imports `rich` directly is reaching
 past the view instead of through it.
 
+Inside a module the order is the same everywhere: classes and types first, then
+the public functions, then the helpers, each placed after the first function that
+uses it. Code that runs when the module is imported stays where it is, and
+definitions are sorted only between such statements.
+
 ## What the flat layout was doing
 
 **`app.py` is four things at once.** 346 lines, 25 functions, 18 of the 27

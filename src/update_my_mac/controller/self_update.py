@@ -12,6 +12,7 @@ class SelfUpdateResult:
     updated: list = field(default_factory=list)
     failed: list = field(default_factory=list)
 
+
 def update_managers(managers_behind):
     """Offers to update the managers that are behind. Returns what was updated."""
     # A manager whose check failed is in the report, not in this offer.

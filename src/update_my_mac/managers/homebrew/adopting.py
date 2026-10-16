@@ -45,11 +45,6 @@ def can_take_over(app, cask):
     return cask is not None and not cask.installs_a_package
 
 
-def _shown(version):
-    """Returns a version as a person should read it, without the build."""
-    return versions.without_build(version)
-
-
 def handover_label(app, cask):
     """Returns the menu wording for what the handover would do to this app."""
     if not can_take_over(app, cask):
@@ -126,3 +121,8 @@ def hand_to_homebrew(app, cask):
         )
 
     return True, f"Homebrew looks after it now, as {cask.token}."
+
+
+def _shown(version):
+    """Returns a version as a person should read it, without the build."""
+    return versions.without_build(version)

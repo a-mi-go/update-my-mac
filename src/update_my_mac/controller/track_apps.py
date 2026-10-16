@@ -58,14 +58,6 @@ def ready_for_homebrew(found):
     )
 
 
-def _adopt_all_label(found):
-    """Returns what the bulk step is called, or None where it has nothing to do."""
-    ready = ready_for_homebrew(found)
-    if not ready:
-        return None
-    return f"add all to Homebrew ({ready} of {len(found)})"
-
-
 def adopt_all(found, step):
     """Hands every app Homebrew has a recipe for over to it. Returns the ones it took."""
     per_item = step.inside()
@@ -80,6 +72,49 @@ def adopt_all(found, step):
         if _hand_to_homebrew(app, cask, per_item.inside()):
             adopted.append(app)
     return adopted
+
+
+def ask_about_the_ignored(decisions, step=None):
+    """Brings an app back into the list. Returns how many came back."""
+    step = step or Step()
+    names = decisions.ignored_names()
+
+    if not names:
+        step.print_indented("No apps are being left alone.")
+        return 0
+
+    step.print_indented("Apps being left alone:")
+    listed_items = step.inside()
+    for number, name in enumerate(names, start=1):
+        listed_items.print_indented((f"{number})", "cyan"), " ", name)
+    listed_items.print_indented(("0)", "cyan"), " none of them")
+
+    try:
+        answer = step.read("List one of them again? ")
+    except Stopped:
+        return 0
+
+    if answer in ("0", ""):
+        return 0
+    if not answer.isdigit() or not 1 <= int(answer) <= len(names):
+        step.print_indented(f"Answer a number from 1 to {len(names)}, or 0 for none.", style="yellow")
+        return 0
+
+    name = names[int(answer) - 1]
+    decisions.forget(name)
+    if not decisions.save():
+        _print_that_it_was_not_written(decisions, step)
+        return 0
+    step.print_indented((name, "bold"), " will be listed again.")
+    return 1
+
+
+def _adopt_all_label(found):
+    """Returns what the bulk step is called, or None where it has nothing to do."""
+    ready = ready_for_homebrew(found)
+    if not ready:
+        return None
+    return f"add all to Homebrew ({ready} of {len(found)})"
 
 
 def _walk_through(found, decisions, offered, step):
@@ -128,16 +163,18 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
             return chosen
 
 
-def _ask_the_app_itself(app, step):
-    """Start the app, which is when an updater like Sparkle looks for a new version."""
-    if not shell.open_application(app.path):
-        step.print_indented("That app would not start.", style="yellow")
-        return
-    step.print_indented(
-        "Started it. It looks for its update on startup, and anything it "
-        "does not offer there is under its own menu.",
-        style="green",
-    )
+def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
+    choices = []
+    handover = adopting.handover_label(app, cask)
+    if handover:
+        choices.append((ADOPT, handover))
+    if can_ask_the_app:
+        choices.append((LAUNCH, f"open {app.name} and let it update itself"))
+    if vendor_site:
+        choices.append((WEBSITE, f"download and install manually from {vendor_site}"))
+    choices.append((IGNORE, "keep it untracked (don't ask again)"))
+    choices.append((LATER, "leave it for now"))
+    return walkthrough.options_for_single_item(choices, is_walkthrough)
 
 
 def _what_is_known(app, cask, answer):
@@ -156,18 +193,16 @@ def _what_is_known(app, cask, answer):
     return ' '.join(told)
 
 
-def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
-    choices = []
-    handover = adopting.handover_label(app, cask)
-    if handover:
-        choices.append((ADOPT, handover))
-    if can_ask_the_app:
-        choices.append((LAUNCH, f"open {app.name} and let it update itself"))
-    if vendor_site:
-        choices.append((WEBSITE, f"download and install manually from {vendor_site}"))
-    choices.append((IGNORE, "keep it untracked (don't ask again)"))
-    choices.append((LATER, "leave it for now"))
-    return walkthrough.options_for_single_item(choices, is_walkthrough)
+def _ask_the_app_itself(app, step):
+    """Start the app, which is when an updater like Sparkle looks for a new version."""
+    if not shell.open_application(app.path):
+        step.print_indented("That app would not start.", style="yellow")
+        return
+    step.print_indented(
+        "Started it. It looks for its update on startup, and anything it "
+        "does not offer there is under its own menu.",
+        style="green",
+    )
 
 
 def _hand_to_homebrew(app, cask, step):
@@ -176,41 +211,6 @@ def _hand_to_homebrew(app, cask, step):
     colour = "green" if taken else "red"
     step.print_indented(message, style=colour)
     return taken
-
-
-def ask_about_the_ignored(decisions, step=None):
-    """Brings an app back into the list. Returns how many came back."""
-    step = step or Step()
-    names = decisions.ignored_names()
-
-    if not names:
-        step.print_indented("No apps are being left alone.")
-        return 0
-
-    step.print_indented("Apps being left alone:")
-    listed_items = step.inside()
-    for number, name in enumerate(names, start=1):
-        listed_items.print_indented((f"{number})", "cyan"), " ", name)
-    listed_items.print_indented(("0)", "cyan"), " none of them")
-
-    try:
-        answer = step.read("List one of them again? ")
-    except Stopped:
-        return 0
-
-    if answer in ("0", ""):
-        return 0
-    if not answer.isdigit() or not 1 <= int(answer) <= len(names):
-        step.print_indented(f"Answer a number from 1 to {len(names)}, or 0 for none.", style="yellow")
-        return 0
-
-    name = names[int(answer) - 1]
-    decisions.forget(name)
-    if not decisions.save():
-        _print_that_it_was_not_written(decisions, step)
-        return 0
-    step.print_indented((name, "bold"), " will be listed again.")
-    return 1
 
 
 def _print_that_it_was_not_written(decisions, step):

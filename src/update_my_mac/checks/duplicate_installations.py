@@ -39,14 +39,6 @@ class Duplicate:
         return self.copies[1:]
 
 
-def _asked(command, args):
-    executable = shell.find_executable(command)
-    if executable is None:
-        return ""
-    result = shell.run_command([executable, *args], (0,))
-    return result.stdout.strip() if result.success else ""
-
-
 def bin_directories():
     """Returns where each manager puts the commands it installs."""
     found = {}
@@ -101,22 +93,6 @@ def package_behind(path):
     return "", "", ()
 
 
-def _version_in(manifest):
-    """Returns the version a node package writes down about itself."""
-    try:
-        return str(json.loads(manifest.read_text()).get("version", ""))
-    except (OSError, ValueError):
-        return ""
-
-
-def _in_path_order(directories):
-    """Returns the manager directories, in the order PATH would search them."""
-    searched = [entry for entry in shell.current_environment().get("PATH", "").split(os.pathsep) if entry]
-    places = {Path(entry): position for position, entry in enumerate(searched)}
-    never_on_path = len(searched)
-    return sorted(directories.items(), key=lambda pair: places.get(pair[1], never_on_path))
-
-
 def find():
     """Returns commands that exist in more than one manager's directory."""
     ordered = _in_path_order(bin_directories())
@@ -138,3 +114,27 @@ def find():
         for command, copies in sorted(seen.items())
         if len(copies) > 1
     ]
+
+
+def _asked(command, args):
+    executable = shell.find_executable(command)
+    if executable is None:
+        return ""
+    result = shell.run_command([executable, *args], (0,))
+    return result.stdout.strip() if result.success else ""
+
+
+def _version_in(manifest):
+    """Returns the version a node package writes down about itself."""
+    try:
+        return str(json.loads(manifest.read_text()).get("version", ""))
+    except (OSError, ValueError):
+        return ""
+
+
+def _in_path_order(directories):
+    """Returns the manager directories, in the order PATH would search them."""
+    searched = [entry for entry in shell.current_environment().get("PATH", "").split(os.pathsep) if entry]
+    places = {Path(entry): position for position, entry in enumerate(searched)}
+    never_on_path = len(searched)
+    return sorted(directories.items(), key=lambda pair: places.get(pair[1], never_on_path))

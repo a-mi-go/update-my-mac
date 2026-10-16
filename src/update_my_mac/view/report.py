@@ -36,20 +36,6 @@ class Item:
         return (self.name, self.version, self.comment)
 
 
-def _items_per_line(indent, cells):
-    """Returns how many items fit to a line, up to PRINT_GRID_COLUMNS, with none wrapped."""
-    for per_line in range(PRINT_GRID_COLUMNS, 1, -1):
-        widest = {}
-        for number, cell in enumerate(cells):
-            for place, text in enumerate(cell):
-                column = (number % per_line) * len(cell) + place
-                widest[column] = max(widest.get(column, 0), cell_len(text))
-        needed = len(indent) + sum(widest.values()) + GRID_GAP * (len(widest) - 1)
-        if needed <= output.console.width:
-            return per_line
-    return 1
-
-
 def print_as_list_or_grid(indent, items):
     """Prints one item per line, or up to PRINT_GRID_COLUMNS items to a line when there are many."""
     if not items:
@@ -82,6 +68,20 @@ def item_for_package(package):
 
 def count_outdated_packages(reports):
     return sum(len(report.outdated_packages) for report in reports)
+
+
+def _items_per_line(indent, cells):
+    """Returns how many items fit to a line, up to PRINT_GRID_COLUMNS, with none wrapped."""
+    for per_line in range(PRINT_GRID_COLUMNS, 1, -1):
+        widest = {}
+        for number, cell in enumerate(cells):
+            for place, text in enumerate(cell):
+                column = (number % per_line) * len(cell) + place
+                widest[column] = max(widest.get(column, 0), cell_len(text))
+        needed = len(indent) + sum(widest.values()) + GRID_GAP * (len(widest) - 1)
+        if needed <= output.console.width:
+            return per_line
+    return 1
 
 
 # A mark as well as a colour, so the level survives a pipe and a log file.
@@ -130,68 +130,6 @@ def print_report(findings):
     ))
 
 
-def _footer(findings, found, framed):
-    """Returns what was checked and found clean, and what is not in the list above."""
-    lines = []
-    if not findings.any_manager_installed:
-        # Saying everything is fine would claim something nobody checked.
-        lines.append(Text("No supported package managers found.", style="yellow"))
-    elif not found:
-        lines.append(Text("Everything is up to date.", style="green"))
-    clean = sections.clean_managers(findings)
-    if clean:
-        lines.append(Text.assemble(
-            (f"{CLEAN} ", ""), (f"up to date: {', '.join(clean)}", "green"),
-        ))
-    if findings.left_alone:
-        lines.append(Text(
-            f"{findings.left_alone} left alone on purpose, --retry-app lists one again",
-            style="dim",
-        ))
-    if found and not framed:
-        needs_you, can_wait = sections.count_findings(found)
-        lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
-    return lines
-
-
-def _heading(section, width):
-    """Returns the section title, its count and its note, on one line."""
-    heading = Text.assemble(
-        (f"{MARK[section.level]} ", ""),
-        (f"{section.title} ", f"bold {COLOUR[section.level]}"),
-        (section.counted(), "cyan"),
-    )
-    room = width - heading.cell_len - len(section.note)
-    if section.note and room >= 2:
-        # Right behind the title, not padded out to the edge: a line filled to
-        # the full width wraps at the first pixel the window loses.
-        heading.append(f"  {section.note}", style="dim italic")
-    return heading
-
-
-def _rows(section):
-    grid = Table.grid(padding=(0, 3))
-    grid.add_column(overflow="fold")
-    grid.add_column(overflow="fold")
-    grid.add_column(style="dim", overflow="fold")
-    for row in section.rows:
-        name, version, note = row.cells()
-        grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
-    return grid
-
-
-def _print_what_was_left_out(report):
-    """A manager that answered about only part of what it holds has to say so."""
-    if not report.ignored_taps:
-        return
-
-    named = ", ".join(report.ignored_taps)
-    output.print_plain(
-        "    ", (f"Nothing from {named} was checked", "yellow"),
-        ", Homebrew ignores a tap until you trust it.",
-    )
-
-
 def print_outdated_summary(reports):
     console = output.console
 
@@ -222,6 +160,68 @@ def print_outdated_summary(reports):
         console.print("Nothing outdated in the checks that ran.")
     else:
         console.print("Everything is up to date.")
+
+
+def _heading(section, width):
+    """Returns the section title, its count and its note, on one line."""
+    heading = Text.assemble(
+        (f"{MARK[section.level]} ", ""),
+        (f"{section.title} ", f"bold {COLOUR[section.level]}"),
+        (section.counted(), "cyan"),
+    )
+    room = width - heading.cell_len - len(section.note)
+    if section.note and room >= 2:
+        # Right behind the title, not padded out to the edge: a line filled to
+        # the full width wraps at the first pixel the window loses.
+        heading.append(f"  {section.note}", style="dim italic")
+    return heading
+
+
+def _rows(section):
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(overflow="fold")
+    grid.add_column(overflow="fold")
+    grid.add_column(style="dim", overflow="fold")
+    for row in section.rows:
+        name, version, note = row.cells()
+        grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
+    return grid
+
+
+def _footer(findings, found, framed):
+    """Returns what was checked and found clean, and what is not in the list above."""
+    lines = []
+    if not findings.any_manager_installed:
+        # Saying everything is fine would claim something nobody checked.
+        lines.append(Text("No supported package managers found.", style="yellow"))
+    elif not found:
+        lines.append(Text("Everything is up to date.", style="green"))
+    clean = sections.clean_managers(findings)
+    if clean:
+        lines.append(Text.assemble(
+            (f"{CLEAN} ", ""), (f"up to date: {', '.join(clean)}", "green"),
+        ))
+    if findings.left_alone:
+        lines.append(Text(
+            f"{findings.left_alone} left alone on purpose, --retry-app lists one again",
+            style="dim",
+        ))
+    if found and not framed:
+        needs_you, can_wait = sections.count_findings(found)
+        lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
+    return lines
+
+
+def _print_what_was_left_out(report):
+    """A manager that answered about only part of what it holds has to say so."""
+    if not report.ignored_taps:
+        return
+
+    named = ", ".join(report.ignored_taps)
+    output.print_plain(
+        "    ", (f"Nothing from {named} was checked", "yellow"),
+        ", Homebrew ignores a tap until you trust it.",
+    )
 
 
 DOTTED_WIDTH = 50

@@ -26,6 +26,7 @@ def untrusted_taps():
         if isinstance(tap, dict) and tap.get("trusted") is False and tap.get("name")
     ]
 
+
 def recorded_cask_versions():
     """Returns what Homebrew wrote down for every cask it installed, in one question."""
     executable = shell.find_executable("brew")
@@ -44,6 +45,7 @@ def recorded_cask_versions():
             recorded[parts[0]] = parts[-1]
     return recorded
 
+
 def recorded_cask_version(token):
     """Returns the version Homebrew wrote down for a cask."""
     executable = shell.find_executable("brew")
@@ -59,12 +61,14 @@ def recorded_cask_version(token):
     parts = result.stdout.split()
     return parts[-1] if len(parts) >= 2 else ""
 
+
 def adopt_cask(token):
     """Hands an app that is already installed over to Homebrew, index first."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
     return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+
 
 def install_cask_over(token):
     """Downloads the cask's version and puts it over the app already in place."""
