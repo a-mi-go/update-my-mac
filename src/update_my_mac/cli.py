@@ -8,6 +8,7 @@ from update_my_mac import __version__
 from update_my_mac.controller import app
 from update_my_mac.view import output
 from update_my_mac.system import environment
+from update_my_mac.system import shell
 
 
 def build_argument_parser(prog=None):
@@ -59,7 +60,7 @@ def _run(argv, prog):
     # prog is None for the installed command, so the help names whatever it
     # was invoked as, including a second name chosen during setup.
     args = build_argument_parser(prog).parse_args(argv)
-    environment.prepare()
+    shell.use_environment(environment.prepare())
 
     try:
         return _dispatch(args)

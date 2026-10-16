@@ -111,7 +111,7 @@ def _version_in(manifest):
 
 def _in_path_order(directories):
     """Returns the manager directories, in the order PATH would search them."""
-    searched = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
+    searched = [entry for entry in shell.current_environment().get("PATH", "").split(os.pathsep) if entry]
     places = {Path(entry): position for position, entry in enumerate(searched)}
     never_on_path = len(searched)
     return sorted(directories.items(), key=lambda pair: places.get(pair[1], never_on_path))
