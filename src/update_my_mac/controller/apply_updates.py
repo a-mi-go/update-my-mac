@@ -210,6 +210,8 @@ def print_what_changed(entries):
         report.print_as_list_or_grid(
             "    ", [report.item_for_package(package) for package in remaining]
         )
+        if manager.failure_hint:
+            output.print_plain(f"    {manager.failure_hint}", style="dim")
     return could_not_confirm
 
 
