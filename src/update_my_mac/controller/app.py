@@ -2,9 +2,6 @@
 
 import functools
 
-from rich.console import Console
-
-from update_my_mac.managers.homebrew import adopting
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
@@ -13,26 +10,133 @@ from update_my_mac.controller import apply_updates
 from update_my_mac.controller import self_update
 from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import casks
-from update_my_mac.controller import catch_up_casks
+from update_my_mac.managers.homebrew import flagged
+from update_my_mac.managers.homebrew import mounted_downloads
+from update_my_mac.controller import homebrew_fixes
 from update_my_mac.checks import duplicate_installations
 from update_my_mac.checks import installed_apps
 from update_my_mac import managers
+from update_my_mac.view import output
 from update_my_mac.view import report
 from update_my_mac.controller import resolve_duplicates
+from update_my_mac.controller import resolve_by_command
 from update_my_mac.controller import resolve_issues
 from update_my_mac.controller import restart_apps
 from update_my_mac.checks import running_apps
-from update_my_mac.system import shell
 from update_my_mac.controller import track_apps
 
 
-SPINNER = "dots"
+def run_check_mode():
+    installed = managers.installed()
+    managers_behind = _check_the_managers(installed)
+    findings = _check_the_mac(installed, app_decisions.load())
+    findings.managers_behind = managers_behind
+    report.print_report(findings)
+    return _exit_code(findings.reports, findings.managers_behind)
 
 
-def _exit_code(reports, managers_behind=()):
-    """Returns non-zero only when a check could not run, never for outdated packages."""
-    failed = [thing for thing in list(reports) + list(managers_behind) if thing.error_message]
-    return 1 if failed else 0
+def run_interactive_mode():
+    installed = managers.installed()
+    decisions = app_decisions.load()
+
+    managers_behind = _check_the_managers(installed)
+    result = self_update.update_managers(managers_behind)
+    _clean_up(installed)
+
+    findings = _check_the_mac(installed, decisions)
+    findings.managers_behind = managers.still_behind(managers_behind, result.updated)
+    report.print_report(findings)
+
+    # Resolving issues first, so the update menu below lists what is left.
+    resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
+
+    reports = findings.reports
+    if resolved:
+        reports = managers.check_what_is_outdated()
+        report.print_outdated_summary(reports)
+
+    failed = result.failed + apply_updates.ask_what_to_update(reports)
+    _offer_to_restart_what_the_updates_replaced(findings.stale)
+    return 1 if failed else _exit_code(reports, findings.managers_behind)
+
+
+def run_updates_only_mode():
+    installed = managers.installed()
+
+    managers_behind = _check_the_managers(installed)
+    result = self_update.update_managers(managers_behind)
+    _clean_up(installed)
+
+    with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+        reports = managers.check_what_is_outdated()
+
+    failed = result.failed + apply_updates.ask_what_to_update(reports)
+    _offer_to_restart_what_the_updates_replaced()
+    return 1 if failed else _exit_code(
+        reports, managers.still_behind(managers_behind, result.updated)
+    )
+
+
+def run_retry_app_mode():
+    track_apps.ask_about_the_ignored(app_decisions.load())
+    return 0
+
+
+def _check_the_managers(installed):
+    with output.console.status(
+        "[dim]asking the package managers if they need an update themselves[/]",
+        spinner=report.SPINNER,
+    ):
+        return managers.check_themselves(installed)
+
+
+def _check_the_mac(installed, decisions):
+    findings = Findings(any_manager_installed=bool(installed))
+
+    with output.console.status("", spinner=report.SPINNER) as spinner:
+        def now(what):
+            spinner.update(f"[dim]{what}[/]")
+
+        now("asking each manager what is outdated")
+        findings.reports = managers.check_what_is_outdated()
+
+        now("looking for apps no manager tracks")
+        listed, findings.left_alone = _untracked_apps(decisions)
+        findings.untracked = listed
+        findings.find_cask = _website_and_cask()
+
+        now("reading what each app's own update feed offers")
+        findings.offered = appcast.check(listed)
+
+        now("comparing each app against Homebrew's recipe")
+        findings.apps_behind = _behind_the_recipe(findings.reports)
+
+        now("looking for app or package duplicates")
+        findings.doubled = duplicate_installations.find()
+
+        now("looking for running apps that are no longer installed")
+        findings.stale = running_apps.find()
+
+        now("looking for apps owned by another user")
+        findings.foreign = installed_apps.owned_by_someone_else()
+
+        now("asking Homebrew what it has doubts about")
+        findings.flagged = _flagged_by_homebrew(findings.reports)
+        findings.mounted = mounted_downloads.find()
+
+    return findings
+
+
+def _untracked_apps(decisions):
+    """Returns untracked apps, minus the ones the user asked not to see again."""
+    found = installed_apps.find_untracked()
+    listed = [app for app in found if not decisions.is_ignored(app.name)]
+    return listed, len(found) - len(listed)
+
+
+def _website_and_cask():
+    """Returns a lookup for the cask that installs a given app."""
+    return lambda app: _casks().for_app(app.path)
 
 
 @functools.lru_cache(maxsize=1)
@@ -41,21 +145,39 @@ def _casks():
     return casks.load()
 
 
-def _website_and_cask():
-    """Returns a lookup for the cask that installs a given app."""
-    return lambda app: _casks().for_app(app.path)
-
-
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    brew_report = next((r for r in reports if r.manager == "brew"), None)
-    named = {line.split()[0] for line in
-             (brew_report.outdated_packages if brew_report else [])}
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
-        brew.recorded_cask_versions(shell),
-        already_reported=named,
+        brew.recorded_cask_versions(),
+        already_reported=_names_homebrew_reported(reports),
+    )
+
+
+def _names_homebrew_reported(reports):
+    """Returns the names on Homebrew's own outdated list."""
+    brew_report = next((r for r in reports if r.manager == "brew"), None)
+    return {line.split()[0] for line in (brew_report.outdated_packages if brew_report else [])}
+
+
+def _flagged_by_homebrew(reports):
+    """Returns what Homebrew flagged that its outdated list does not already name."""
+    installed = brew.installed_packages(managers.by_key("brew").environment())
+    return flagged.find(installed, _names_homebrew_reported(reports))
+
+
+def _exit_code(reports, managers_behind=()):
+    """Returns non-zero only when a check could not run, never for outdated packages."""
+    failed = [thing for thing in list(reports) + list(managers_behind) if thing.error_message]
+    return 1 if failed else 0
+
+
+def _clean_up(installed):
+    """Clears out what the managers no longer need"""
+    apply_updates.run_each_manager(
+        [manager.key for manager in installed if manager.cleanup_args],
+        "Cleaning up", lambda manager, status: manager.cleanup(status), dotted=True,
     )
 
 
@@ -64,39 +186,45 @@ def _issues(findings, decisions):
     cask_for = _website_and_cask()
     found = []
 
-    untracked_problem = _untracked_problem(
-        findings.untracked, cask_for, decisions, findings.offered
-    )
+    untracked_problem = _untracked_problem(findings.untracked, cask_for, decisions, findings.offered)
     if untracked_problem:
         found.append(untracked_problem)
 
     if findings.doubled:
         found.append(
             _problem(
-                f"yes, I don't need apps installed twice ({len(findings.doubled)})",
+                lambda left: (
+                    f"⎷ uninstall the unused {'copy' if len(left) == 1 else 'copies'} "
+                    f"({len(left)})"
+                ),
                 findings.doubled,
-                _duplicate_walkthrough(),
-                _remove_every_shadowed_copy,
+                resolve_duplicates.ask_what_to_do,
+                resolve_duplicates.remove_shadowed,
             )
         )
 
     if findings.stale:
         found.append(
             _problem(
-                f"yes, restart updated apps ({len(findings.stale)})",
+                lambda left: f"⎷ restart updated apps ({len(left)})",
                 findings.stale,
-                _restart_walkthrough(),
+                restart_apps.ask_what_to_do,
                 _restart_every_app,
             )
         )
 
+    to_fix = [homebrew_fixes.fix_for_image(image) for image in findings.mounted]
+    to_fix += [fix for fix in map(homebrew_fixes.fix_for_flagged, findings.flagged) if fix]
     if findings.apps_behind:
+        caskroom = brew.caskroom()
+        to_fix += [homebrew_fixes.fix_for_behind(item, caskroom) for item in findings.apps_behind]
+    if to_fix:
         found.append(
             _problem(
-                f"yes, update the apps Homebrew stopped noticing ({len(findings.apps_behind)})",
-                findings.apps_behind,
-                _catch_up_walkthrough(),
-                _catch_every_app_up,
+                lambda left: f"⎷ fix apps & packages Homebrew cannot update ({len(left)})",
+                to_fix,
+                resolve_by_command.ask_what_to_do,
+                resolve_by_command.run_all,
             )
         )
     return found
@@ -114,222 +242,60 @@ def _untracked_problem(untracked, cask_for, decisions, offered):
 
     # Counted by what Homebrew has a recipe for, not by what the bulk step can
     # take: a handover that would be a downgrade is still one you can choose.
-    known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in troubled])
-    label = (
-        f"yes, get those apps back on track "
-        f"({known} of {len(troubled)} can go to Homebrew)" if known
-        else f"yes, go through the apps nobody tracks ({len(troubled)})"
-    )
-    return _problem(
-        label,
-        troubled,
-        _app_walkthrough(decisions, offered),
-        lambda apps, step: _adopt_every_app_we_can(apps, cask_for, step),
-    )
+    def label(left):
+        known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in left])
+        return (
+            f"⎷ get those apps back on track "
+            f"({known} of {len(left)} can go to Homebrew)" if known
+            else f"⎷ go through the apps nobody tracks ({len(left)})"
+        )
+
+    def go_through_apps(apps, step):
+        return track_apps.ask_what_to_do(apps, decisions, step, find_cask=cask_for, offered=offered)
+
+    def adopt_every_app_we_can(apps, step):
+        return track_apps.adopt_all([(app, cask_for(app)) for app in apps], step)
+
+    return _problem(label, troubled, go_through_apps, adopt_every_app_we_can)
 
 
-def _problem(label, things, walk_through, fix_all):
-    """Returns one entry in the menu, with the things it is about tied to it."""
+def _problem(label_for, things, walk_through, fix_all):
+    """Returns one entry in the menu, with the things it is about tied to it.
+
+    Each step returns what it dealt with, and that leaves the entry.
+    """
+    # Its own list, as the run's findings are read again after the menu.
+    things = list(things)
+
+    def dealing_with(step_through):
+        def run(step):
+            dealt_with = step_through(things, step)
+            things[:] = [thing for thing in things if not any(thing is done for done in dealt_with)]
+            return len(dealt_with)
+
+        return run
+
+    def refresh(problem):
+        problem.label = label_for(things)
+        return bool(things)
+
     return resolve_issues.Problem(
-        label,
-        lambda step: walk_through(things, step),
-        lambda step: fix_all(things, step),
+        label_for(things), dealing_with(walk_through), dealing_with(fix_all), refresh
     )
-
-
-def _adopt_every_app_we_can(apps, cask_for, step):
-    found = [(app, cask_for(app)) for app in apps]
-    return track_apps.adopt_all(found, _adoption(cask_for), step)
-
-
-def _remove_every_shadowed_copy(duplicates, step):
-    return resolve_duplicates.remove_shadowed(duplicates, _removal(), step)
-
-
-def _catch_every_app_up(apps_behind, step):
-    return catch_up_casks.catch_up_all(apps_behind, _brewing(), step)
-
-
-def _catch_up_walkthrough():
-    def go_through_casks(apps_behind, step):
-        return catch_up_casks.ask_what_to_do(apps_behind, _brewing(), step)
-
-    return go_through_casks
-
-
-def _brewing():
-    def run(command):
-        executable = shell.find_executable("brew")
-        if executable is None:
-            return -1
-        return shell.stream_command([executable, *command])
-
-    return run
 
 
 def _restart_every_app(apps, step):
-    each = step.inside()
-    done = 0
+    per_item = step.inside()
+    restarted = []
     for app in apps:
-        taken, message = restart_apps.restart(app, shell)
-        each.say(f"{app.name}: {message}")
-        done += 1 if taken else 0
-    return done
+        taken, message = restart_apps.restart(app)
+        per_item.print_indented(f"{app.name}: {message}")
+        if taken:
+            restarted.append(app)
+    return restarted
 
 
-def _removal():
-    def remove(copy):
-        executable = shell.find_executable(copy.remove_with[0])
-        if executable is None:
-            return -1
-        return shell.stream_command([executable, *copy.remove_with[1:]])
-
-    return remove
-
-
-def _adoption(cask_for):
-    def adopt(app):
-        return adopting.hand_to_homebrew(app, cask_for(app), shell)
-
-    return adopt
-
-
-def _restart_walkthrough():
-    def go_through_restarts(apps, step):
-        return restart_apps.ask_what_to_do(
-            apps, lambda app: restart_apps.restart(app, shell), step
-        )
-
-    return go_through_restarts
-
-
-def _duplicate_walkthrough():
-    remove = _removal()
-
-    def go_through_duplicates(duplicates, step):
-        return resolve_duplicates.ask_what_to_do(duplicates, remove, step)
-
-    return go_through_duplicates
-
-
-def _app_walkthrough(decisions, offered):
-    cask_for = _website_and_cask()
-
-    def go_through_apps(apps, step):
-        return track_apps.ask_what_to_do(
-            apps,
-            decisions,
-            step,
-            find_cask=cask_for,
-            adopt=_adoption(cask_for),
-            open_url=shell.open_in_browser,
-            open_app=shell.open_application,
-            offered=offered,
-        )
-
-    return go_through_apps
-
-
-def _untracked_apps(decisions):
-    """Returns untracked apps, minus the ones the user asked not to see again."""
-    found = installed_apps.find_untracked(shell)
-    listed = [app for app in found if not decisions.is_ignored(app.name)]
-    return listed, len(found) - len(listed)
-
-
-def run_check_mode():
-    installed = managers.installed(shell)
-    managers_behind = _check_the_managers(installed)
-    findings = _check_the_mac(installed, app_decisions.load())
-    findings.managers_behind = managers_behind
-    report.print_report(findings)
-    return _exit_code(findings.reports, findings.managers_behind)
-
-
-def _check_the_managers(installed, console=None):
-    console = console or Console(highlight=False)
-    with console.status(
-        "[dim]asking the package managers if they need an update themselves[/]",
-        spinner=SPINNER,
-    ):
-        return managers.check_themselves(shell, installed)
-
-
-def _check_the_mac(installed, decisions, console=None):
-    console = console or Console(highlight=False)
-    findings = Findings(any_manager_installed=bool(installed))
-
-    with console.status("", spinner=SPINNER) as spinner:
-        def now(what):
-            spinner.update(f"[dim]{what}[/]")
-
-        now("asking each manager what is outdated")
-        findings.reports = managers.check_what_is_outdated(shell)
-
-        now("looking for apps no manager tracks")
-        listed, findings.left_alone = _untracked_apps(decisions)
-        findings.untracked = listed
-        findings.find_cask = _website_and_cask()
-
-        now("reading what each app's own update feed offers")
-        findings.offered = appcast.check(listed)
-
-        now("comparing each app against Homebrew's recipe")
-        findings.apps_behind = _behind_the_recipe(findings.reports)
-
-        now("looking for app or package duplicates")
-        findings.doubled = duplicate_installations.find(shell)
-
-        now("looking for running apps that are no longer installed")
-        findings.stale = running_apps.find(shell)
-
-        now("looking for apps owned by another user")
-        findings.foreign = installed_apps.owned_by_someone_else()
-
-    return findings
-
-
-def run_interactive_mode():
-    installed = managers.installed(shell)
-    decisions = app_decisions.load()
-
-    managers_behind = _check_the_managers(installed)
-    picked = self_update.pick_managers(managers_behind)
-    result = self_update.update(picked, shell)
-
-    findings = _check_the_mac(installed, decisions)
-    findings.managers_behind = managers.still_behind(managers_behind, result.updated)
-    report.print_report(findings)
-
-    # Resolving issues first, so the update menu below lists what is left.
-    resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
-
-    reports = findings.reports
-    if resolved:
-        reports = managers.check_what_is_outdated(shell)
-        report.print_outdated_summary(reports)
-
-    failed = result.failed + apply_updates.ask_what_to_update(reports, shell)
-    return 1 if failed else _exit_code(reports, findings.managers_behind)
-
-
-def run_updates_only_mode():
-    console = Console(highlight=False)
-    installed = managers.installed(shell)
-
-    managers_behind = _check_the_managers(installed, console)
-    picked = self_update.pick_managers(managers_behind)
-    result = self_update.update(picked, shell)
-
-    with console.status("[dim]asking what is outdated[/]", spinner=SPINNER):
-        reports = managers.check_what_is_outdated(shell)
-
-    failed = result.failed + apply_updates.ask_what_to_update(reports, shell)
-    return 1 if failed else _exit_code(
-        reports, managers.still_behind(managers_behind, result.updated)
-    )
-
-
-def run_retry_app_mode():
-    track_apps.ask_about_the_ignored(app_decisions.load())
-    return 0
+def _offer_to_restart_what_the_updates_replaced(already_offered=()):
+    offered = {app.bundle for app in already_offered}
+    replaced = [app for app in running_apps.find() if app.bundle not in offered]
+    restart_apps.ask_after_the_update(replaced)

@@ -1,17 +1,16 @@
 """Applying updates: the only module that changes the system."""
 
 from dataclasses import dataclass, field
-
-from rich.console import Console
-from rich.markup import escape
-
-from update_my_mac.view import keys
+from rich.text import Text
+from update_my_mac.view import arrow_menu
+from update_my_mac.view import output
 from update_my_mac import managers
 from update_my_mac.system.shell import describe_exit
 from update_my_mac.view import prompting
 from update_my_mac.view import report
 
 CANCEL = "cancel"
+UPDATE = "update"
 PACKAGES = "packages"
 
 
@@ -74,65 +73,100 @@ def parse_menu_answer(answer, entries):
     return chosen or None
 
 
-def print_menu(entries, console):
-    console.print("\nWhat should be updated?")
-    labels = ["Everything"] + [entry.label for entry in entries] + ["Nothing (Exit)"]
+def print_menu(entries):
+    console = output.console
+    console.print("\nWhat should be updated?\n")
+    labels = ["update everything!"] + [entry.label for entry in entries] + [
+        f"{prompting.WAY_OUT}exit without updating"
+    ]
     for number, label in enumerate(labels, start=1):
-        console.print(f"  [bold cyan]{number})[/] {escape(label)}", highlight=False)
+        output.print_plain("  ", (f"{number})", "cyan"), " ", label)
     console.print("[dim]One number, or several separated by commas.[/]")
 
 
-def pick_what_to_update(entries, pick=keys.pick_several):
-    """Returns the entries that were picked, or CANCEL."""
-    picked = pick("What should be updated?", [(entry, entry.label) for entry in entries])
+def pick_what_to_update(entries):
+    """Returns the entries that are ticked when Enter is pressed, or CANCEL."""
+    choices = [(entry, entry.label) for entry in entries] + [
+        arrow_menu.BLANK_LINE,
+        (UPDATE, "⬆ UPDATE (lets do it!)"),
+        None,
+        (CANCEL, f"{prompting.WAY_OUT}exit without updating"),
+    ]
+    picked = arrow_menu.pick_several(
+        "What should be updated?",
+        choices,
+        ends_menu=(CANCEL,),
+        confirm=UPDATE,
+        checked=entries,
+        start_at=UPDATE,
+    ) or []
+    if CANCEL in picked:
+        return CANCEL
     return picked or CANCEL
 
 
-def run_each_manager(manager_keys, shell, console, announce, run_one):
+def run_each_manager(manager_keys, announce, run_one, dotted=False):
+    """Runs one step per manager. With `dotted`, each ends in a single dotted line
+    instead of starting under a heading of its own."""
+    console = output.console
     done, failed = [], []
     for key in manager_keys:
         manager = managers.by_key(key)
-        console.print(f"\n[bold]{announce} {manager.label}[/]")
-        exit_code = run_one(manager, shell)
-        if exit_code != 0:
-            how = describe_exit(exit_code)
+        label = f"{announce} {manager.label}"
+        if dotted:
+            console.print()
+            status = console.status(Text(label, style="dim"), spinner=report.SPINNER)
+        else:
+            console.print(f"\n{label}")
+            status = console.status(
+                Text(f"waiting for {manager.label}", style="dim"), spinner=report.SPINNER
+            )
+        exit_code = run_one(manager, status)
+        how = describe_exit(exit_code) if exit_code != 0 else ""
+        if dotted:
+            console.print(report.dotted_line(label, how or "done", not how))
+        elif how:
             console.print(f"[yellow]{manager.label} {how}[/]")
+        if how:
             failed.append((key, how))
         else:
             done.append(key)
     return done, failed
 
 
-def upgrade_managers(manager_keys, shell, console):
+def upgrade_managers(manager_keys):
     return run_each_manager(
-        manager_keys, shell, console, "Upgrading",
-        lambda manager, shell: manager.upgrade(shell),
+        manager_keys, "Upgrading",
+        lambda manager, status: manager.upgrade(status),
     )
 
 
-def ask_what_to_update(reports, shell, console=None, ask=input):
-    console = console or Console()
+def ask_what_to_update(reports):
+    console = output.console
     entries = build_menu(reports)
     if not entries:
         return []
 
-    if keys.available():
+    console.print()
+    prompting.print_separator()
+
+    if arrow_menu.can_be_drawn():
         while True:
             try:
                 chosen = pick_what_to_update(entries)
             except KeyboardInterrupt:
-                prompting.interrupted(console.print)
+                prompting.interrupted(prompting.print_unwrapped)
                 continue
-            except keys.Unusable as failure:
-                console.print(keys.unusable_message(failure))
+            except arrow_menu.Unusable as failure:
+                console.print(arrow_menu.unusable_message(failure))
                 break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
-            return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
+            return [] if chosen == CANCEL else run_chosen(chosen)
 
     while True:
-        print_menu(entries, console)
+        print_menu(entries)
         try:
-            answer = ask("> ")
+            answer = prompting.read_answer("> ")
         except EOFError:
             # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
@@ -144,42 +178,42 @@ def ask_what_to_update(reports, shell, console=None, ask=input):
             console.print("[yellow]Didn't catch that.[/]")
             continue
         prompting.answered()
-        return [] if chosen == CANCEL else run_chosen(chosen, shell, console)
+        return [] if chosen == CANCEL else run_chosen(chosen)
 
 
-def say_what_changed(console, entries, shell):
+def print_what_changed(entries):
     """Returns the managers that could not be asked again."""
+    console = output.console
     # Asked again rather than taken from the upgrade's own output: a manager
     # can report success and still leave a package where it was.
     console.print()
     could_not_confirm = []
     for entry in entries:
         manager = managers.by_key(entry.keys[0])
-        again = manager.outdated(shell)
+        again = manager.outdated()
         if again is None or again.error_message:
-            console.print(f"[yellow]{escape(manager.label)}: could not check again[/]")
+            output.print_plain(f"{manager.label}: could not check again", style="yellow")
             could_not_confirm.append(manager.key)
             continue
 
         remaining = again.outdated_packages
         updated = max(0, len(entry.outdated) - len(remaining))
         if not remaining:
-            console.print(f"[green]{escape(manager.label)}[/]: {len(entry.outdated)} updated")
+            output.print_plain((manager.label, "green"), f": {len(entry.outdated)} updated")
             continue
 
-        console.print(
-            f"[yellow]{escape(manager.label)}[/]: {updated} of {len(entry.outdated)} updated, "
-            f"still outdated:"
+        output.print_plain(
+            (manager.label, "yellow"), f": {updated} of {len(entry.outdated)} updated, still outdated:"
         )
         report.print_as_list_or_grid(
-            console, "    ", [report.Item(package) for package in remaining]
+            "    ", [report.item_for_package(package) for package in remaining]
         )
     return could_not_confirm
 
 
-def run_chosen(entries, shell, console):
+def run_chosen(entries):
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]
-    _, failed = upgrade_managers(package_keys, shell, console)
-    could_not_confirm = say_what_changed(console, upgraded, shell)
+    _, failed = upgrade_managers(package_keys)
+    could_not_confirm = print_what_changed(upgraded)
     return [key for key, _ in failed] + could_not_confirm

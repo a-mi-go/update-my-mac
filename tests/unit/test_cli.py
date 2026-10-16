@@ -50,8 +50,7 @@ def test_ctrl_c_ends_the_run_with_a_word_about_it(monkeypatch, capsys):
     assert main([]) == 130
     printed = capsys.readouterr().out
     assert "Stopped." in printed
-    # Honest about what it cannot undo.
-    assert "already run has run" in printed
+    assert "Keep your mind open and your software updated." in printed
 
 
 def test_ctrl_c_ends_a_check_the_same_way(monkeypatch):
@@ -77,3 +76,57 @@ def test_updates_only_cannot_be_combined_with_another_mode(capsys):
         main(["--updates-only", "--check"])
 
     assert "not allowed with" in capsys.readouterr().err
+
+
+def on_a_terminal(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+
+def test_a_run_that_finishes_leaves_a_blank_line(monkeypatch, capsys):
+    on_a_terminal(monkeypatch)
+    monkeypatch.setattr(cli.app, "run_check_mode", lambda: 0)
+
+    assert main(["--check"]) == 0
+    assert capsys.readouterr().out == "\n"
+
+
+def test_a_run_stopped_with_ctrl_c_leaves_a_blank_line(monkeypatch, capsys):
+    on_a_terminal(monkeypatch)
+
+    def interrupt():
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli.app, "run_interactive_mode", interrupt)
+
+    assert main([]) == 130
+    assert capsys.readouterr().out.endswith("\n\n")
+
+
+def test_help_and_version_leave_a_blank_line_too(monkeypatch, capsys):
+    on_a_terminal(monkeypatch)
+
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.endswith(f"{__version__}\n\n")
+
+
+def test_a_run_that_fails_leaves_a_blank_line_before_the_error(monkeypatch, capsys):
+    on_a_terminal(monkeypatch)
+
+    def fail():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli.app, "run_check_mode", fail)
+
+    with pytest.raises(RuntimeError):
+        main(["--check"])
+    assert capsys.readouterr().out == "\n"
+
+
+def test_a_log_or_a_pipe_gets_no_extra_line(monkeypatch, capsys):
+    monkeypatch.setattr(cli.app, "run_check_mode", lambda: 0)
+
+    assert main(["--check"]) == 0
+    assert capsys.readouterr().out == ""

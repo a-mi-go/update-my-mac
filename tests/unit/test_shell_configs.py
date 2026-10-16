@@ -2,6 +2,8 @@ import os
 import shutil
 import time
 
+from fake_run import use_environment, swap
+
 import pytest
 
 from update_my_mac import shell_configs
@@ -20,9 +22,10 @@ def make_home(tmp_path, **files):
 
 def found(name, home, **extra_env):
     env = {"HOME": str(home), **extra_env}
+    use_environment(env)
     return [
         (d.kind, d.path.name, d.line_number, d.can_disable)
-        for d in shell_configs.find_shadowing_definitions(name, env)
+        for d in shell_configs.find_shadowing_definitions(name)
     ]
 
 
@@ -115,7 +118,8 @@ def test_xdg_config_home_is_where_fish_looks(tmp_path):
 def test_disabling_comments_out_and_backs_up_once(tmp_path):
     home = make_home(tmp_path, **{".zshrc": "alias update=a\nexport X=1\nalias update=b\n"})
     zshrc = home / ".zshrc"
-    definitions = shell_configs.find_shadowing_definitions("update", {"HOME": str(home)})
+    use_environment({"HOME": str(home)})
+    definitions = shell_configs.find_shadowing_definitions("update")
 
     shell_configs.disable(definitions)
 
@@ -130,7 +134,8 @@ def test_disabling_moves_a_fish_function_file_where_fish_wont_load_it(tmp_path):
     home = make_home(
         tmp_path, **{".config__fish__functions__update.fish": "function update; end\n"}
     )
-    definitions = shell_configs.find_shadowing_definitions("update", {"HOME": str(home)})
+    use_environment({"HOME": str(home)})
+    definitions = shell_configs.find_shadowing_definitions("update")
 
     shell_configs.disable(definitions)
 
@@ -141,7 +146,8 @@ def test_disabling_moves_a_fish_function_file_where_fish_wont_load_it(tmp_path):
 
 def test_what_cannot_be_disabled_is_left_alone(tmp_path):
     home = make_home(tmp_path, **{".zshrc": "update() {\n  echo old\n}\n"})
-    definitions = shell_configs.find_shadowing_definitions("update", {"HOME": str(home)})
+    use_environment({"HOME": str(home)})
+    definitions = shell_configs.find_shadowing_definitions("update")
 
     assert shell_configs.disable(definitions) == []
     assert (home / ".zshrc").read_text() == "update() {\n  echo old\n}\n"
@@ -206,7 +212,8 @@ def test_a_command_added_to_path_in_zshenv_is_found_in_a_new_terminal(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".zshenv": f'export PATH="{tool_dir}:$PATH"\n'})
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is True
 
 
 @needs_zsh
@@ -217,7 +224,8 @@ def test_a_zshrc_that_sets_path_from_scratch_hides_the_command(tmp_path):
         ".zshrc": "export PATH=/usr/bin:/bin\n",
     })
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is False
 
 
 @needs_zsh
@@ -225,7 +233,8 @@ def test_a_new_terminal_is_a_login_shell(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".zprofile": f'export PATH="{tool_dir}:$PATH"\n'})
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is True
 
 
 @needs_zsh
@@ -233,7 +242,8 @@ def test_an_alias_is_not_the_command(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".zshrc": "alias mytool=true\n"})
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is False
 
 
 @needs_zsh
@@ -245,7 +255,8 @@ def test_another_program_of_that_name_is_not_the_command(tmp_path):
     (elsewhere / "mytool").chmod(0o755)
     home = make_home(tmp_path, **{".zshenv": f'export PATH="{elsewhere}:$PATH"\n'})
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is False
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is False
 
 
 @needs_zsh
@@ -256,7 +267,8 @@ def test_output_from_the_config_does_not_matter(tmp_path):
         ".zshrc": 'echo ".zshrc initialized"\n',
     })
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home)) is True
+    use_environment(new_terminal_env(home))
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir) is True
 
 
 @needs_zsh
@@ -265,9 +277,9 @@ def test_a_config_that_starts_something_in_the_background_does_not_hang(tmp_path
     home = make_home(tmp_path, **{".zshrc": "sleep 30 &\nsleep 30\n"})
     started = time.monotonic()
 
-    result = shell_configs.found_in_new_terminal(
-        "zsh", "mytool", tool_dir, new_terminal_env(home), timeout=1
-    )
+    use_environment(new_terminal_env(home))
+    swap(shell_configs, "NEW_TERMINAL_TIMEOUT_SECONDS", 1)
+    result = shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir)
 
     assert result is None
     assert time.monotonic() - started < 10
@@ -281,7 +293,8 @@ def test_frameworks_are_told_not_to_update_themselves(tmp_path):
         ".zshrc": f'echo "$DISABLE_AUTO_UPDATE $DISABLE_UPDATE_PROMPT" > "{seen}"\n',
     })
 
-    shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir, new_terminal_env(home))
+    use_environment(new_terminal_env(home))
+    shell_configs.found_in_new_terminal("zsh", "mytool", tool_dir)
 
     assert seen.read_text().strip() == "true true"
 
@@ -291,7 +304,8 @@ def test_a_command_added_to_path_is_found_in_a_new_bash_terminal(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".bash_profile": f'export PATH="{tool_dir}:$PATH"\n'})
 
-    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is True
+    use_environment(new_terminal_env(home, "bash"))
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir) is True
 
 
 @needs_bash
@@ -301,7 +315,8 @@ def test_a_bash_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
         ".bash_profile": f'export PATH="{tool_dir}:$PATH"\nexport PATH=/usr/bin:/bin\n',
     })
 
-    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir, new_terminal_env(home, "bash")) is False
+    use_environment(new_terminal_env(home, "bash"))
+    assert shell_configs.found_in_new_terminal("bash", "mytool", tool_dir) is False
 
 
 @needs_fish
@@ -309,7 +324,8 @@ def test_a_command_added_to_path_is_found_in_a_new_fish_terminal(tmp_path):
     tool_dir = a_tool_in(tmp_path)
     home = make_home(tmp_path, **{".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\n"})
 
-    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is True
+    use_environment(new_terminal_env(home, "fish"))
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir) is True
 
 
 @needs_fish
@@ -319,10 +335,12 @@ def test_a_fish_config_that_sets_path_from_scratch_hides_the_command(tmp_path):
         ".config__fish__config.fish": f"set -gx PATH {tool_dir} $PATH\nset -gx PATH /usr/bin /bin\n",
     })
 
-    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir, new_terminal_env(home, "fish")) is False
+    use_environment(new_terminal_env(home, "fish"))
+    assert shell_configs.found_in_new_terminal("fish", "mytool", tool_dir) is False
 
 
 def test_a_shell_that_is_not_installed_is_unknown(tmp_path):
     env = {"HOME": str(tmp_path), "PATH": str(tmp_path)}
 
-    assert shell_configs.found_in_new_terminal("zsh", "mytool", tmp_path, env) is None
+    use_environment(env)
+    assert shell_configs.found_in_new_terminal("zsh", "mytool", tmp_path) is None
