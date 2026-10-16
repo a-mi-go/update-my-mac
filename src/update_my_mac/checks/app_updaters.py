@@ -119,15 +119,6 @@ def read_users_app_settings(bundle_id):
     return exported if isinstance(exported, dict) else {}
 
 
-def _timestamp_to_date(value):
-    if isinstance(value, str):
-        return value[:10]
-    try:
-        return time.strftime("%Y-%m-%d", time.localtime(value.timestamp()))
-    except AttributeError:
-        return ""
-
-
 def detect(app_path, info=None):
     """Returns what the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
@@ -145,12 +136,6 @@ def detect(app_path, info=None):
     )
 
 
-def _may_check_automatically(users_answer, developers_default):
-    """Returns the user's answer if they gave one, else what the app shipped with."""
-    answer = users_answer.get(AUTOMATIC_CHECKS)
-    return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
-
-
 def group_by_status(apps):
     """Returns the untracked apps grouped by what looks after them."""
     unattended, switched_off, unclear, self_updating = [], [], [], []
@@ -164,3 +149,18 @@ def group_by_status(apps):
         else:
             unclear.append(app)
     return unattended, switched_off, unclear, self_updating
+
+
+def _may_check_automatically(users_answer, developers_default):
+    """Returns the user's answer if they gave one, else what the app shipped with."""
+    answer = users_answer.get(AUTOMATIC_CHECKS)
+    return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
+
+
+def _timestamp_to_date(value):
+    if isinstance(value, str):
+        return value[:10]
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(value.timestamp()))
+    except AttributeError:
+        return ""

@@ -26,10 +26,6 @@ STILL_ATTACHED = "still attached, the next upgrade cannot attach it again"
 NOT_RESTARTED = "Updated but the old version is still running"
 
 
-def _pluralised(noun, count):
-    return noun if count == 1 else f"{noun}s"
-
-
 @dataclass
 class Row:
     name: str
@@ -96,9 +92,14 @@ def count_findings(sections):
     return needs_you, can_wait
 
 
-def _version_change(change):
-    """Returns a manager's "1.2.3 → 1.2.4" as it should be shown."""
-    return versions.change_without_builds(change)
+def doubt_about(item):
+    """Returns what Homebrew holds against a package it flagged."""
+    return "versions cannot be compared" if item.kind == flagged.DIFFERS else item.reason
+
+
+def download_name(image):
+    # Homebrew prefixes the file name with a hash and two dashes.
+    return image.path.name.split("--", 1)[-1]
 
 
 def _checks_that_failed(findings):
@@ -149,16 +150,6 @@ def _owned_by_someone_else(findings):
     ]
 
 
-def doubt_about(item):
-    """Returns what Homebrew holds against a package it flagged."""
-    return "versions cannot be compared" if item.kind == flagged.DIFFERS else item.reason
-
-
-def download_name(image):
-    # Homebrew prefixes the file name with a hash and two dashes.
-    return image.path.name.split("--", 1)[-1]
-
-
 def _flagged_by_homebrew(findings):
     """Returns what Homebrew has doubts about, one section per kind of doubt."""
     def rows(kind):
@@ -205,6 +196,16 @@ def _homebrew_outdated(findings):
     return [section]
 
 
+def _package_row(package):
+    name, _, change = package.partition("  ")
+    return Row(name, _version_change(change))
+
+
+def _version_change(change):
+    """Returns a manager's "1.2.3 → 1.2.4" as it should be shown."""
+    return versions.change_without_builds(change)
+
+
 def _outdated_per_manager(findings):
     """Returns one section per manager other than Homebrew, named after the manager."""
     built = []
@@ -215,11 +216,6 @@ def _outdated_per_manager(findings):
         built.append(Section(WARNING, report.label, "update from the menu below", rows,
                              counted_as=UPDATES))
     return built
-
-
-def _package_row(package):
-    name, _, change = package.partition("  ")
-    return Row(name, _version_change(change))
 
 
 def _managers_needing_an_update(findings):
@@ -270,30 +266,18 @@ def _untracked_apps(findings):
     ]
 
 
-def _rows_for_apps(apps, findings):
-    return [
-        Row(app.name, _updates_available(app, findings), _what_is_known_about(app, findings))
-        for app in apps
-    ]
-
-
-def _what_is_known_about(app, findings):
-    """Returns when the updater last checked, or the recipe that could take it over."""
-    if app.updater.kind != app_updaters.NONE:
-        # The section these rows sit under already names the updater's state.
-        return app.updater.history_note()
-    cask = findings.find_cask(app) if findings.find_cask else None
-    if not cask:
-        return ""
-    # Only that a recipe exists; what handing it over would mean differs.
-    return f"cask {cask.token}"
-
-
 def _untracked_not_already_listed(findings):
     """Returns untracked apps, minus the ones already named in a louder section."""
     return [
         app for app in findings.untracked
         if not appcast.answer_for(app, findings.offered).error
+    ]
+
+
+def _rows_for_apps(apps, findings):
+    return [
+        Row(app.name, _updates_available(app, findings), _what_is_known_about(app, findings))
+        for app in apps
     ]
 
 
@@ -309,3 +293,19 @@ def _updates_available(app, findings):
         if versions.is_newer(cask.version, than=app.version):
             return f"{shown} → {versions.without_build(cask.version)}"
     return shown
+
+
+def _what_is_known_about(app, findings):
+    """Returns when the updater last checked, or the recipe that could take it over."""
+    if app.updater.kind != app_updaters.NONE:
+        # The section these rows sit under already names the updater's state.
+        return app.updater.history_note()
+    cask = findings.find_cask(app) if findings.find_cask else None
+    if not cask:
+        return ""
+    # Only that a recipe exists; what handing it over would mean differs.
+    return f"cask {cask.token}"
+
+
+def _pluralised(noun, count):
+    return noun if count == 1 else f"{noun}s"

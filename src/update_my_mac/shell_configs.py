@@ -35,43 +35,6 @@ def fish_config_dir():
     return Path(base) / "fish"
 
 
-def _matching_lines(path, patterns):
-    """Returns (line number, kind, can_disable) for each line matching a pattern."""
-    if not path.is_file():
-        return []
-    found = []
-    for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        for kind, pattern, can_disable in patterns:
-            if pattern.search(line):
-                found.append((number, kind, can_disable))
-                break
-    return found
-
-
-def _posix_patterns(name):
-    word = re.escape(name)
-    return [
-        ("alias", re.compile(rf"^\s*alias\s+(-\w+\s+)*{word}="), True),
-        # A function spans lines, so commenting out its first one would leave
-        # the rest dangling. Those are pointed out, not edited.
-        ("function", re.compile(rf"^\s*(function\s+{word}\b|{word}\s*\(\s*\))"), False),
-    ]
-
-
-def _fish_patterns(name):
-    word = re.escape(name)
-    return [
-        ("alias", re.compile(rf"^\s*alias\s+{word}(=|\s)"), True),
-        (
-            "abbreviation",
-            # Options before the name, but not an abbr --erase line.
-            re.compile(rf"^\s*abbr(\s+-(?!e\b|-erase\b)\S+)*\s+{word}(\s|$)"),
-            True,
-        ),
-        ("function", re.compile(rf"^\s*function\s+{word}(\s|;|$)"), False),
-    ]
-
-
 def find_shadowing_definitions(name):
     home = Path(os.environ.get("HOME", ""))
     found = []
@@ -193,6 +156,43 @@ def clear_line(shell, name):
     if shell == "fish":
         return f"functions -e {name}; abbr -e {name} 2>/dev/null"
     return f"unalias {name} 2>/dev/null; unset -f {name} 2>/dev/null; hash -r"
+
+
+def _matching_lines(path, patterns):
+    """Returns (line number, kind, can_disable) for each line matching a pattern."""
+    if not path.is_file():
+        return []
+    found = []
+    for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        for kind, pattern, can_disable in patterns:
+            if pattern.search(line):
+                found.append((number, kind, can_disable))
+                break
+    return found
+
+
+def _posix_patterns(name):
+    word = re.escape(name)
+    return [
+        ("alias", re.compile(rf"^\s*alias\s+(-\w+\s+)*{word}="), True),
+        # A function spans lines, so commenting out its first one would leave
+        # the rest dangling. Those are pointed out, not edited.
+        ("function", re.compile(rf"^\s*(function\s+{word}\b|{word}\s*\(\s*\))"), False),
+    ]
+
+
+def _fish_patterns(name):
+    word = re.escape(name)
+    return [
+        ("alias", re.compile(rf"^\s*alias\s+{word}(=|\s)"), True),
+        (
+            "abbreviation",
+            # Options before the name, but not an abbr --erase line.
+            re.compile(rf"^\s*abbr(\s+-(?!e\b|-erase\b)\S+)*\s+{word}(\s|$)"),
+            True,
+        ),
+        ("function", re.compile(rf"^\s*function\s+{word}(\s|;|$)"), False),
+    ]
 
 
 # Set for the shell that found_in_new_terminal starts, which reads the whole

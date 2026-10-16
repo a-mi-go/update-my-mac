@@ -43,57 +43,6 @@ class StillRunningOld:
         return f"{self.title()}:  {self.comment()}"
 
 
-def _processes():
-    """Returns every running process as (pid, seconds running, executable path)."""
-    executable = shell.find_executable("ps")
-    if executable is None:
-        return []
-
-    # etime is a number; ps writes a start date in the machine's language.
-    result = shell.run_command([executable, "-eo", "pid=,etime=,comm="], (0,))
-    if not result.success:
-        return []
-
-    found = []
-    for line in result.stdout.splitlines():
-        parts = line.strip().split(None, 2)
-        if len(parts) != 3:
-            continue
-        pid, elapsed, command = parts
-        seconds = parse_elapsed(elapsed)
-        if pid.isdigit() and seconds is not None:
-            found.append((int(pid), seconds, command))
-    return found
-
-
-def _bundle_of(command):
-    """Returns the .app a running executable belongs to, if it belongs to one."""
-    match = re.match(r"(.*?\.app)/Contents/MacOS/", command)
-    return Path(match.group(1)) if match else None
-
-
-def _our_own_ancestors():
-    """Returns the app this tool is running inside."""
-    executable = shell.find_executable("ps")
-    if executable is None:
-        return set()
-
-    ours = set()
-    pid = os.getpid()
-    for _ in range(8):
-        result = shell.run_command([executable, "-o", "ppid=,comm=", "-p", str(pid)], (0,))
-        if not result.success or not result.stdout.strip():
-            break
-        parent, _, command = result.stdout.strip().partition(" ")
-        bundle = _bundle_of(command.strip())
-        if bundle:
-            ours.add(bundle)
-        if not parent.isdigit() or int(parent) <= 1:
-            break
-        pid = int(parent)
-    return ours
-
-
 def find():
     """Returns running apps whose bundle was replaced after they were started."""
     directories = {path.resolve() for path in installed_apps.app_directories()}
@@ -120,3 +69,54 @@ def find():
                 ),
             )
     return sorted(found.values(), key=lambda app: app.name)
+
+
+def _our_own_ancestors():
+    """Returns the app this tool is running inside."""
+    executable = shell.find_executable("ps")
+    if executable is None:
+        return set()
+
+    ours = set()
+    pid = os.getpid()
+    for _ in range(8):
+        result = shell.run_command([executable, "-o", "ppid=,comm=", "-p", str(pid)], (0,))
+        if not result.success or not result.stdout.strip():
+            break
+        parent, _, command = result.stdout.strip().partition(" ")
+        bundle = _bundle_of(command.strip())
+        if bundle:
+            ours.add(bundle)
+        if not parent.isdigit() or int(parent) <= 1:
+            break
+        pid = int(parent)
+    return ours
+
+
+def _bundle_of(command):
+    """Returns the .app a running executable belongs to, if it belongs to one."""
+    match = re.match(r"(.*?\.app)/Contents/MacOS/", command)
+    return Path(match.group(1)) if match else None
+
+
+def _processes():
+    """Returns every running process as (pid, seconds running, executable path)."""
+    executable = shell.find_executable("ps")
+    if executable is None:
+        return []
+
+    # etime is a number; ps writes a start date in the machine's language.
+    result = shell.run_command([executable, "-eo", "pid=,etime=,comm="], (0,))
+    if not result.success:
+        return []
+
+    found = []
+    for line in result.stdout.splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) != 3:
+            continue
+        pid, elapsed, command = parts
+        seconds = parse_elapsed(elapsed)
+        if pid.isdigit() and seconds is not None:
+            found.append((int(pid), seconds, command))
+    return found

@@ -34,11 +34,6 @@ def find_executable(command):
     return shutil.which(command, path=current_environment().get("PATH"))
 
 
-def _for_command(env):
-    """Returns the environment to run with: the one given, else the run's own."""
-    return _run_environment if env is None else env
-
-
 def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
     """Runs a command and returns its output, keeping the two streams apart."""
     # success_exit_codes is for managers like npm, which exits 1 when it finds
@@ -78,19 +73,49 @@ def stream_command(args, env=None, silent_status=None):
         return None
 
 
-def _copy_window_size(source, target):
-    import fcntl
-    import termios
-
-    try:
-        fcntl.ioctl(target, termios.TIOCSWINSZ, fcntl.ioctl(source, termios.TIOCGWINSZ, b"\0" * 8))
-    except OSError:
-        pass
+def describe_exit(exit_code):
+    """Returns how a streamed command ended, as a phrase to put after its name."""
+    return "could not be run" if exit_code is None else f"exited with {exit_code}"
 
 
-def _write_all(descriptor, data):
-    while data:
-        data = data[os.write(descriptor, data):]
+def open_in_browser(url):
+    """Opens an https address. Returns whether it worked."""
+    if not url.startswith("https://"):
+        return False
+
+    executable = find_executable("open")
+    if executable is None:
+        return False
+    return run_command([executable, url]).success
+
+
+def ask_application_to_quit(bundle_id):
+    """Asks an app to quit the way the Quit menu item does."""
+    executable = find_executable("osascript")
+    if executable is None:
+        return False
+    return run_command(
+        [executable, "-e", f'tell application id "{bundle_id}" to quit']
+    ).success
+
+
+def open_application(path):
+    executable = find_executable("open")
+    if executable is None:
+        return False
+    return run_command([executable, "-a", str(path)]).success
+
+
+def is_running(pid):
+    executable = find_executable("ps")
+    if executable is None:
+        return False
+    return run_command([executable, "-p", str(pid)], (0, 1)).exit_code == 0
+
+
+def _for_command(env):
+    """Returns the environment to run with: the one given, else the run's own."""
+    return _run_environment if env is None else env
 
 
 def _run_until_it_writes(args, env, status):
@@ -148,41 +173,16 @@ def _run_until_it_writes(args, env, status):
         os.close(master)
 
 
-def describe_exit(exit_code):
-    """Returns how a streamed command ended, as a phrase to put after its name."""
-    return "could not be run" if exit_code is None else f"exited with {exit_code}"
+def _copy_window_size(source, target):
+    import fcntl
+    import termios
+
+    try:
+        fcntl.ioctl(target, termios.TIOCSWINSZ, fcntl.ioctl(source, termios.TIOCGWINSZ, b"\0" * 8))
+    except OSError:
+        pass
 
 
-def open_in_browser(url):
-    """Opens an https address. Returns whether it worked."""
-    if not url.startswith("https://"):
-        return False
-
-    executable = find_executable("open")
-    if executable is None:
-        return False
-    return run_command([executable, url]).success
-
-
-def ask_application_to_quit(bundle_id):
-    """Asks an app to quit the way the Quit menu item does."""
-    executable = find_executable("osascript")
-    if executable is None:
-        return False
-    return run_command(
-        [executable, "-e", f'tell application id "{bundle_id}" to quit']
-    ).success
-
-
-def open_application(path):
-    executable = find_executable("open")
-    if executable is None:
-        return False
-    return run_command([executable, "-a", str(path)]).success
-
-
-def is_running(pid):
-    executable = find_executable("ps")
-    if executable is None:
-        return False
-    return run_command([executable, "-p", str(pid)], (0, 1)).exit_code == 0
+def _write_all(descriptor, data):
+    while data:
+        data = data[os.write(descriptor, data):]
