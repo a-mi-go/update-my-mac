@@ -432,3 +432,12 @@ def test_no_line_is_drawn_when_there_is_no_menu():
     ))
 
     assert "─" not in printed
+
+
+def test_the_app_store_upgrade_says_it_may_ask_for_a_password():
+    use_shell(RecordingShell())
+
+    printed = printed_by(lambda: apply_updates.upgrade_managers(["mas", "npm"]))
+
+    assert printed.count("It may ask for your password.") == 1
+    assert printed.index("Mac App Store") < printed.index("password") < printed.index("npm")
