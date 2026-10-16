@@ -3,7 +3,7 @@
 from rich.rule import Rule
 from rich.text import Text
 
-from update_my_mac.view.prompting import Step
+from update_my_mac.view import prompting
 
 WIDTH = 60
 
@@ -19,7 +19,21 @@ class Terminal:
     @property
     def step(self):
         """The outermost level of a conversation held with this terminal."""
-        return Step(self.out, self.ask)
+        prompting.print_unwrapped = self.out
+        prompting.read_answer = self.ask
+        return prompting.Step()
+
+    def answering(self, ask):
+        """A step that prints here but takes its answers from `ask`."""
+        step = self.step
+        prompting.read_answer = ask
+        return step
+
+    def with_arrows(self):
+        """A step that offers the arrow-key menu, printing here."""
+        step = self.step
+        prompting.arrow_menu.can_be_drawn = lambda: True
+        return step
 
     def ask(self, prompt):
         self.lines.append(prompt)
@@ -27,16 +41,15 @@ class Terminal:
             raise self.then
         return self.answers.pop(0)
 
-    def out(self, *parts, **options):
+    def out(self, renderable="", **options):
         # A rule is a line of its own character, as wide as it was asked for,
         # the way the console draws it.
-        drawn = [
-            part.characters * options.get("width", WIDTH) if isinstance(part, Rule) else str(part)
-            for part in parts
-        ]
-        # What a person would read, without the colour markup. Parsing it also
-        # catches a line whose markup rich cannot render.
-        self.lines.append(Text.from_markup(" ".join(drawn)).plain)
+        if isinstance(renderable, Rule):
+            self.lines.append(renderable.characters * options.get("width", WIDTH))
+        else:
+            # The setup command still prints markup strings; a menu prints Text.
+            text = renderable if isinstance(renderable, Text) else Text.from_markup(str(renderable))
+            self.lines.append(text.plain)
 
     @property
     def text(self):
