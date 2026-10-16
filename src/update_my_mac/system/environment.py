@@ -5,6 +5,7 @@ them live, so the tool adds the usual locations itself rather than relying on a
 login shell having done it.
 """
 
+import contextlib
 import os
 
 PREFIXES = ("/opt/homebrew", "/usr/local", "/opt/local")
@@ -40,7 +41,11 @@ def manager_directories(env):
 
 
 def path_with_managers(env, exists=os.path.isdir):
-    """Returns PATH with the manager locations it does not already have appended."""
+    """Returns PATH with the manager locations it does not already have appended.
+
+    This function does not mutate the provided mapping; it returns a string
+    suitable for placing in a child process environment.
+    """
     entries = [entry for entry in env.get("PATH", "").split(os.pathsep) if entry]
     for directory in manager_directories(env):
         # Absolute only: without HOME these come out relative, and a relative
@@ -53,5 +58,35 @@ def path_with_managers(env, exists=os.path.isdir):
 
 
 def prepare(env=None):
-    env = os.environ if env is None else env
-    env["PATH"] = path_with_managers(env)
+    """Return a child-process environment dict with PATH extended to include
+    manager locations.
+
+    This no longer mutates os.environ; callers that need a global change can
+    use the ``with_temp_path`` context manager below.
+    """
+    base_env = os.environ if env is None else env
+    child_env = dict(base_env)
+    child_env["PATH"] = path_with_managers(base_env)
+    return child_env
+
+
+@contextlib.contextmanager
+def with_temp_path(env=None):
+    """Temporarily set the process-wide PATH to include manager locations.
+
+    Use this only when code requires a global PATH mutation for legacy reasons.
+    Prefer using the dict returned by :func:`prepare` and passing that to
+    subprocess callers so the change is local to the child process.
+    """
+    source_env = os.environ if env is None else env
+    new_path = path_with_managers(source_env)
+    old = os.environ.get("PATH")
+    os.environ["PATH"] = new_path
+    try:
+        yield
+    finally:
+        if old is None:
+            # Remove the key if it didn't exist before.
+            del os.environ["PATH"]
+        else:
+            os.environ["PATH"] = old
