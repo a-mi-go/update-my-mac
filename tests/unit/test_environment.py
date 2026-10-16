@@ -84,13 +84,13 @@ def test_personal_locations_come_before_system_ones():
     assert result.index("/Users/x/.local/bin") < result.index("/opt/homebrew/bin")
 
 
-def test_prepare_returns_a_copy_and_leaves_the_process_environment_alone():
+def test_with_managers_on_path_returns_a_copy_and_leaves_the_process_environment_alone():
     env = {"HOME": "/Users/x", "PATH": LAUNCHD_PATH}
     use_environment(env)
-    prepared = environment.prepare()
+    extended = environment.with_managers_on_path()
 
-    assert prepared["PATH"].startswith(LAUNCHD_PATH)
-    assert prepared["HOME"] == "/Users/x"
+    assert extended["PATH"].startswith(LAUNCHD_PATH)
+    assert extended["HOME"] == "/Users/x"
     assert env["PATH"] == LAUNCHD_PATH
 
 

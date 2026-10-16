@@ -52,7 +52,7 @@ def path_with_managers():
     return os.pathsep.join(entries)
 
 
-def prepare():
+def with_managers_on_path():
     """Returns a copy of the environment with the manager locations on PATH.
 
     The process's own environment is left alone; the run hands the copy to

@@ -60,7 +60,7 @@ def _run(argv, prog):
     # prog is None for the installed command, so the help names whatever it
     # was invoked as, including a second name chosen during setup.
     args = build_argument_parser(prog).parse_args(argv)
-    shell.use_environment(environment.prepare())
+    shell.use_environment(environment.with_managers_on_path())
 
     try:
         return _dispatch(args)
