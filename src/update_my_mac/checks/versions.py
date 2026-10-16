@@ -24,13 +24,19 @@ def known(version):
     return bool(version) and version != UNKNOWN
 
 
-def _without_build(version):
+def without_build(version):
+    """Returns the version without the build a recipe writes after a comma."""
     return version.split(",")[0].strip()
+
+
+def change_without_builds(change):
+    """Returns an "old → new" line with the build dropped from both sides."""
+    return " → ".join(without_build(part) for part in change.split("→"))
 
 
 def same_release(ours, theirs):
     """Returns whether they name the same release, ignoring a build after a comma."""
-    return _without_build(ours) == _without_build(theirs)
+    return without_build(ours) == without_build(theirs)
 
 
 def comparable(ours, theirs):

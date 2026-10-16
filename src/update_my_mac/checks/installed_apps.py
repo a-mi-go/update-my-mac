@@ -8,6 +8,7 @@ from pathlib import Path
 
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import versions
+from update_my_mac.system import shell
 
 APP_DIRECTORIES = ("/Applications", "~/Applications")
 
@@ -34,14 +35,14 @@ class InstalledApp:
         return [self.version, self.build]
 
 
-def app_directories(env):
-    configured = env.get(DIRECTORY_OVERRIDE)
+def app_directories():
+    configured = os.environ.get(DIRECTORY_OVERRIDE)
     if configured is None:
         directories = APP_DIRECTORIES
     else:
         directories = tuple(entry for entry in configured.split(os.pathsep) if entry)
 
-    home = env.get("HOME", "")
+    home = os.environ.get("HOME", "")
     found = []
     for directory in directories:
         if directory.startswith("~"):
@@ -86,7 +87,7 @@ def comes_from_the_app_store(app_path):
     return (app_path / "Contents" / "_MASReceipt").exists()
 
 
-def apps_installed_by_homebrew(shell):
+def apps_installed_by_homebrew():
     """Returns app file names Homebrew installed, empty when brew isn't there."""
     executable = shell.find_executable("brew")
     if executable is None:
@@ -135,13 +136,12 @@ def _as_path_list(value):
     return value if isinstance(value, list) else [value]
 
 
-def find_all(env=None):
+def find_all():
     """Returns every app in the usual places that is somebody's to update."""
-    env = os.environ if env is None else env
 
     found = []
     visited = set()
-    for directory in app_directories(env):
+    for directory in app_directories():
         resolved = directory.resolve()
         if resolved in visited or not resolved.is_dir():
             continue
@@ -162,14 +162,13 @@ def find_all(env=None):
     return found
 
 
-def find_untracked(shell, env=None):
+def find_untracked():
     """Returns apps in the usual places that neither mas nor Homebrew accounts for."""
-    env = os.environ if env is None else env
-    from_homebrew = apps_installed_by_homebrew(shell)
+    from_homebrew = apps_installed_by_homebrew()
 
     found = []
     visited = set()
-    for directory in app_directories(env):
+    for directory in app_directories():
         resolved = directory.resolve()
         if resolved in visited or not resolved.is_dir():
             continue
@@ -188,7 +187,7 @@ def find_untracked(shell, env=None):
                     app_path.stem,
                     read_version(app_path, info),
                     app_path,
-                    app_updaters.detect(app_path, shell, info),
+                    app_updaters.detect(app_path, info),
                     info.get("CFBundleIdentifier", ""),
                     read_build(info),
                 )
@@ -208,14 +207,13 @@ def made_by_another_app(app, owners):
     )
 
 
-def owned_by_someone_else(env=None):
+def owned_by_someone_else():
     """Returns apps in the usual places that belong to another user."""
-    env = os.environ if env is None else env
     mine = os.getuid()
 
     found = []
     visited = set()
-    for directory in app_directories(env):
+    for directory in app_directories():
         resolved = directory.resolve()
         if resolved in visited or not resolved.is_dir():
             continue

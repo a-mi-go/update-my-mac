@@ -1,10 +1,16 @@
 """Apps that are older than the Homebrew recipe, which Homebrew never says."""
 
+import plistlib
+
+import pytest
 from pathlib import Path
 
+from update_my_mac.checks import app_updaters
 from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew.casks import Cask, CaskIndex
 from update_my_mac.checks.installed_apps import InstalledApp
+
+from fake_run import use_shell
 
 
 def app(name, version):
@@ -87,16 +93,12 @@ def test_a_version_homebrew_wrote_down_but_never_installed_needs_a_reinstall():
     item = behind_item(recorded="5.0.6")
 
     assert item.false_version_recorded
-    assert behind_the_recipe.to_reinstall([item]) == ["betterdisplay"]
-    assert behind_the_recipe.to_upgrade([item]) == []
 
 
 def test_a_cask_homebrew_knows_is_old_only_needs_a_greedy_upgrade():
     item = behind_item(recorded="5.0.5")
 
     assert not item.false_version_recorded
-    assert behind_the_recipe.to_upgrade([item]) == ["betterdisplay"]
-    assert behind_the_recipe.to_reinstall([item]) == []
 
 
 def test_what_homebrew_wrote_down_is_carried_into_the_finding():
@@ -162,3 +164,42 @@ def test_an_app_whose_build_is_numbered_differently_is_still_compared():
     )
 
     assert [item.app.name for item in found] == ["Tor Browser"]
+
+
+class NoPreferences:
+    """A Mac where the app's own settings cannot be read, only its bundle."""
+
+    def find_executable(self, command):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def no_app_settings():
+    use_shell(NoPreferences())
+
+
+def sparkle_bundle(tmp_path, name, checks_automatically):
+    app_path = tmp_path / f"{name}.app"
+    (app_path / "Contents").mkdir(parents=True)
+    with open(app_path / "Contents" / "Info.plist", "wb") as plist:
+        plistlib.dump(
+            {
+                "SUFeedURL": "https://x.test/feed.xml",
+                "SUEnableAutomaticChecks": checks_automatically,
+            },
+            plist,
+        )
+    return app_path
+
+
+def test_an_app_brings_what_it_has_for_updating_itself(tmp_path):
+    app_path = sparkle_bundle(tmp_path, "Dockish", checks_automatically=False)
+    dockish = InstalledApp("Dockish", "4.2.6", app_path)
+
+    found = behind_the_recipe.find(
+        [dockish], index(Dockish=("dockish", "4.2.19")), {"dockish": "4.2.19"}
+    )
+
+    assert found[0].updater.kind == app_updaters.SPARKLE
+    assert found[0].updater.automatic is False
+

@@ -2,6 +2,8 @@ import json
 
 from update_my_mac.checks import app_decisions
 
+from fake_run import use_environment, swap
+
 
 def decisions_in(tmp_path):
     return app_decisions.AppDecisions(tmp_path / "apps.json")
@@ -24,7 +26,8 @@ def test_a_decision_survives_a_restart(tmp_path):
 
 def test_what_was_decided_and_when_is_written_down(tmp_path):
     decisions = decisions_in(tmp_path)
-    decisions.ignore("TokenEater", "5.12.2", now=0)
+    swap(app_decisions.time, "time", lambda: 0)
+    decisions.ignore("TokenEater", "5.12.2")
     decisions.save()
 
     stored = json.loads((tmp_path / "apps.json").read_text())
@@ -66,10 +69,12 @@ def test_the_directory_is_created_when_needed(tmp_path):
 
 
 def test_the_file_sits_where_the_xdg_variables_say(tmp_path):
-    xdg = app_decisions.state_path({"XDG_STATE_HOME": str(tmp_path)})
+    use_environment({"XDG_STATE_HOME": str(tmp_path)})
+    xdg = app_decisions.state_path()
     assert xdg == tmp_path / "update-my-mac" / "apps.json"
 
-    default = app_decisions.state_path({"HOME": str(tmp_path)})
+    use_environment({"HOME": str(tmp_path)})
+    default = app_decisions.state_path()
     assert default == tmp_path / ".local" / "state" / "update-my-mac" / "apps.json"
 
 
