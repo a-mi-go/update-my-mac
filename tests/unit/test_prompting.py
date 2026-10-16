@@ -278,3 +278,37 @@ def test_a_menu_without_a_question_leaves_an_empty_line_without_spaces():
     terminal.step.inside().choose([("a", "one"), ("b", "two")])
 
     assert terminal.lines[0] == ""
+
+
+def test_a_menu_that_was_resized_is_asked_again_after_the_screen_is_drawn_again(monkeypatch):
+    from update_my_mac.view import arrow_menu, output
+
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    redrawn = []
+    asked = []
+
+    def pick_one(question, entries, note=""):
+        asked.append(question)
+        if len(asked) == 1:
+            raise arrow_menu.Resized()
+        return "a"
+
+    monkeypatch.setattr(arrow_menu, "pick_one", pick_one)
+    monkeypatch.setattr(output.console, "control", lambda *a: redrawn.append("cleared"))
+
+    with output.redrawn_on_resize(lambda: redrawn.append("printed")):
+        assert step.choose([("a", "one"), ("b", "two")], "Which one?") == "a"
+
+    assert asked == ["Which one?", "Which one?"]
+    assert redrawn == ["cleared", "printed"]
+
+
+def test_the_screen_is_not_drawn_again_once_a_question_was_answered():
+    from update_my_mac.view import output
+
+    terminal = Terminal("1")
+    with output.redrawn_on_resize(lambda: None):
+        terminal.step.choose([("a", "one")], "Which one?")
+
+        assert not output.redraws_on_resize()

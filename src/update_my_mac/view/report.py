@@ -89,10 +89,8 @@ MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "
 CLEAN = "✅"
 COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
 
-# A terminal re-wraps what is already printed when its window shrinks, which
-# tears a frame apart. A frame that stops growing at this width survives every
-# resize that leaves the window wider than it.
-REPORT_MAX_WIDTH = 88
+# Wider than this the lines only get longer to read, not more informative.
+REPORT_MAX_WIDTH = 100
 PANEL_BORDER, PANEL_PADDING = 1, 2
 PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
 ROW_INDENT = "   "
