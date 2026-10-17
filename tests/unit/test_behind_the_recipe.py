@@ -203,3 +203,34 @@ def test_an_app_brings_what_it_has_for_updating_itself(tmp_path):
     assert found[0].updater.kind == app_updaters.SPARKLE
     assert found[0].updater.automatic is False
 
+
+
+STP_RECIPE = "254,142-29069-20261008-2015600e-8f9b-41ba-8709-ce9bc77a1fa0"
+
+
+def test_safari_technology_preview_is_not_called_behind_for_counting_releases_its_own_way():
+    # "Release 254" in the recipe, 27.0 in the app: close enough for the factor
+    # to call it older, and it is neither.
+    found = behind_the_recipe.find(
+        [app("Safari Technology Preview", "27.0")],
+        index(**{"Safari Technology Preview": ("safari-technology-preview", STP_RECIPE)}),
+        {"safari-technology-preview": STP_RECIPE},
+    )
+
+    assert found == []
+
+
+def test_the_same_numbers_under_another_token_are_still_compared():
+    found = behind_the_recipe.find(
+        [app("Some App", "27.0")],
+        index(**{"Some App": ("some-app", "254")}),
+        {"some-app": "254"},
+    )
+
+    assert [item.describe() for item in found] == ["Some App  27.0 → 254"]
+
+
+def test_only_the_listed_casks_count_their_own_way():
+    assert Cask("safari-technology-preview", "", "254").counts_its_own_way
+    assert not Cask("safari", "", "254").counts_its_own_way
+    assert not Cask("betterdisplay", "", "5.0.6").counts_its_own_way

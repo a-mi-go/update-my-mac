@@ -227,3 +227,21 @@ def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
     assert find("Disabled in Homebrew", found).level == sections.WARNING
     assert find("Deprecated in Homebrew", found).level == sections.INFO
     assert find("Downloads still attached", found).rows[0].name == "charles.dmg"
+
+
+def test_a_recipe_counting_its_own_way_offers_no_update_for_an_untracked_app():
+    found = sections.of(Findings(
+        untracked=[app("Safari Technology Preview", "27.0")],
+        find_cask=lambda a: Cask("safari-technology-preview", "https://x.test/", "254,142-29069"),
+    ))
+
+    assert find("Untracked apps", found).rows[0].version == "27.0"
+
+
+def test_the_same_numbers_under_an_ordinary_token_still_offer_the_update():
+    found = sections.of(Findings(
+        untracked=[app("Some App", "27.0")],
+        find_cask=lambda a: Cask("some-app", "https://x.test/", "254"),
+    ))
+
+    assert find("Untracked apps", found).rows[0].version == "27.0 → 254"
