@@ -50,6 +50,8 @@ def find(apps, casks, recorded=None, already_reported=()):
         cask = casks.for_app(app.path)
         if not cask or not recorded.get(cask.token) or cask.token in already_reported:
             continue
+        if cask.counts_its_own_way:
+            continue
         if versions.any_version_matches(app.versions_named(), cask.version):
             continue
         if is_behind(app.version, cask.version):

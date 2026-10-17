@@ -12,6 +12,11 @@ SOURCE = "https://formulae.brew.sh/api/cask.json"
 STALE_AFTER_SECONDS = 24 * 60 * 60
 TIMEOUT_SECONDS = 30
 
+# Casks whose recipe counts releases its own way, so the number is nowhere in the
+# app: Safari Technology Preview is "Release 254" in the recipe and 27.0 in its
+# Info.plist. Comparing the two says nothing, however close they happen to be.
+OWN_VERSION_SCHEME = frozenset({"safari-technology-preview"})
+
 
 @dataclass(frozen=True)
 class Cask:
@@ -21,6 +26,11 @@ class Cask:
     # --adopt takes over nothing but an app Homebrew would have installed
     # itself, so a cask like this is never offered as a handover.
     installs_a_package: bool = False
+
+    @property
+    def counts_its_own_way(self):
+        """Returns whether the recipe's version cannot be compared with the app's."""
+        return self.token in OWN_VERSION_SCHEME
 
 
 class CaskIndex:

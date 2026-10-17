@@ -264,3 +264,10 @@ def test_handing_over_a_package_cask_is_refused_before_anything_runs(tmp_path):
     assert not taken
     assert "installs a package" in message
     assert shell.streamed == []
+
+
+def test_a_cask_that_counts_its_own_way_is_never_newer_or_older(tmp_path):
+    app = bundle(tmp_path, "Safari Technology Preview", "27.0")
+    cask = Cask("safari-technology-preview", "https://x.test/", "254,142-29069")
+
+    assert adopting.compare_to_app(app, cask) == adopting.UNCLEAR

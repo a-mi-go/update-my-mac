@@ -25,7 +25,7 @@ def compare_to_app(app, cask):
         return ""
     if versions.any_version_matches(app.versions_named(), cask.version):
         return SAME
-    if not versions.comparable(app.version, cask.version):
+    if cask.counts_its_own_way or not versions.comparable(app.version, cask.version):
         return UNCLEAR
     return NEWER if versions.is_newer(cask.version, than=app.version) else OLDER
 

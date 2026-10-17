@@ -289,7 +289,9 @@ def _updates_available(app, findings):
         return f"{shown} → {versions.without_build(answer.version)}"
 
     cask = findings.find_cask(app) if findings.find_cask else None
-    if cask and not versions.any_version_matches(app.versions_named(), cask.version):
+    if cask and not cask.counts_its_own_way and not versions.any_version_matches(
+        app.versions_named(), cask.version
+    ):
         if versions.is_newer(cask.version, than=app.version):
             return f"{shown} → {versions.without_build(cask.version)}"
     return shown
