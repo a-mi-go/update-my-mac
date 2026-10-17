@@ -289,7 +289,7 @@ def _restart_every_app(apps, step):
     restarted = []
     for app in apps:
         taken, message = restart_apps.restart(app)
-        per_item.print_indented(f"{app.name}: {message}")
+        per_item.print_indented(f"{app.display_name}: {message}")
         if taken:
             restarted.append(app)
     return restarted

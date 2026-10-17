@@ -309,3 +309,67 @@ def test_two_apps_from_one_maker_are_both_kept():
     ]
 
     assert len(installed_apps.without_shortcuts(apps)) == 2
+
+
+def app_calling_itself(directory, file_name, **plist):
+    app = directory / f"{file_name}.app" / "Contents"
+    app.mkdir(parents=True)
+    with open(app / "Info.plist", "wb") as handle:
+        plistlib.dump({"CFBundleShortVersionString": "1.0", **plist}, handle)
+
+
+def found_in(tmp_path):
+    use_shell(FakeShell(casks=[]))
+    use_environment(env_for(tmp_path))
+    return installed_apps.find_untracked()
+
+
+def test_an_app_that_adds_to_its_file_name_is_shown_with_the_longer_name(tmp_path):
+    app_calling_itself(tmp_path, "iTerm", CFBundleName="iTerm2")
+
+    app = found_in(tmp_path)[0]
+
+    assert app.display_name == "iTerm2"
+    assert app.describe() == "iTerm2  1.0"
+
+
+def test_the_name_decisions_are_kept_by_stays_the_file_name(tmp_path):
+    app_calling_itself(tmp_path, "iTerm", CFBundleName="iTerm2")
+
+    assert found_in(tmp_path)[0].name == "iTerm"
+
+
+def test_a_display_name_is_preferred_to_the_bundle_name(tmp_path):
+    app_calling_itself(tmp_path, "iTerm", CFBundleName="iTerm2", CFBundleDisplayName="iTerm2 Beta")
+
+    assert found_in(tmp_path)[0].display_name == "iTerm2 Beta"
+
+
+def test_a_shorter_name_never_replaces_the_file_name(tmp_path):
+    app_calling_itself(tmp_path, "Visual Studio Code", CFBundleName="Code")
+    app_calling_itself(tmp_path, "Google Chrome", CFBundleName="Chrome", CFBundleDisplayName="Chrome")
+
+    shown = {app.name: app.display_name for app in found_in(tmp_path)}
+
+    assert shown == {"Visual Studio Code": "Visual Studio Code", "Google Chrome": "Google Chrome"}
+
+
+def test_an_unrelated_name_never_replaces_the_file_name(tmp_path):
+    app_calling_itself(tmp_path, "Thing", CFBundleName="Something Else Entirely")
+
+    assert found_in(tmp_path)[0].display_name == "Thing"
+
+
+def test_the_same_name_or_none_at_all_changes_nothing(tmp_path):
+    app_calling_itself(tmp_path, "Same", CFBundleName="Same")
+    app_calling_itself(tmp_path, "Bare")
+
+    shown = {app.name: app.display_name for app in found_in(tmp_path)}
+
+    assert shown == {"Same": "Same", "Bare": "Bare"}
+
+
+def test_the_comparison_ignores_capitals(tmp_path):
+    app_calling_itself(tmp_path, "iterm", CFBundleName="iTerm2")
+
+    assert found_in(tmp_path)[0].display_name == "iTerm2"

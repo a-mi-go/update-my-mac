@@ -26,9 +26,15 @@ class InstalledApp:
     bundle_id: str = ""
     # Sometimes the only version a Homebrew recipe matches.
     build: str = ""
+    # What the app calls itself, where that is the file name and a little more
+    # ("iTerm2" in iTerm.app). The name stays the file name: decisions are kept by it.
+    display_name: str = ""
+
+    def __post_init__(self):
+        self.display_name = self.display_name or self.name
 
     def describe(self):
-        return f"{self.name}  {self.version}"
+        return f"{self.display_name}  {self.version}"
 
     def versions_named(self):
         """Returns every version the app gives for itself, most readable first."""
@@ -57,6 +63,19 @@ def app_directories():
 
 # What an app that says nothing about its version is listed as.
 UNKNOWN_VERSION = versions.UNKNOWN
+
+
+def read_display_name(file_name, info):
+    """Returns the name the app gives itself when it only adds to its file name.
+
+    Only then: Visual Studio Code calls itself "Code" and Google Chrome "Chrome",
+    and the file name says more than either.
+    """
+    for key in ("CFBundleDisplayName", "CFBundleName"):
+        given = info.get(key) or ""
+        if len(given) > len(file_name) and given.casefold().startswith(file_name.casefold()):
+            return given
+    return file_name
 
 
 def read_build(info):
@@ -134,6 +153,7 @@ def find_all():
                     app_path,
                     bundle_id=info.get("CFBundleIdentifier", ""),
                     build=read_build(info),
+                    display_name=read_display_name(app_path.stem, info),
                 )
             )
     return found
@@ -167,6 +187,7 @@ def find_untracked():
                     app_updaters.detect(app_path, info),
                     info.get("CFBundleIdentifier", ""),
                     read_build(info),
+                    read_display_name(app_path.stem, info),
                 )
             )
     return without_shortcuts(found)
