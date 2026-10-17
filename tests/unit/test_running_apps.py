@@ -148,3 +148,16 @@ def test_an_app_that_says_nothing_about_its_version_is_still_named(tmp_path):
     found = running_apps.find()
 
     assert found[0].describe().startswith("Quiet:")
+
+
+def test_an_app_that_adds_to_its_file_name_is_listed_by_the_longer_name(tmp_path):
+    app = bundle(tmp_path, "iTerm", written_ago_seconds=60, version="3.5")
+    with open(app / "Contents" / "Info.plist", "wb") as plist:
+        plistlib.dump({"CFBundleShortVersionString": "3.5", "CFBundleName": "iTerm2"}, plist)
+
+    use_shell(PsShell([running(app, "02:00:00")]))
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+    found = running_apps.find()
+
+    assert [(item.name, item.display_name) for item in found] == [("iTerm", "iTerm2")]
+    assert found[0].describe().startswith("iTerm2  3.5")

@@ -53,7 +53,7 @@ def ask_after_the_update(apps, step=None):
     step.print_separator()
     step.print_indented(NOT_RESTARTED, style="bold")
     for app in apps:
-        step.inside().print_indented(app.name)
+        step.inside().print_indented(app.display_name)
     return ask_what_to_do(apps, step)
 
 
@@ -75,7 +75,7 @@ def _restart_all(apps, step):
     restarted = []
     for app in apps:
         per_item.print_empty_line()
-        per_item.print_indented(app.name, style="bold")
+        per_item.print_indented(app.display_name, style="bold")
         if _restart_one(app, per_item.inside()):
             restarted.append(app)
     return restarted
