@@ -22,7 +22,7 @@ TOLERANCE_SECONDS = 60
 
 @dataclass
 class StillRunningOld:
-    name: str
+    file_stem: str
     bundle: Path
     pid: int
     running_since: float
@@ -33,7 +33,7 @@ class StillRunningOld:
     display_name: str = ""
 
     def __post_init__(self):
-        self.display_name = self.display_name or self.name
+        self.display_name = self.display_name or self.file_stem
 
     def comment(self):
         started = time.strftime("%d %b %H:%M", time.localtime(self.running_since))
@@ -76,7 +76,7 @@ def find():
                     ),
                 ),
             )
-    return sorted(found.values(), key=lambda app: app.name)
+    return sorted(found.values(), key=lambda app: app.file_stem)
 
 
 def _our_own_ancestors():

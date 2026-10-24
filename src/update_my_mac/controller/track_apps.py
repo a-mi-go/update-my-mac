@@ -22,7 +22,7 @@ def ask_what_to_do(
 ):
     """Asks about the untracked apps. Returns the ones that were ignored or handed over."""
     step = step or Step()
-    waiting = [app for app in apps if not decisions.is_ignored(app.name)]
+    waiting = [app for app in apps if not decisions.is_ignored(app.file_stem)]
     if not waiting:
         return []
 
@@ -127,7 +127,7 @@ def _walk_through(found, decisions, offered, step):
             if chosen == CANCEL:
                 break
             if chosen == IGNORE:
-                decisions.ignore(app.name, app.version)
+                decisions.ignore(app.file_stem, app.version)
                 if not decisions.save():
                     _print_that_it_was_not_written(decisions, step)
                 dealt_with.append(app)

@@ -130,7 +130,7 @@ def _check_the_mac(installed, decisions):
 def _untracked_apps(decisions):
     """Returns untracked apps, minus the ones the user asked not to see again."""
     found = installed_apps.find_untracked()
-    listed = [app for app in found if not decisions.is_ignored(app.name)]
+    listed = [app for app in found if not decisions.is_ignored(app.file_stem)]
     return listed, len(found) - len(listed)
 
 

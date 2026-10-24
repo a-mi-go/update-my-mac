@@ -54,7 +54,7 @@ def test_an_app_replaced_after_it_started_is_found(tmp_path):
     use_shell(shell)
     use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
     found = running_apps.find()
-    assert [item.name for item in found] == ["Markdown Preview"]
+    assert [item.file_stem for item in found] == ["Markdown Preview"]
 
 
 def test_an_app_started_after_it_was_replaced_is_current(tmp_path):
@@ -159,5 +159,5 @@ def test_an_app_that_adds_to_its_file_name_is_listed_by_the_longer_name(tmp_path
     use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
     found = running_apps.find()
 
-    assert [(item.name, item.display_name) for item in found] == [("iTerm", "iTerm2")]
+    assert [(item.file_stem, item.display_name) for item in found] == [("iTerm", "iTerm2")]
     assert found[0].describe().startswith("iTerm2  3.5")

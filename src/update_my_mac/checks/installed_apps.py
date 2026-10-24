@@ -19,19 +19,17 @@ DIRECTORY_OVERRIDE = "UPDATE_MY_MAC_APP_DIRS"
 
 @dataclass
 class InstalledApp:
-    name: str
+    file_stem: str
     version: str
     path: Path
     updater: app_updaters.UpdaterStatus = field(default_factory=app_updaters.UpdaterStatus)
     bundle_id: str = ""
     # Sometimes the only version a Homebrew recipe matches.
     build: str = ""
-    # What the app calls itself, where that is the file name and a little more
-    # ("iTerm2" in iTerm.app). The name stays the file name: decisions are kept by it.
     display_name: str = ""
 
     def __post_init__(self):
-        self.display_name = self.display_name or self.name
+        self.display_name = self.display_name or self.file_stem
 
     def describe(self):
         return f"{self.display_name}  {self.version}"
@@ -64,18 +62,13 @@ def app_directories():
 # What an app that says nothing about its version is listed as.
 UNKNOWN_VERSION = versions.UNKNOWN
 
+NAME_KEYS = ("CFBundleDisplayName", "CFBundleName")
 
-def read_display_name(file_name, info):
-    """Returns the name the app gives itself when it only adds to its file name.
 
-    Only then: Visual Studio Code calls itself "Code" and Google Chrome "Chrome",
-    and the file name says more than either.
-    """
-    for key in ("CFBundleDisplayName", "CFBundleName"):
-        given = info.get(key) or ""
-        if len(given) > len(file_name) and given.casefold().startswith(file_name.casefold()):
-            return given
-    return file_name
+def read_display_name(file_stem, info):
+    """Returns the shortest name the app gives itself that extends its file name, else the file name."""
+    given = [info.get(key) or "" for key in NAME_KEYS]
+    return min((name for name in given if _extends(file_stem, name)), key=len, default=file_stem)
 
 
 def read_build(info):
@@ -225,6 +218,16 @@ def owned_by_someone_else():
             if owner not in (mine, 0):
                 found.append(app_path)
     return found
+
+
+def _extends(stem, name):
+    """Returns whether `name` says more than `stem`, with it at the start or the end of the name."""
+    stem, name = _letters_and_digits(stem), _letters_and_digits(name)
+    return len(name) > len(stem) and (name.startswith(stem) or name.endswith(stem))
+
+
+def _letters_and_digits(text):
+    return "".join(character for character in text.casefold() if character.isalnum())
 
 
 def _app_names_in(artifact):
