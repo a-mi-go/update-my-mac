@@ -1,5 +1,6 @@
 """Apps that are older than the Homebrew recipe, which Homebrew never says."""
 
+import os
 import plistlib
 
 import pytest
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from update_my_mac.checks import app_updaters
 from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.managers.homebrew import brew
 from update_my_mac.managers.homebrew.casks import Cask, CaskIndex
 from update_my_mac.checks.installed_apps import InstalledApp
 
@@ -203,3 +205,60 @@ def test_an_app_brings_what_it_has_for_updating_itself(tmp_path):
     assert found[0].updater.kind == app_updaters.SPARKLE
     assert found[0].updater.automatic is False
 
+
+STP_RECIPE = "254,142-29069-20261008"
+RECORDED_AT = 1_800_000_000.0
+
+
+def bundle_written(tmp_path, name, written_at):
+    bundle = tmp_path / f"{name}.app"
+    bundle.mkdir()
+    os.utime(bundle, (written_at, written_at))
+    return InstalledApp(name, "27.0", bundle)
+
+
+def stp_found(installed, recorded_version=STP_RECIPE, recorded_at=RECORDED_AT):
+    return behind_the_recipe.find(
+        [installed],
+        index(**{installed.file_stem: ("safari-technology-preview", STP_RECIPE)}),
+        {"safari-technology-preview": recorded_version},
+        recorded_at={"safari-technology-preview": recorded_at} if recorded_at else None,
+    )
+
+
+def test_an_app_homebrew_installed_at_the_recipe_version_is_not_behind_however_it_counts(tmp_path):
+    # The recipe says 254 and the app 27.0, close enough for the factor to call it older.
+    installed = bundle_written(tmp_path, "Safari Technology Preview", RECORDED_AT + 6)
+
+    assert stp_found(installed) == []
+
+
+def test_an_app_older_than_homebrews_record_is_still_behind(tmp_path):
+    installed = bundle_written(tmp_path, "Safari Technology Preview", RECORDED_AT - 86_400)
+
+    found = stp_found(installed)
+
+    assert [item.false_version_recorded for item in found] == [True]
+
+
+def test_without_a_record_time_the_versions_decide(tmp_path):
+    installed = bundle_written(tmp_path, "Safari Technology Preview", RECORDED_AT + 6)
+
+    assert len(stp_found(installed, recorded_at=None)) == 1
+
+
+def test_a_record_of_another_version_does_not_vouch_for_the_app(tmp_path):
+    installed = bundle_written(tmp_path, "Safari Technology Preview", RECORDED_AT + 6)
+
+    assert len(stp_found(installed, recorded_version="253,141-28000")) == 1
+
+
+def test_the_record_time_is_when_the_caskroom_folder_of_that_version_was_written(tmp_path, monkeypatch):
+    folder = tmp_path / "safari-technology-preview" / STP_RECIPE
+    folder.mkdir(parents=True)
+    os.utime(folder, (RECORDED_AT, RECORDED_AT))
+    monkeypatch.setattr(brew, "caskroom", lambda: str(tmp_path))
+
+    times = brew.recorded_cask_times({"safari-technology-preview": STP_RECIPE, "gone": "1.0"})
+
+    assert times == {"safari-technology-preview": RECORDED_AT}
