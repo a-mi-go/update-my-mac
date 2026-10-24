@@ -1,5 +1,7 @@
 import json
 import plistlib
+
+import pytest
 from pathlib import Path
 from fake_run import use_environment, use_shell
 
@@ -51,7 +53,7 @@ def test_an_app_nobody_tracks_is_found(tmp_path):
     use_environment(env_for(tmp_path))
     found = installed_apps.find_untracked()
 
-    assert [(app.name, app.version) for app in found] == [("TokenEater", "5.12.2")]
+    assert [(app.file_stem, app.version) for app in found] == [("TokenEater", "5.12.2")]
 
 
 def test_an_app_store_app_is_left_out(tmp_path):
@@ -89,7 +91,7 @@ def test_without_brew_every_app_counts_as_untracked(tmp_path):
     use_environment(env_for(tmp_path))
     found = installed_apps.find_untracked()
 
-    assert [app.name for app in found] == ["Firefox"]
+    assert [app.file_stem for app in found] == ["Firefox"]
 
 
 def test_a_failing_brew_does_not_lose_the_scan(tmp_path):
@@ -100,7 +102,7 @@ def test_a_failing_brew_does_not_lose_the_scan(tmp_path):
     use_environment(env_for(tmp_path))
     found = installed_apps.find_untracked()
 
-    assert [app.name for app in found] == ["Firefox"]
+    assert [app.file_stem for app in found] == ["Firefox"]
 
 
 def test_an_app_without_a_readable_version(tmp_path):
@@ -110,7 +112,7 @@ def test_an_app_without_a_readable_version(tmp_path):
     use_environment(env_for(tmp_path))
     found = installed_apps.find_untracked()
 
-    assert [(app.name, app.version) for app in found] == [("Broken", "?")]
+    assert [(app.file_stem, app.version) for app in found] == [("Broken", "?")]
 
 
 def test_the_build_number_stands_in_when_there_is_no_version(tmp_path):
@@ -139,7 +141,7 @@ def test_several_directories_are_searched(tmp_path):
     use_environment(env)
     found = installed_apps.find_untracked()
 
-    assert [app.name for app in found] == ["One", "Two"]
+    assert [app.file_stem for app in found] == ["One", "Two"]
 
 
 def test_a_directory_that_is_not_there_is_skipped(tmp_path):
@@ -160,7 +162,7 @@ def test_the_home_directory_is_filled_in(tmp_path):
     use_environment(env)
     found = installed_apps.find_untracked()
 
-    assert [app.name for app in found] == ["Mine"]
+    assert [app.file_stem for app in found] == ["Mine"]
 
 
 def cask_removing(paths):
@@ -224,7 +226,7 @@ def test_the_same_directory_twice_lists_each_app_once(tmp_path):
     use_environment(env)
     found = installed_apps.find_untracked()
 
-    assert [app.name for app in found] == ["Thing"]
+    assert [app.file_stem for app in found] == ["Thing"]
 
 
 def test_without_a_home_the_home_directory_is_simply_skipped():
@@ -280,7 +282,7 @@ def test_a_launcher_another_app_installed_is_left_out():
 
     kept = installed_apps.without_shortcuts(apps)
 
-    assert [app.name for app in kept] == ["Google Drive"]
+    assert [app.file_stem for app in kept] == ["Google Drive"]
 
 
 def test_an_app_whose_maker_is_not_installed_stays():
@@ -309,3 +311,39 @@ def test_two_apps_from_one_maker_are_both_kept():
     ]
 
     assert len(installed_apps.without_shortcuts(apps)) == 2
+
+
+def app_calling_itself(directory, file_stem, **plist):
+    app = directory / f"{file_stem}.app" / "Contents"
+    app.mkdir(parents=True)
+    with open(app / "Info.plist", "wb") as handle:
+        plistlib.dump({"CFBundleShortVersionString": "1.0", **plist}, handle)
+
+
+@pytest.mark.parametrize("file_stem, plist, shown", [
+    ("iTerm", {"CFBundleName": "iTerm2"}, "iTerm2"),
+    ("Docker", {"CFBundleName": "Docker Desktop"}, "Docker Desktop"),
+    ("Visual Studio Code", {"CFBundleName": "Code"}, "Visual Studio Code"),
+    ("Visual Studio Code", {"CFBundleName": "Microsoft Visual Studio Code"}, "Microsoft Visual Studio Code"),
+    ("Google Chrome", {"CFBundleName": "Chrome", "CFBundleDisplayName": "Google Chrome"}, "Google Chrome"),
+    ("iTerm2", {"CFBundleName": "iTerm 2"}, "iTerm2"),
+    ("iterm", {"CFBundleName": "iTerm2"}, "iTerm2"),
+    ("Thing", {"CFBundleName": "$(PRODUCT_NAME)"}, "Thing"),
+    ("Thing", {"CFBundleName": "Something Else Entirely"}, "Thing"),
+    ("PowerShell", {"CFBundleName": "PowerShell", "CFBundleExecutable": "PowerShell.sh"}, "PowerShell"),
+    ("Mounty", {"CFBundleName": "Mounty", "CFBundleDisplayName": "Mounty for NTFS"}, "Mounty for NTFS"),
+    ("Thing", {"CFBundleName": "Thing Pro Max", "CFBundleDisplayName": "Thing Pro"}, "Thing Pro"),
+    ("Thing", {"CFBundleName": "Thing"}, "Thing"),
+    ("Thing", {}, "Thing"),
+])
+def test_an_app_is_shown_by_the_shortest_name_of_its_own_that_extends_the_file_name(
+    tmp_path, file_stem, plist, shown
+):
+    app_calling_itself(tmp_path, file_stem, **plist)
+    use_shell(FakeShell(casks=[]))
+    use_environment(env_for(tmp_path))
+
+    app = installed_apps.find_untracked()[0]
+
+    assert (app.file_stem, app.display_name) == (file_stem, shown)
+    assert app.describe() == f"{shown}  1.0"

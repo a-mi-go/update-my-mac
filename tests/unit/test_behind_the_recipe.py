@@ -163,7 +163,7 @@ def test_an_app_whose_build_is_numbered_differently_is_still_compared():
         {"tor-browser": "15.0.23"},
     )
 
-    assert [item.app.name for item in found] == ["Tor Browser"]
+    assert [item.app.file_stem for item in found] == ["Tor Browser"]
 
 
 class NoPreferences:

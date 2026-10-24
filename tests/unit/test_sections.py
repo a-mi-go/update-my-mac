@@ -227,3 +227,18 @@ def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
     assert find("Disabled in Homebrew", found).level == sections.WARNING
     assert find("Deprecated in Homebrew", found).level == sections.INFO
     assert find("Downloads still attached", found).rows[0].name == "charles.dmg"
+
+
+def test_the_report_names_an_app_by_what_it_calls_itself():
+    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), UpdaterStatus(),
+                         display_name="iTerm2")
+    found = sections.of(Findings(
+        untracked=[iterm],
+        apps_behind=[behind_the_recipe.Behind(
+            iterm, Cask("iterm2", "https://x.test/", "3.6"), "3.5", UpdaterStatus()
+        )],
+    ))
+
+    names = [row.name for section in found for row in section.rows]
+
+    assert names == ["iTerm2", "iTerm2"]
