@@ -1,6 +1,7 @@
 """The commands only Homebrew has, and what it wrote down about its casks."""
 
 import json
+from pathlib import Path
 
 from update_my_mac.managers.manager import nonblank_lines
 from update_my_mac.system import shell
@@ -60,6 +61,21 @@ def recorded_cask_version(token):
     # "betterdisplay 5.0.6", or nothing at all when it isn't installed.
     parts = result.stdout.split()
     return parts[-1] if len(parts) >= 2 else ""
+
+
+def recorded_cask_times(recorded):
+    """Returns when Homebrew wrote down each recorded version, from its folder in the Caskroom."""
+    root = caskroom()
+    if root is None:
+        return {}
+
+    times = {}
+    for token, version in recorded.items():
+        try:
+            times[token] = (Path(root) / token / version).stat().st_mtime
+        except OSError:
+            continue
+    return times
 
 
 def adopt_cask(token):

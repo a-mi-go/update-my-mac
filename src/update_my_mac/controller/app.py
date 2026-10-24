@@ -147,11 +147,13 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
+    recorded = brew.recorded_cask_versions()
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
-        brew.recorded_cask_versions(),
+        recorded,
         already_reported=_names_homebrew_reported(reports),
+        recorded_at=brew.recorded_cask_times(recorded),
     )
 
 
