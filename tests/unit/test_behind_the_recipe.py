@@ -208,9 +208,8 @@ def test_an_app_brings_what_it_has_for_updating_itself(tmp_path):
 STP_RECIPE = "254,142-29069-20261008-2015600e-8f9b-41ba-8709-ce9bc77a1fa0"
 
 
-def test_safari_technology_preview_is_not_called_behind_for_counting_releases_its_own_way():
-    # "Release 254" in the recipe, 27.0 in the app: close enough for the factor
-    # to call it older, and it is neither.
+def test_safari_technology_preview_is_not_called_behind():
+    # 254 against 27 is inside the factor, so the comparison calls it older.
     found = behind_the_recipe.find(
         [app("Safari Technology Preview", "27.0")],
         index(**{"Safari Technology Preview": ("safari-technology-preview", STP_RECIPE)}),

@@ -12,9 +12,8 @@ SOURCE = "https://formulae.brew.sh/api/cask.json"
 STALE_AFTER_SECONDS = 24 * 60 * 60
 TIMEOUT_SECONDS = 30
 
-# Casks whose recipe counts releases its own way, so the number is nowhere in the
-# app: Safari Technology Preview is "Release 254" in the recipe and 27.0 in its
-# Info.plist. Comparing the two says nothing, however close they happen to be.
+# Casks whose recipe numbers releases its own way, so that version is nowhere in the app.
+# Safari Technology Preview: "Release 254" in the recipe, 27.0 in its Info.plist.
 OWN_VERSION_SCHEME = frozenset({"safari-technology-preview"})
 
 
