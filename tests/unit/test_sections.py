@@ -229,19 +229,16 @@ def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
     assert find("Downloads still attached", found).rows[0].name == "charles.dmg"
 
 
-def test_a_recipe_counting_its_own_way_offers_no_update_for_an_untracked_app():
+def test_the_report_names_an_app_by_what_it_calls_itself():
+    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), UpdaterStatus(),
+                         display_name="iTerm2")
     found = sections.of(Findings(
-        untracked=[app("Safari Technology Preview", "27.0")],
-        find_cask=lambda a: Cask("safari-technology-preview", "https://x.test/", "254,142-29069"),
+        untracked=[iterm],
+        apps_behind=[behind_the_recipe.Behind(
+            iterm, Cask("iterm2", "https://x.test/", "3.6"), "3.5", UpdaterStatus()
+        )],
     ))
 
-    assert find("Untracked apps", found).rows[0].version == "27.0"
+    names = [row.name for section in found for row in section.rows]
 
-
-def test_the_same_numbers_under_an_ordinary_token_still_offer_the_update():
-    found = sections.of(Findings(
-        untracked=[app("Some App", "27.0")],
-        find_cask=lambda a: Cask("some-app", "https://x.test/", "254"),
-    ))
-
-    assert find("Untracked apps", found).rows[0].version == "27.0 → 254"
+    assert names == ["iTerm2", "iTerm2"]

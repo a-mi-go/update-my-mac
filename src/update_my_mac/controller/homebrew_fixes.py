@@ -60,7 +60,7 @@ def fix_for_behind(item, caskroom=None):
     others = []
     if item.updater.kind != app_updaters.NONE:
         others.append(Option(
-            f"open {item.app.name} and update it manually",
+            f"open {item.app.display_name} and update it manually",
             ("open", "-a", str(item.app.path)), "opened", settles=False,
         ))
     record = _caskroom_record(item.cask.token, caskroom)
@@ -73,7 +73,7 @@ def fix_for_behind(item, caskroom=None):
         ))
     others.append(Option("", ("brew", "uninstall", "--cask", item.cask.token), "uninstalled"))
     return Fix(
-        f"{item.app.name} {item.version_change()}",
+        f"{item.app.display_name} {item.version_change()}",
         FALSE_RECORD_NOTE if item.false_version_recorded else "",
         Option("", command_for(item), "reinstalled" if item.false_version_recorded else "updated"),
         tuple(others),
@@ -94,7 +94,7 @@ def _confirm(item):
     def confirm(command):
         if command[1] not in ("reinstall", "upgrade"):
             return True, None
-        name, was = item.app.name, item.app.version
+        name, was = item.app.display_name, item.app.version
         now = installed_apps.read_version(item.app.path)
         if now not in ("", installed_apps.UNKNOWN_VERSION, was):
             return True, (f"{name}: updated {was} → {now}", "green")

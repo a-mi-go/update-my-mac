@@ -115,7 +115,7 @@ def _checks_that_failed(findings):
 
 def _false_version_recorded(findings):
     rows = [
-        Row(item.app.name, item.version_change(), _own_updater_note(item.updater))
+        Row(item.app.display_name, item.version_change(), _own_updater_note(item.updater))
         for item in findings.apps_behind
         if item.false_version_recorded
     ]
@@ -134,7 +134,7 @@ def _own_updater_note(updater):
 
 def _feeds_gone_quiet(findings):
     rows = [
-        Row(app.name, app.version, appcast.answer_for(app, findings.offered).error)
+        Row(app.display_name, app.version, appcast.answer_for(app, findings.offered).error)
         for app in findings.untracked
         if appcast.answer_for(app, findings.offered).error
     ]
@@ -184,7 +184,7 @@ def _homebrew_outdated(findings):
     if report and not report.error_message:
         rows += [_package_row(package) for package in report.outdated_packages]
     rows += [
-        Row(item.app.name, item.version_change(), "needs --greedy")
+        Row(item.app.display_name, item.version_change(), "needs --greedy")
         for item in findings.apps_behind
         if not item.false_version_recorded
     ]
@@ -242,7 +242,7 @@ def _installed_twice(findings):
 
 
 def _not_restarted(findings):
-    rows = [Row(app.name, app.version, app.comment()) for app in findings.stale]
+    rows = [Row(app.display_name, app.version, app.comment()) for app in findings.stale]
     return [
         Section(WARNING, NOT_RESTARTED, "restart the app", rows)
     ]
@@ -276,7 +276,7 @@ def _untracked_not_already_listed(findings):
 
 def _rows_for_apps(apps, findings):
     return [
-        Row(app.name, _updates_available(app, findings), _what_is_known_about(app, findings))
+        Row(app.display_name, _updates_available(app, findings), _what_is_known_about(app, findings))
         for app in apps
     ]
 

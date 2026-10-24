@@ -22,7 +22,7 @@ def ask_what_to_do(
 ):
     """Asks about the untracked apps. Returns the ones that were ignored or handed over."""
     step = step or Step()
-    waiting = [app for app in apps if not decisions.is_ignored(app.name)]
+    waiting = [app for app in apps if not decisions.is_ignored(app.file_stem)]
     if not waiting:
         return []
 
@@ -68,7 +68,7 @@ def adopt_all(found, step):
         if not adopting.can_take_over(app, cask) or adopting.would_downgrade(app, cask):
             continue
         per_item.print_empty_line()
-        per_item.print_indented(app.name, style="bold")
+        per_item.print_indented(app.display_name, style="bold")
         if _hand_to_homebrew(app, cask, per_item.inside()):
             adopted.append(app)
     return adopted
@@ -127,7 +127,7 @@ def _walk_through(found, decisions, offered, step):
             if chosen == CANCEL:
                 break
             if chosen == IGNORE:
-                decisions.ignore(app.name, app.version)
+                decisions.ignore(app.file_stem, app.version)
                 if not decisions.save():
                     _print_that_it_was_not_written(decisions, step)
                 dealt_with.append(app)
@@ -148,7 +148,7 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
     while True:
         chosen = step.choose(
             _app_choices(app, cask, vendor_site, can_ask_the_app and not answer.error, is_walkthrough),
-            f"{app.name} {app.version}",
+            f"{app.display_name} {app.version}",
             note=_what_is_known(app, cask, answer),
         )
         # Only a handover settles anything. Looking at a website or starting
@@ -169,7 +169,7 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     if handover:
         choices.append((ADOPT, handover))
     if can_ask_the_app:
-        choices.append((LAUNCH, f"open {app.name} and let it update itself"))
+        choices.append((LAUNCH, f"open {app.display_name} and let it update itself"))
     if vendor_site:
         choices.append((WEBSITE, f"download and install manually from {vendor_site}"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))

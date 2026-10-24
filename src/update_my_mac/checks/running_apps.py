@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from update_my_mac.checks import app_updaters
 from update_my_mac.checks import installed_apps
 from update_my_mac.shell_configs import parse_elapsed
 from update_my_mac.system import shell
@@ -21,7 +22,7 @@ TOLERANCE_SECONDS = 60
 
 @dataclass
 class StillRunningOld:
-    name: str
+    file_stem: str
     bundle: Path
     pid: int
     running_since: float
@@ -29,6 +30,10 @@ class StillRunningOld:
     # The version waiting on disk. What the running process holds is gone
     # from everywhere but its own memory, so nothing can report that one.
     version: str = ""
+    display_name: str = ""
+
+    def __post_init__(self):
+        self.display_name = self.display_name or self.file_stem
 
     def comment(self):
         started = time.strftime("%d %b %H:%M", time.localtime(self.running_since))
@@ -37,7 +42,7 @@ class StillRunningOld:
 
     def title(self):
         known = self.version and self.version != installed_apps.UNKNOWN_VERSION
-        return f"{self.name}  {self.version}" if known else self.name
+        return f"{self.display_name}  {self.version}" if known else self.display_name
 
     def describe(self):
         return f"{self.title()}:  {self.comment()}"
@@ -66,9 +71,12 @@ def find():
                 StillRunningOld(
                     bundle.stem, bundle, pid, running_since, written,
                     installed_apps.read_version(bundle),
+                    installed_apps.read_display_name(
+                        bundle.stem, app_updaters.read_bundle_info(bundle)
+                    ),
                 ),
             )
-    return sorted(found.values(), key=lambda app: app.name)
+    return sorted(found.values(), key=lambda app: app.file_stem)
 
 
 def _our_own_ancestors():

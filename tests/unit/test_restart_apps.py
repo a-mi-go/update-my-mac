@@ -116,7 +116,7 @@ def recording(restarted, done=True, message="done"):
     """A restart that remembers which app it was asked about."""
 
     def restart(app):
-        restarted.append(app.name)
+        restarted.append(app.file_stem)
         return done, message
 
     return restart
@@ -265,8 +265,8 @@ def test_one_refusing_does_not_stop_the_others(tmp_path):
 
     def restart(app):
         return (
-            app.name != "Other",
-            "done" if app.name != "Other" else "it would not quit",
+            app.file_stem != "Other",
+            "done" if app.file_stem != "Other" else "it would not quit",
         )
 
     swap(restart_apps, "restart", restart)

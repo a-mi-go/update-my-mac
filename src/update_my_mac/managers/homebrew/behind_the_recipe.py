@@ -29,7 +29,7 @@ class Behind:
                 f"{versions.without_build(self.cask.version)}")
 
     def describe(self):
-        return f"{self.app.name}  {self.version_change()}"
+        return f"{self.app.display_name}  {self.version_change()}"
 
     @property
     def false_version_recorded(self):
