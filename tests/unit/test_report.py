@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -216,7 +217,7 @@ def test_the_report_is_framed_for_someone_watching():
 
     assert "update-my-mac" in framed
     assert "╭" in framed
-    assert "1 need your attention, 0 can wait" in framed
+    assert "1 update available" in framed
 
 
 def test_a_run_without_a_frame_still_says_what_wrote_it():
@@ -237,7 +238,7 @@ def test_the_frame_is_left_off_when_the_output_is_going_somewhere_else():
     assert "╭" not in plain
     assert "│" not in plain
     # The count the frame would have carried is said in words instead.
-    assert "1 need your attention, 0 can wait" in plain
+    assert "1 update available" in plain
 
 
 def test_a_clean_run_says_which_managers_answered():
@@ -250,7 +251,7 @@ def test_a_clean_run_says_which_managers_answered():
     printed = report_of(findings)
 
     assert "Everything is up to date." in printed
-    assert "up to date: Homebrew, Mac App Store" in printed
+    assert "Homebrew, Mac App Store : everything up to date" in printed
 
 
 def test_a_machine_with_no_managers_is_not_told_everything_is_fine():
@@ -288,18 +289,29 @@ def test_the_managers_that_are_current_are_said_so_in_green():
                          Console(width=80, force_terminal=True))
     assert "✅" in printed
     # 32 is green, and this line is the only thing wearing it.
-    assert "\x1b[32mup to date: Homebrew" in printed
+    assert "\x1b[32mHomebrew : everything up to date" in printed
 
 
-def test_the_frame_stops_growing_at_a_readable_width():
+def widest_line(findings, width):
+    printed = report_of(findings, width=width, terminal=True)
+    return max(Text.from_ansi(line).cell_len for line in printed.splitlines())
+
+
+def test_the_frame_is_no_wider_than_what_is_in_it():
     findings = Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])]
     )
 
-    printed = report_of(findings, width=200, terminal=True)
+    assert widest_line(findings, width=200) < report.REPORT_MAX_WIDTH
 
-    widest = max(Text.from_ansi(line).cell_len for line in printed.splitlines())
-    assert widest == report.REPORT_MAX_WIDTH
+
+def test_the_frame_stops_growing_at_a_readable_width():
+    long_name = "a" * 150
+    findings = Findings(
+        reports=[ManagerReport("brew", "Homebrew", [f"{long_name}  1.0 → 2.0"])]
+    )
+
+    assert widest_line(findings, width=200) == report.REPORT_MAX_WIDTH
 
 
 def test_the_count_in_a_heading_is_not_bold():
@@ -314,13 +326,122 @@ def test_the_count_in_a_heading_is_not_bold():
     assert "bold" in styles["Homebrew "]
 
 
+def test_the_top_line_names_the_app_and_the_report():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
+
+    assert top.startswith(f"╭── update-my-mac {__version__} ─")
+    assert " STATUS REPORT ─" in top
+    assert top.endswith("╮")
+
+
+def test_the_name_of_the_report_is_in_the_middle_of_the_top_line():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    # An odd width leaves the same room on both sides of the name.
+    for width in (101, 121):
+        top = Text.from_ansi(report_of(findings, width=width, terminal=True).splitlines()[1]).plain
+        frame = len(top)
+        name = " STATUS REPORT "
+        assert top.index(name) == (frame - len(name)) // 2
+
+
+def test_a_window_too_narrow_for_both_names_keeps_only_the_app_name():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    lines = report_of(findings, width=40, terminal=True).splitlines()
+
+    assert "STATUS REPORT" not in lines[1]
+    assert all(Text.from_ansi(line).cell_len <= 40 for line in lines)
+
+
 def test_the_title_says_it_is_a_report_and_a_blank_line_comes_before_it():
     findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
 
     framed = report_of(findings, terminal=True)
     plain = report_of(findings)
 
-    assert f"update-my-mac {__version__} report" in framed.splitlines()[1].replace("\x1b[1m", "").replace("\x1b[2m", "").replace("\x1b[0m", "")
+    assert f"update-my-mac {__version__}" in Text.from_ansi(framed.splitlines()[1]).plain
     assert framed.startswith("\n")
     assert plain.startswith("\n")
     assert f"update-my-mac {__version__} report" in plain
+
+
+def test_the_top_line_says_when_the_report_was_made(monkeypatch):
+    monkeypatch.setattr(report.time, "time", lambda: time.mktime((2026, 10, 17, 14, 32, 0, 0, 0, -1)))
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
+
+    assert top.index(" STATUS REPORT ") < top.index(" 2026-10-17 14:32 ")
+    # Two dashes between the time and the corner.
+    assert top.endswith(" 2026-10-17 14:32 ──╮")
+
+
+def test_a_window_with_no_room_for_the_time_leaves_it_off():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+
+    top = Text.from_ansi(report_of(findings, width=50, terminal=True).splitlines()[1]).plain
+
+    assert " STATUS REPORT " in top
+    assert ":" not in top
+
+
+def test_every_mark_is_as_wide_for_rich_as_for_the_screen_it_is_scrolled_on():
+    # A mark the two count differently leaves the frame's right edge a column off.
+    from prompt_toolkit.utils import get_cwidth
+    from rich.cells import cell_len
+
+    for mark in report.MARK.values():
+        assert cell_len(mark) == sum(get_cwidth(character) for character in mark), mark
+
+
+def test_the_report_is_split_into_what_needs_attention_the_updates_and_the_info():
+    from update_my_mac.managers.homebrew import flagged
+
+    findings = Findings(
+        reports=[ManagerReport("brew", "Homebrew", ["git  1 → 2"])],
+        untracked=[InstalledApp("Evoto", "7.1.5", Path("/Applications/Evoto.app"))],
+        flagged=[flagged.Flagged("old", flagged.DEPRECATED, installed="1")],
+    )
+
+    printed = report_of(findings, width=100, terminal=True)
+    plain = Text.from_ansi(printed).plain
+
+    assert plain.index("NEED ATTENTION 1") < plain.index("UPDATES AVAILABLE 1") < plain.index("INFO 1")
+    assert "1 need attention · 1 update available · 1 info" in plain
+
+
+def updates_report(width):
+    packages = [f"package{n}  1.{n}.0 → 1.{n}.1" for n in range(5)]
+    printed = report_of(Findings(reports=[ManagerReport("brew", "Homebrew", packages)]), width=width, terminal=True)
+    return [Text.from_ansi(line).plain for line in printed.splitlines()]
+
+
+def test_a_list_of_updates_is_split_into_two_columns_read_top_down_where_there_is_room():
+    lines = updates_report(100)
+
+    rows = [line for line in lines if "package" in line]
+    assert [(row.count("package"), "package0" in row, "package3" in row) for row in rows] == [
+        (2, True, True), (2, False, False), (1, False, False),
+    ]
+    assert "package1" in rows[1] and "package4" in rows[1]
+
+
+def test_a_list_of_updates_stays_in_one_column_where_two_would_not_fit():
+    lines = updates_report(40)
+
+    assert all(line.count("package") <= 1 for line in lines)
+
+
+def test_one_wide_entry_takes_room_only_in_its_own_column():
+    # Measured across both columns these would need 99 cells; each column on its own, 63.
+    packages = [
+        "a  1 → 2", "b-very-long-name-xx  1 → 2",
+        "c  2026-09-25 → 2026-10-20", "d  1 → 2",
+    ]
+    printed = report_of(Findings(reports=[ManagerReport("brew", "Homebrew", packages)]), width=70, terminal=True)
+
+    rows = [Text.from_ansi(line).plain for line in printed.splitlines() if "→" in line]
+    assert len(rows) == 2

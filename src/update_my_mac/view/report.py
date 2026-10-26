@@ -1,12 +1,16 @@
 """Turning check results into something readable."""
 
+import time
 from dataclasses import dataclass
+from itertools import zip_longest
 
 from rich import box
 from rich.cells import cell_len
 from rich.console import Group
+from rich.measure import Measurement
 from rich.padding import Padding
 from rich.panel import Panel
+from rich.segment import Segment
 from rich.table import Table
 from rich.text import Text
 
@@ -85,28 +89,47 @@ def _items_per_line(indent, cells):
 
 
 # A mark as well as a colour, so the level survives a pipe and a log file.
-MARK = {sections.CRITICAL: "🔴", sections.WARNING: "⚠️ ", sections.INFO: "ℹ️ "}
+# No variation selector after ⚠: rich counts that as two cells, the terminal as one.
+MARK = {sections.CRITICAL: "🚨", sections.WARNING: "⚠ ", sections.INFO: "✅"}
 CLEAN = "✅"
-COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "blue"}
+COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "green"}
 
 # Wider than this the lines only get longer to read, not more informative.
 REPORT_MAX_WIDTH = 100
 PANEL_BORDER, PANEL_PADDING = 1, 2
 PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
+# The corner and a dash on each side of a title in the frame's top or bottom line.
+TITLE_EDGES = 4
+# The fewest dashes between the two names in the top line, and either side of them.
+MIN_DASHES = 3
+# Between the time in the top line and the corner.
+CORNER_DASHES = "──"
 ROW_INDENT = "   "
+CELL_GAP = 3
+# Two columns of updates sit closer, and keep the room between them on top of that.
+PAIR_GAP = 2
+COLUMN_GAP = 3
 
 
 def print_report(findings):
+    print_to(output.console, findings)
+
+
+def print_to(console, findings):
     """Prints every check result and finding, framed for a terminal, plain for a pipe."""
-    console = output.console
     found = sections.of(findings)
     framed = console.is_terminal
     outer = min(console.width, REPORT_MAX_WIDTH)
     width = outer - (PANEL_SIDES if framed else 0)
 
     body = []
-    for section in found:
-        body += [_heading(section, width), _rows(section), Text()]
+    for part, count in zip(sections.PARTS, sections.count_findings(found)):
+        within = [section for section in found if section.part == part]
+        if not within:
+            continue
+        body += [Text.assemble((part.upper(), "bold"), " ", (str(count), "bold cyan")), Text()]
+        for section in within:
+            body += [_heading(section, width), _rows(section, width), Text()]
     body += _footer(findings, found, framed)
 
     console.print()
@@ -115,17 +138,80 @@ def print_report(findings):
         console.print(Group(*body))
         return
 
-    needs_you, can_wait = sections.count_findings(found)
-    console.print(Panel(
-        Group(*body),
-        title=Text.assemble((" update-my-mac ", "bold"), (f"{_version} report ", "dim")),
-        title_align="left",
-        subtitle=Text(f" {needs_you} need your attention, {can_wait} can wait ", style="dim"),
-        border_style="cyan",
-        box=box.ROUNDED,
-        padding=(1, PANEL_PADDING),
-        width=outer,
+    subtitle = Text(f" {_counted_by_part(found)} ", style="dim")
+    # No wider than its content, so a short report has no long dash lines to wrap.
+    content = Measurement.get(console, console.options.update(width=width), Group(*body)).maximum
+    top = next(
+        (needed for needed in (_centered_width(), _next_to_app_width()) if outer >= needed),
+        _app_name().cell_len + TITLE_EDGES,
+    )
+    outer = min(outer, max(content + PANEL_SIDES, top, subtitle.cell_len + TITLE_EDGES))
+    console.print(_WithTopLine(
+        Panel(
+            Group(*body),
+            subtitle=subtitle,
+            border_style="cyan",
+            box=box.ROUNDED,
+            padding=(1, PANEL_PADDING),
+            width=outer,
+        ),
     ))
+
+
+def _app_name():
+    return Text.assemble(("╭──", "cyan"), " ", ("update-my-mac ", "bold"), (_version, "dim"), " ")
+
+
+def _report_name():
+    return Text.assemble(" ", ("STATUS REPORT", "bold"), " ")
+
+
+def _time_stamp():
+    return Text(time.strftime(" %Y-%m-%d %H:%M ", time.localtime(time.time())), style="dim")
+
+
+def _centered_width():
+    """Returns the width from which the report's name can sit in the middle."""
+    return 2 * (_app_name().cell_len + MIN_DASHES) + _report_name().cell_len
+
+
+def _next_to_app_width():
+    """Returns the width from which the report's name fits behind the app's name."""
+    return _app_name().cell_len + MIN_DASHES + _report_name().cell_len + 1
+
+
+def _top_line(width):
+    """Returns the top line: the app's name, the report's name in the middle, the time at the end."""
+    app, report_name = _app_name(), _report_name()
+    middle = (width - report_name.cell_len) // 2
+    if middle - app.cell_len >= MIN_DASHES:
+        gap = middle - app.cell_len
+    elif width >= _next_to_app_width():
+        gap = MIN_DASHES
+    else:
+        return Text.assemble(app, ("─" * (width - app.cell_len - 1) + "╮", "cyan"))
+
+    line = Text.assemble(app, ("─" * gap, "cyan"), report_name)
+    stamp = _time_stamp()
+    # The time is left off where it would crowd the report's name.
+    room = width - line.cell_len - stamp.cell_len - len(CORNER_DASHES) - 1
+    if room >= MIN_DASHES:
+        line.append_text(Text.assemble(("─" * room, "cyan"), stamp))
+    return Text.assemble(line, ("─" * (width - line.cell_len - 1) + "╮", "cyan"))
+
+
+class _WithTopLine:
+    """A panel whose top line is replaced by the one with the names in it."""
+
+    def __init__(self, panel):
+        self.panel = panel
+
+    def __rich_console__(self, console, options):
+        lines = console.render_lines(self.panel, options, pad=False)
+        yield _top_line(Segment.get_line_length(lines[0]))
+        for line in lines[1:]:
+            yield from line
+            yield Segment.line()
 
 
 def print_outdated_summary(reports):
@@ -163,7 +249,7 @@ def print_outdated_summary(reports):
 def _heading(section, width):
     """Returns the section title, its count and its note, on one line."""
     heading = Text.assemble(
-        (f"{MARK[section.level]} ", ""),
+        (f"{MARK[section.level]} ", COLOUR[section.level]),
         (f"{section.title} ", f"bold {COLOUR[section.level]}"),
         (section.counted(), "cyan"),
     )
@@ -175,14 +261,47 @@ def _heading(section, width):
     return heading
 
 
-def _rows(section):
-    grid = Table.grid(padding=(0, 3))
+def _rows(section, width):
+    if section.part == sections.UPDATES_AVAILABLE:
+        side_by_side = _in_two_columns([row for row in section.rows if not row.note], width)
+        if side_by_side is not None:
+            noted = [row for row in section.rows if row.note]
+            return Group(side_by_side, _one_column(noted)) if noted else side_by_side
+    return _one_column(section.rows)
+
+
+def _one_column(rows):
+    grid = Table.grid(padding=(0, CELL_GAP))
     grid.add_column(overflow="fold")
     grid.add_column(overflow="fold")
     grid.add_column(style="dim", overflow="fold")
-    for row in section.rows:
+    for row in rows:
         name, version, note = row.cells()
         grid.add_row(Text(f"{ROW_INDENT}{name}"), Text(version), Text(note))
+    return grid
+
+
+def _in_two_columns(rows, width):
+    """Returns the rows as two columns read top to bottom, or None where they would not fit."""
+    if len(rows) < 2:
+        return None
+    half = (len(rows) + 1) // 2
+    halves = (rows[:half], rows[half:])
+    names = [max(cell_len(row.name) for row in side) + len(ROW_INDENT) for side in halves]
+    changes = [max(cell_len(row.version) for row in side) for side in halves]
+    if sum(names) + sum(changes) + 3 * PAIR_GAP + COLUMN_GAP > width:
+        return None
+
+    grid = Table.grid(padding=(0, PAIR_GAP))
+    grid.add_column(width=names[0], no_wrap=True)
+    grid.add_column(width=changes[0] + COLUMN_GAP, no_wrap=True)
+    grid.add_column(width=names[1], no_wrap=True)
+    grid.add_column(width=changes[1], no_wrap=True)
+    for left, right in zip_longest(*halves):
+        cells = []
+        for row in (left, right):
+            cells += [Text(f"{ROW_INDENT}{row.name}"), Text(row.version)] if row else [Text(), Text()]
+        grid.add_row(*cells)
     return grid
 
 
@@ -197,7 +316,7 @@ def _footer(findings, found, framed):
     clean = sections.clean_managers(findings)
     if clean:
         lines.append(Text.assemble(
-            (f"{CLEAN} ", ""), (f"up to date: {', '.join(clean)}", "green"),
+            (f"{CLEAN} ", ""), (f"{', '.join(clean)} : everything up to date", "green"),
         ))
     if findings.left_alone:
         lines.append(Text(
@@ -205,9 +324,18 @@ def _footer(findings, found, framed):
             style="dim",
         ))
     if found and not framed:
-        needs_you, can_wait = sections.count_findings(found)
-        lines.append(Text(f"{needs_you} need your attention, {can_wait} can wait", style="dim"))
+        lines.append(Text(_counted_by_part(found), style="dim"))
     return lines
+
+
+def _counted_by_part(found):
+    attention, updates, info = sections.count_findings(found)
+    counted = (
+        f"{attention} need attention" if attention else "",
+        f"{updates} update{'' if updates == 1 else 's'} available" if updates else "",
+        f"{info} info" if info else "",
+    )
+    return " · ".join(part for part in counted if part)
 
 
 def _print_what_was_left_out(report):

@@ -203,3 +203,25 @@ def test_an_app_brings_what_it_has_for_updating_itself(tmp_path):
     assert found[0].updater.kind == app_updaters.SPARKLE
     assert found[0].updater.automatic is False
 
+
+
+def test_the_version_homebrew_would_install_counts_rather_than_the_one_for_another_macos():
+    found = behind_the_recipe.find(
+        [app("OnyX", "5.0.6")],
+        index(OnyX=("onyx", "5.1.1")),
+        {"onyx": "5.0.5"},
+        would_install={"onyx": "5.0.5"},
+    )
+
+    assert found == []
+
+
+def test_an_app_behind_what_homebrew_would_install_is_still_found():
+    found = behind_the_recipe.find(
+        [app("OnyX", "5.0.4")],
+        index(OnyX=("onyx", "5.1.1")),
+        {"onyx": "5.0.4"},
+        would_install={"onyx": "5.0.5"},
+    )
+
+    assert [item.describe() for item in found] == ["OnyX  5.0.4 → 5.0.5"]

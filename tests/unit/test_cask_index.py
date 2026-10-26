@@ -164,3 +164,26 @@ def test_a_name_that_differs_only_in_case_is_not_claimed():
 
     assert index.for_app("/Applications/Orca.app") is None
     assert index.for_app("/Applications/orca.app").token == "orca"
+
+
+ONYX = {
+    "token": "onyx",
+    "version": "5.1.1",
+    "artifacts": [{"app": ["OnyX.app"]}],
+    "variations": {"arm64_tahoe": {"version": "5.0.5"}, "sequoia": {"version": "4.8.5"}},
+}
+
+
+def test_the_version_is_the_one_the_recipe_gives_for_this_mac():
+    index = casks.CaskIndex(casks.reduce_to_apps([ONYX], ("arm64_tahoe", "tahoe")))
+
+    assert index.for_app("OnyX.app").version == "5.0.5"
+
+
+def test_an_intel_mac_takes_the_variation_named_after_the_macos_alone():
+    assert casks.version_for(ONYX, ("sequoia",)) == "4.8.5"
+
+
+def test_a_mac_the_recipe_has_no_variation_for_takes_its_own_version():
+    assert casks.version_for(ONYX, ("arm64_newest", "newest")) == "5.1.1"
+    assert casks.version_for(ONYX, ()) == "5.1.1"

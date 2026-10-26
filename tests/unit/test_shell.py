@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from update_my_mac.system import shell
 
@@ -98,3 +99,42 @@ def test_commands_and_lookups_start_from_the_environment_the_run_set(tmp_path):
         assert shell.run_command([str(tool)], env={"MARKER": "given"}).stdout == "given"
     finally:
         shell.use_environment(None)
+
+
+def test_a_clipboard_that_is_not_there_is_said_so(monkeypatch):
+    monkeypatch.setattr(shell, "find_executable", lambda command: None)
+
+    assert shell.copy_to_clipboard("some text") is False
+
+
+def test_the_text_for_the_clipboard_is_handed_to_pbcopy_on_its_input(monkeypatch):
+    seen = {}
+
+    def fake_run(args, input, text, env):
+        seen.update(args=args, input=input)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(shell, "find_executable", lambda command: "/usr/bin/pbcopy")
+    monkeypatch.setattr(shell.subprocess, "run", fake_run)
+
+    assert shell.copy_to_clipboard("some text") is True
+    assert seen == {"args": ["/usr/bin/pbcopy"], "input": "some text"}
+
+
+def test_what_a_streamed_command_writes_reaches_a_listener_and_so_does_its_end(capfd):
+    class Status:
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+    heard = []
+    shell.listen_to_command_output(heard.append)
+    try:
+        shell._run_until_it_writes(["echo", "hello"], os.environ, Status())
+    finally:
+        shell.listen_to_command_output(None)
+
+    assert b"hello" in b"".join(piece for piece in heard if piece is not None)
+    assert heard[-1] is None

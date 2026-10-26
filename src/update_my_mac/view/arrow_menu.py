@@ -15,17 +15,14 @@ SEPARATOR_COLOUR = "#666666"
 NOTE_COLOUR = "#999999"
 # Where the labels start, so the note lines up with the rows below it.
 NOTE_INDENT = "   "
-# How long the window has to keep its width before the screen is drawn again:
-# dragging an edge resizes it at every step, and only the last one counts.
-RESIZE_SETTLE = 0.3
+ANSWER_COLOUR = "#f2a900"
+# The question, the blank line and the Ctrl-C warning, besides the options.
+MENU_ROWS = 3
+MIN_REPORT_ROWS = 6
 
 
 class Unusable(Exception):
     """The menu could not be drawn, whatever the reason."""
-
-
-class Resized(Exception):
-    """The window got another width while the menu was asking."""
 
 
 def unusable_message(failure):
@@ -75,7 +72,7 @@ def _style(for_note=False):
         ("qmark", "noinherit fg:ansicyan"),
         # The hint questionary writes itself stays plain; only a note is lighter.
         ("instruction", f"noinherit fg:{NOTE_COLOUR}" if for_note else "noinherit"),
-        ("answer", "noinherit fg:#f2a900"), # d48d37
+        ("answer", f"noinherit fg:{ANSWER_COLOUR}"),
         ("pointer", "noinherit fg:ansicyan"),
         ("highlighted", "noinherit fg:ansicyan"),
         ("selected", "noinherit"),
@@ -127,9 +124,15 @@ def beside_the_question(note):
 
 
 def pick_one(question, entries, note=""):
+    return _answer_to(
+        _select(question, entries, note), warn_in_menu=True, blank_line=bool(question or note)
+    )
+
+
+def _select(question, entries, note):
     import questionary
 
-    return _answer_to(questionary.select(
+    return questionary.select(
         question,
         choices=_choices(entries),
         pointer=POINTER,
@@ -138,7 +141,79 @@ def pick_one(question, entries, note=""):
         instruction=beside_the_question(note) if note else " ",
         # Without a question there is nothing for the mark to introduce.
         qmark=QMARK if question else "",
-    ), warn_in_menu=True, blank_line=bool(question or note))
+    )
+
+
+class _InTheScreenAlreadyEntered:
+    """An output that leaves entering and leaving the alternate screen to whoever entered it."""
+
+    def __init__(self, output):
+        self._output = output
+
+    def __getattr__(self, name):
+        return getattr(self._output, name)
+
+    def enter_alternate_screen(self):
+        pass
+
+    def quit_alternate_screen(self):
+        pass
+
+
+def can_fill_the_screen(option_count):
+    """Returns whether the terminal is tall enough for a report above a menu with this many options."""
+    import shutil
+
+    return shutil.get_terminal_size().lines >= option_count + MENU_ROWS + MIN_REPORT_ROWS
+
+
+def pick_one_below(print_report, question, entries, note=""):
+    """Asks like pick_one, on a screen of its own with the scrolling report above the menu."""
+    from prompt_toolkit.filters import to_filter
+    from prompt_toolkit.key_binding import merge_key_bindings
+    from prompt_toolkit.layout import HSplit, Layout, ScrollablePane, Window
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from questionary.prompts.common import InquirerControl
+
+    from update_my_mac.view import scrolling_report
+
+    prompt = _select(question, entries, note)
+    _ask_twice_before_aborting(prompt, warn_in_menu=True, blank_line=bool(question or note))
+
+    app = prompt.application
+    report = scrolling_report.ScrollingReport(print_report)
+    menu_window = next(
+        window for window in app.layout.find_all_windows()
+        if isinstance(window.content, InquirerControl)
+    )
+    # Not keeping the menu in view, or the top of a long report could never be scrolled to.
+    pane = ScrollablePane(
+        HSplit([Window(report, dont_extend_height=True), Window(height=1), app.layout.container, Window(height=1)]),
+        keep_cursor_visible=False,
+        keep_focused_window_visible=False,
+        display_arrows=False,
+    )
+    selection = scrolling_report.Selection()
+    scrolling = scrolling_report.Scrolling(pane, report, selection)
+
+    if output.in_full_screen():
+        app.output = app.renderer.output = _InTheScreenAlreadyEntered(app.output)
+    # Changed in place, because the Ctrl-C handling hangs on this Application.
+    app.full_screen = app.renderer.full_screen = True
+    app.mouse_support = app.renderer.mouse_support = to_filter(True)
+    app.layout = Layout(
+        HSplit([pane, Window(FormattedTextControl(scrolling.status_line), height=1, dont_extend_height=True)]),
+        focused_element=menu_window,
+    )
+    for window in app.layout.find_all_windows():
+        if isinstance(window.content, (FormattedTextControl, BufferControl, scrolling_report.ScrollingReport)):
+            # The question is drawn by the window as a prefix of its line, which has no mouse position.
+            prefix, window.get_line_prefix = window.get_line_prefix, None
+            window.content = scrolling_report.Selectable(window.content, selection, prefix)
+    app.before_render += selection.forget_what_was_drawn
+    app.key_bindings = merge_key_bindings([app.key_bindings, scrolling.key_bindings(app.key_bindings)])
+    with scrolling_report.reporting_keys_with_modifiers(app.output):
+        return _run(prompt)
 
 
 def yes_or_no(question, default=True):
@@ -216,13 +291,13 @@ def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), star
 
 def _answer_to(prompt, warn_in_menu=False, blank_line=False):
     _ask_twice_before_aborting(prompt, warn_in_menu, blank_line)
-    if output.redraws_on_resize():
-        _end_when_resized(prompt.application)
+    return _run(prompt)
+
+
+def _run(prompt):
     # A Ctrl-C is a BaseException, so it passes this by and ends the run.
     try:
         return prompt.unsafe_ask()
-    except Resized:
-        raise
     except Exception as failure:
         raise Unusable(failure) from failure
 
@@ -292,25 +367,6 @@ def _ask_twice_before_aborting(prompt, warn_in_menu=False, blank_line=False):
 
     # The last binding for a key wins, so this one replaces questionary's own.
     app.key_bindings = merge_key_bindings([b for b in (app.key_bindings, bindings) if b])
-
-
-def _end_when_resized(app):
-    """Ends the prompt with Resized once the window's width has stopped changing."""
-    width = app.output.get_size().columns
-    waiting = []
-
-    def end():
-        if not app.is_done:
-            app.exit(exception=Resized())
-
-    def look_at_the_width(_app):
-        for timer in waiting:
-            timer.cancel()
-        waiting.clear()
-        if app.output.get_size().columns != width:
-            waiting.append(app.loop.call_later(RESIZE_SETTLE, end))
-
-    app.before_render += look_at_the_width
 
 
 def _shape_checkbox(prompt, ends_menu, confirm):

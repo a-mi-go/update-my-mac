@@ -9,7 +9,7 @@ happens to have a recipe, and the way to bring that one in is the handover,
 not an upgrade.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import versions
@@ -42,14 +42,17 @@ def is_behind(app_version, cask_version):
     return versions.is_newer(cask_version, than=app_version)
 
 
-def find(apps, casks, recorded=None, already_reported=()):
-    """Returns apps behind their recipe that Homebrew says nothing about."""
+def find(apps, casks, recorded=None, already_reported=(), would_install=None):
+    """Returns apps behind the version Homebrew would install, where Homebrew itself says nothing about it."""
     recorded = recorded or {}
+    would_install = would_install or {}
     found = []
     for app in apps:
         cask = casks.for_app(app.path)
         if not cask or not recorded.get(cask.token) or cask.token in already_reported:
             continue
+        if would_install.get(cask.token):
+            cask = replace(cask, version=would_install[cask.token])
         if versions.any_version_matches(app.versions_named(), cask.version):
             continue
         if is_behind(app.version, cask.version):

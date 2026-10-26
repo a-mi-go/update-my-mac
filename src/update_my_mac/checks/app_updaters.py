@@ -15,7 +15,16 @@ from update_my_mac.system import shell
 
 SPARKLE = "sparkle"
 SQUIRREL = "squirrel"
+KEYSTONE = "keystone"
+OWN = "own"
+HOST_APP = "host app"
 NONE = "none"
+
+# What Google's updater writes into the apps it keeps current.
+KEYSTONE_KEYS = ("KSProductID", "KSUpdateURL", "KSChannelID")
+# Apps that another app installs and updates, by the start of their bundle id.
+HOSTS = {"com.google.drivefs.shortcuts.": "Google Drive", "com.apple.": "macOS"}
+CHROME_SHORTCUT = "CrAppModeShortcutID"
 
 AUTOMATIC_CHECKS = "SUEnableAutomaticChecks"
 SILENT_INSTALL = "SUAutomaticallyUpdate"
@@ -32,10 +41,12 @@ class UpdaterStatus:
     last_checked: str = ""
     feed_url: str = ""
     skipped: str = ""
+    updated_by: str = ""
 
     @property
     def looks_after_itself(self):
-        return self.kind != NONE and self.automatic is True
+        """Returns whether an updater is there and nobody switched it off."""
+        return self.kind != NONE and self.automatic is not False
 
     @property
     def is_switched_off(self):
@@ -49,10 +60,8 @@ class UpdaterStatus:
     def update_method_note(self):
         # Squirrel is told its feed and schedule while the app runs, so
         # nothing on disk says whether it is on.
-        if self.kind == SQUIRREL:
-            return "state unknown"
         if self.kind != SPARKLE:
-            return "none found"
+            return OTHER_UPDATERS.get(self.kind) or f"updated with {self.updated_by}"
         if self.automatic is None:
             answer = "state unknown"
         elif self.automatic:
@@ -123,7 +132,7 @@ def detect(app_path, info=None):
     """Returns what the app's updater is and whether it is switched on."""
     info = read_bundle_info(app_path) if info is None else info
     if not has_sparkle(app_path, info):
-        return UpdaterStatus(kind=SQUIRREL) if has_squirrel(app_path) else UpdaterStatus()
+        return _other_updater(app_path, info)
 
     users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""))
     return UpdaterStatus(
@@ -136,19 +145,36 @@ def detect(app_path, info=None):
     )
 
 
-def group_by_status(apps):
-    """Returns the untracked apps grouped by what looks after them."""
-    unattended, switched_off, unclear, self_updating = [], [], [], []
-    for app in apps:
-        if app.updater.kind == NONE:
-            unattended.append(app)
-        elif app.updater.looks_after_itself:
-            self_updating.append(app)
-        elif app.updater.is_switched_off:
-            switched_off.append(app)
-        else:
-            unclear.append(app)
-    return unattended, switched_off, unclear, self_updating
+OTHER_UPDATERS = {
+    SQUIRREL: "Electron updater",
+    KEYSTONE: "Google's updater",
+    OWN: "its own updater",
+    NONE: "none found",
+}
+
+
+def _other_updater(app_path, info):
+    """Returns the updater an app without Sparkle ships, judged by the traces it leaves in the bundle."""
+    contents = app_path / "Contents"
+    bundle_id = info.get("CFBundleIdentifier", "")
+    host = next((name for prefix, name in HOSTS.items() if bundle_id.startswith(prefix)), "")
+    if host or CHROME_SHORTCUT in info:
+        return UpdaterStatus(kind=HOST_APP, updated_by=host or "Chrome")
+    if has_squirrel(app_path):
+        return UpdaterStatus(kind=SQUIRREL)
+    if any(key in info for key in KEYSTONE_KEYS):
+        return UpdaterStatus(kind=KEYSTONE)
+    if (contents / "Resources" / "app-update.yml").is_file() or _names_an_updater(contents):
+        return UpdaterStatus(kind=OWN)
+    return UpdaterStatus()
+
+
+def _names_an_updater(contents):
+    for place in ("Frameworks", "MacOS", "Library/LaunchServices"):
+        folder = contents / place
+        if folder.is_dir() and any("updat" in entry.name.lower() for entry in folder.iterdir()):
+            return True
+    return False
 
 
 def _may_check_automatically(users_answer, developers_default):

@@ -30,6 +30,7 @@ def _confirm_updates(behind):
     named = ", ".join(update.label for update in behind)
     output.print_plain("\n", ("These package managers can be updated:", "yellow"), " ", named)
     output.console.print("[dim]Doing that first makes the rest of the check accurate.[/]")
+    output.console.print()
     return _ask_yes_or_no()
 
 

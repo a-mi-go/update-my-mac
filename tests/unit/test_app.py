@@ -441,3 +441,133 @@ def test_a_cleanup_that_failed_says_how(monkeypatch):
     assert "Cleaning up Homebrew" in printed
     assert "exited with 1" in printed
     assert "done" not in printed
+
+
+def test_the_interactive_run_starts_on_a_screen_of_its_own(monkeypatch):
+    from contextlib import contextmanager
+
+    seen = []
+
+    @contextmanager
+    def full_screen():
+        seen.append("entered")
+        yield
+        seen.append("left")
+
+    monkeypatch.setattr(app.output, "full_screen", full_screen)
+    monkeypatch.setattr(app, "_run_interactive", lambda: seen.append("ran") or 0)
+
+    assert app.run_interactive_mode() == 0
+    assert seen == ["entered", "ran", "left"]
+
+
+def untracked_app(name, updater):
+    from pathlib import Path
+    from update_my_mac.checks.installed_apps import InstalledApp
+
+    found = InstalledApp(name, "1.0", Path(f"/Applications/{name}.app"))
+    found.updater = updater
+    return found
+
+
+def test_the_question_about_untracked_apps_leaves_out_the_ones_the_report_does_not_list(tmp_path):
+    from pathlib import Path
+    from update_my_mac.checks import Findings, app_updaters
+    from update_my_mac.checks.app_decisions import AppDecisions
+    from update_my_mac.managers.homebrew.casks import Cask
+
+    nobody = app_updaters.UpdaterStatus(app_updaters.NONE, False)
+    apps = [untracked_app(f"App{n}", nobody) for n in range(3)]
+    apps.append(untracked_app("Current", nobody))
+    findings = Findings(
+        untracked=apps,
+        find_cask=lambda found: Cask("current", "https://x.test/", "1.0") if found.name == "Current" else None,
+    )
+
+    problem = app._untracked_problem(findings, AppDecisions(tmp_path / "apps.json"))
+
+    assert problem.label == "⎷ go through untracked apps (3)"
+
+
+def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatch, tmp_path):
+    from update_my_mac.checks import Findings, app_updaters
+    from update_my_mac.checks.app_decisions import AppDecisions
+
+    monkeypatch.setattr(app.track_apps, "known_to_homebrew", lambda found: 2)
+    findings = Findings(
+        untracked=[untracked_app("App", app_updaters.UpdaterStatus(app_updaters.NONE, False))],
+        find_cask=lambda found: None,
+    )
+
+    problem = app._untracked_problem(findings, AppDecisions(tmp_path / "apps.json"))
+
+    assert problem.label == "⎷ go through untracked apps (1, 2 can be added to Homebrew)"
+
+
+
+def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):
+    from pathlib import Path
+    from update_my_mac.checks import Findings, app_updaters
+    from update_my_mac.checks.app_decisions import AppDecisions
+    from update_my_mac.checks.duplicate_installations import Copy, Duplicate
+    from update_my_mac.checks.installed_apps import InstalledApp
+    from update_my_mac.checks.running_apps import StillRunningOld
+    from update_my_mac.managers.homebrew import behind_the_recipe, flagged, mounted_downloads
+    from update_my_mac.managers.homebrew.casks import Cask
+    from update_my_mac.view import sections
+
+    monkeypatch.setattr(app.brew, "caskroom", lambda: None)
+    nobody = app_updaters.UpdaterStatus(app_updaters.NONE, False)
+    findings = Findings(
+        untracked=[untracked_app("Evoto", nobody), untracked_app("Orca", nobody)],
+        flagged=[flagged.Flagged("tap/clerk", flagged.DIFFERS, installed="64", available="3.4.1")],
+        mounted=[mounted_downloads.MountedImage(Path("/c/a--b.dmg"), "/dev/disk8")],
+        apps_behind=[behind_the_recipe.Behind(
+            InstalledApp("Foo", "1.0", Path("/Applications/Foo.app")),
+            Cask("foo", "https://x.test/", "2.0"), "1.0")],
+        doubled=[
+            Duplicate(name, [Copy("Homebrew", Path("/a"), name, (), "1"), Copy("npm", Path("/b"), name, (), "2")])
+            for name in ("codex", "claude")
+        ],
+        stale=[StillRunningOld("Gemini", Path("/Applications/Gemini.app"), 1, 0.0, 0.0)],
+        foreign=[Path("/Applications/Zoom.app")],
+        find_cask=lambda found: None,
+    )
+
+    problems = app._issues(findings, AppDecisions(tmp_path / "apps.json"))
+    groups = [
+        section for section in sections.of(findings)
+        if section.part == sections.NEED_ATTENTION
+    ]
+
+    assert len(problems) == len(groups) == 5
+    for problem, group in zip(problems, groups):
+        assert f"({group.count}" in problem.label
+
+
+def test_taking_over_an_app_makes_it_belong_to_whoever_runs_the_check():
+    import getpass
+    from pathlib import Path
+
+    fix = app._take_over(Path("/Applications/Zoom.app"))
+
+    assert fix.main.command == ("sudo", "chown", "-R", getpass.getuser(), "/Applications/Zoom.app")
+
+
+def test_what_is_outdated_is_asked_again_only_after_something_changed(monkeypatch):
+    asked = []
+
+    def check():
+        asked.append(True)
+        return [app.managers.ManagerReport("brew", "Homebrew", ["git  1 → 2", "jq  1 → 2"])]
+
+    monkeypatch.setattr(app.managers, "check_what_is_outdated", check)
+    updates = app._Updates([app.managers.ManagerReport("brew", "Homebrew", ["git  1 → 2"])])
+
+    assert updates.count() == 1
+    assert asked == []
+
+    updates.something_changed()
+    assert updates.count() == 2
+    assert updates.count() == 2
+    assert asked == [True]

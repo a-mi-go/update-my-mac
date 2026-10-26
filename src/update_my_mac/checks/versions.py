@@ -15,6 +15,11 @@ COMPARABLE_WITHIN_FACTOR = 10
 
 UNKNOWN = "?"
 
+PLAIN_NUMBERS = re.compile(r"\d+(\.\d+)*")
+# Brave puts Chromium's major version in front of its own, 156.1.98.60 for 1.98.60.0.
+BROWSER_MAJOR_FROM = 100
+MIN_NUMBERS_TO_MATCH = 3
+
 
 def numbers_in(version):
     return [int(part) for part in re.findall(r"\d+", version)]
@@ -35,8 +40,28 @@ def change_without_builds(change):
 
 
 def same_release(ours, theirs):
-    """Returns whether they name the same release, ignoring a build after a comma."""
-    return without_build(ours) == without_build(theirs)
+    """Returns whether they name the same release, ignoring a build after a comma and leading zeros."""
+    mine, yours = without_build(ours), without_build(theirs)
+    if mine == yours:
+        return True
+    if not all(PLAIN_NUMBERS.fullmatch(one) for one in (mine, yours)):
+        return False
+    return numbers_in(mine) == numbers_in(yours) or _one_carries_a_browser_major(mine, yours)
+
+
+def _one_carries_a_browser_major(ours, theirs):
+    mine, yours = (_without_trailing_zeros(numbers_in(one)) for one in (ours, theirs))
+    for longer, shorter in ((mine, yours), (yours, mine)):
+        # Anything shorter is too little to tell a coincidence from the same release.
+        if len(shorter) >= MIN_NUMBERS_TO_MATCH and longer[1:] == shorter and longer[0] >= BROWSER_MAJOR_FROM:
+            return True
+    return False
+
+
+def _without_trailing_zeros(numbers):
+    while numbers and numbers[-1] == 0:
+        numbers = numbers[:-1]
+    return numbers
 
 
 def comparable(ours, theirs):

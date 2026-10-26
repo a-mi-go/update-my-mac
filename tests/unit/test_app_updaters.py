@@ -60,13 +60,13 @@ def test_a_feed_alone_counts_as_an_updater(tmp_path):
     assert app_updaters.detect(app).kind == app_updaters.SPARKLE
 
 
-def test_an_updater_nobody_answered_for_is_unclear(tmp_path):
+def test_an_updater_nobody_answered_for_still_looks_after_the_app(tmp_path):
     app = make_app(tmp_path, info={"SUFeedURL": "https://example.com/a.xml"}, with_sparkle=True)
 
     use_shell(FakeShell())
     status = app_updaters.detect(app)
     assert status.is_unclear
-    assert not status.looks_after_itself
+    assert status.looks_after_itself
     assert status.update_method_note() == "state unknown"
 
 
@@ -212,3 +212,57 @@ def test_no_skipped_update_adds_nothing(tmp_path):
 
     assert status.skipped == ""
     assert "skipped" not in status.update_method_note()
+
+
+def detected(tmp_path, info=None, inside=()):
+    app = make_app(tmp_path, info=info or {})
+    for place in inside:
+        target = app / "Contents" / place
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if place.endswith(".yml"):
+            target.write_text("provider: github\n")
+        else:
+            target.mkdir()
+    use_shell(FakeShell())
+    return app_updaters.detect(app)
+
+
+def test_googles_updater_is_found_by_what_it_writes_into_the_app(tmp_path):
+    status = detected(tmp_path, {"KSProductID": "com.google.Chrome"})
+
+    assert status.kind == app_updaters.KEYSTONE
+    assert status.looks_after_itself
+    assert status.update_method_note() == "Google's updater"
+
+
+def test_an_updater_shipped_as_a_program_of_its_own_is_found(tmp_path):
+    assert detected(tmp_path, inside=["MacOS/updater.app"]).kind == app_updaters.OWN
+
+
+def test_an_updater_of_the_vendors_own_is_found_by_its_name(tmp_path):
+    assert detected(tmp_path, inside=["Frameworks/ZoomAutoUpdater.app"]).kind == app_updaters.OWN
+
+
+def test_electrons_other_updater_is_found_by_its_settings_file(tmp_path):
+    assert detected(tmp_path, inside=["Resources/app-update.yml"]).kind == app_updaters.OWN
+
+
+def test_a_shortcut_google_drive_installs_is_updated_with_google_drive(tmp_path):
+    status = detected(tmp_path, {"CFBundleIdentifier": "com.google.drivefs.shortcuts.docs"})
+
+    assert status.kind == app_updaters.HOST_APP
+    assert status.update_method_note() == "updated with Google Drive"
+
+
+def test_a_web_app_chrome_made_is_updated_with_chrome(tmp_path):
+    status = detected(tmp_path, {"CrAppModeShortcutID": "abc"})
+
+    assert status.update_method_note() == "updated with Chrome"
+
+
+def test_an_app_without_any_trace_of_an_updater_has_none(tmp_path):
+    status = detected(tmp_path, {"CFBundleIdentifier": "com.example.thing"}, inside=["Frameworks/Other.framework"])
+
+    assert status.kind == app_updaters.NONE
+    assert not status.looks_after_itself
+

@@ -59,19 +59,16 @@ class Step:
         except EOFError:
             raise Stopped
 
-    def choose(self, options, question="", note=""):
-        """Returns the key that was picked, after drawing the question and the options."""
+    def choose(self, options, question="", note="", above=None):
+        """Returns the key that was picked; `above` prints the report the menu belongs under."""
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
         while True:
             try:
-                chosen = self._ask_by_arrows_or_typed_number(options, question, note)
+                chosen = self._ask_by_arrows_or_typed_number(options, question, note, above)
             except KeyboardInterrupt:
                 interrupted(self.print_indented)
-                continue
-            except arrow_menu.Resized:
-                output.redraw()
                 continue
             except Stopped:
                 answered()
@@ -87,14 +84,18 @@ class Step:
             except KeyboardInterrupt:
                 interrupted(self.print_indented)
                 continue
-            except arrow_menu.Resized:
-                output.redraw()
-                continue
             except Stopped:
                 answered()
                 raise
             answered()
+            self._remember_answer(question, "Yes" if answer else "No")
             return answer
+
+    def _remember_answer(self, question, shown):
+        # The menu drew this line itself, which is not on any console to be kept.
+        output.remember(lambda console: console.print(Text.assemble(
+            (arrow_menu.QMARK, "cyan"), " ", (f"{question} ", "bold"), (shown, arrow_menu.ANSWER_COLOUR),
+        )))
 
     def _yes_or_no_by_arrows_or_typed_number(self, question, default):
         if arrow_menu.can_be_drawn():
@@ -104,13 +105,25 @@ class Step:
                 self.print_indented(arrow_menu.unusable_message(failure))
         return self._ask_by_typed_number([(True, "yes"), (False, "no")], question, "")
 
-    def _ask_by_arrows_or_typed_number(self, options, question, note):
+    def _ask_by_arrows_or_typed_number(self, options, question, note, above):
+        if above is not None and not self._can_show_below(options):
+            self._print_above(above)
+            above = None
         if arrow_menu.can_be_drawn():
             try:
-                return self._choose_with_arrows(options, question, note)
+                return self._choose_with_arrows(options, question, note, above)
             except arrow_menu.Unusable as failure:
                 self.print_indented(arrow_menu.unusable_message(failure))
+        if above is not None:
+            self._print_above(above)
         return self._ask_by_typed_number(options, question, note)
+
+    def _can_show_below(self, options):
+        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(len(options))
+
+    def _print_above(self, above):
+        output.print_above(above)
+        self.print_empty_line()
 
     def _ask_by_typed_number(self, options, question, note):
         # An empty question still takes its line, as it does with the arrow keys.
@@ -134,7 +147,7 @@ class Step:
                 return options[int(given) - 1][0]
             self.print_indented("Didn't catch that.", style="yellow")
 
-    def _choose_with_arrows(self, options, question, note):
+    def _choose_with_arrows(self, options, question, note, above=None):
         entries = [
             (key, arrow_menu.styled(_bulleted(label)) if isinstance(label, Markup) else _bulleted(label))
             for key, label in options
@@ -148,11 +161,27 @@ class Step:
         if way_out is not None:
             entries.insert(way_out, None)
 
-        picked = arrow_menu.pick_one(question, entries, note)
+        if above is None:
+            picked = arrow_menu.pick_one(question, entries, note)
+        else:
+            picked = arrow_menu.pick_one_below(above, question, entries, note)
         if picked is None:
             # questionary gives None when the menu was aborted.
             raise Stopped
+        if above is not None:
+            # The screen the menu was on is gone, with the report and the answer.
+            self._print_above(above)
+            self._print_answer(question, options, picked)
+            self.print_empty_line()
         return picked
+
+    def _print_answer(self, question, options, picked):
+        label = next(label for key, label in options if key == picked)
+        self.print_indented(
+            (arrow_menu.QMARK, "cyan"), " ",
+            (f"{question} " if question else "", "bold"),
+            (_plain(_bulleted(label)), arrow_menu.ANSWER_COLOUR),
+        )
 
     def _print_numbered(self, options):
         listed_items = self.inside()
@@ -193,8 +222,6 @@ def interrupted(print_line):
 
 def answered():
     arrow_menu.forget_ctrl_c()
-    # With an answer the screen holds more than what would be printed again.
-    output.stop_redrawing_on_resize()
 
 
 def read_answer(prompt):
