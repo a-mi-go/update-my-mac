@@ -119,7 +119,7 @@ def test_apps_that_cannot_wait_come_first():
         find_cask=lambda one: None,
     )
 
-    assert [found.name for found in to_sort_out.untracked_to_sort_out(findings)] == ["Broken", "Quiet"]
+    assert [found.file_stem for found in to_sort_out.untracked_to_sort_out(findings)] == ["Broken", "Quiet"]
 
 
 def test_what_apple_updates_is_not_offered_to_homebrew_to_handle():
@@ -130,7 +130,7 @@ def test_what_apple_updates_is_not_offered_to_homebrew_to_handle():
         behind_the_recipe.Behind(other, Cask("firefox", "x", "158"), "157.0.1"),
     ])
 
-    assert [item.app.name for item in to_sort_out.homebrew_cannot_update(findings)] == ["Firefox"]
+    assert [item.app.file_stem for item in to_sort_out.homebrew_cannot_update(findings)] == ["Firefox"]
 
 
 def test_the_age_of_an_app_is_read_from_its_bundle(tmp_path):

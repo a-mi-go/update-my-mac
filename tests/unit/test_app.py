@@ -481,7 +481,7 @@ def test_the_question_about_untracked_apps_leaves_out_the_ones_the_report_does_n
     apps.append(untracked_app("Current", nobody))
     findings = Findings(
         untracked=apps,
-        find_cask=lambda found: Cask("current", "https://x.test/", "1.0") if found.name == "Current" else None,
+        find_cask=lambda found: Cask("current", "https://x.test/", "1.0") if found.file_stem == "Current" else None,
     )
 
     problem = app._untracked_problem(findings, AppDecisions(tmp_path / "apps.json"))

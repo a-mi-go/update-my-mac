@@ -142,7 +142,7 @@ def _check_the_mac(installed, decisions):
 def _untracked_apps(decisions):
     """Returns untracked apps, minus the ones the user asked not to see again."""
     found = installed_apps.find_untracked()
-    listed = [app for app in found if not decisions.is_ignored(app.name)]
+    listed = [app for app in found if not decisions.is_ignored(app.file_stem)]
     return listed, len(found) - len(listed)
 
 
@@ -159,11 +159,13 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
+    recorded = brew.recorded_cask_versions()
     return behind_the_recipe.find(
         installed_apps.find_all(),
         _casks(),
-        brew.recorded_cask_versions(),
+        recorded,
         already_reported=_names_homebrew_reported(reports),
+        recorded_at=brew.recorded_cask_times(recorded),
         would_install=brew.versions_homebrew_would_install(),
     )
 
@@ -344,7 +346,7 @@ def _restart_every_app(apps, step):
     restarted = []
     for app in apps:
         taken, message = restart_apps.restart(app)
-        per_item.print_indented(f"{app.name}: {message}")
+        per_item.print_indented(f"{app.display_name}: {message}")
         if taken:
             restarted.append(app)
     return restarted

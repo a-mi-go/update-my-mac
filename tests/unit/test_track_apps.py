@@ -42,7 +42,7 @@ def cask(token="betterdisplay", homepage="https://example.test/", version="1.0")
 
 
 def cask_for(known):
-    return lambda app: known.get(app.name)
+    return lambda app: known.get(app.file_stem)
 
 
 def test_nothing_is_asked_when_every_app_is_accounted_for(tmp_path):
@@ -77,6 +77,15 @@ def test_leaving_an_app_alone_is_remembered(tmp_path):
 
     assert len(dealt_with) == 1
     assert decisions_in(tmp_path).is_ignored("TokenEater")
+
+
+def test_leaving_an_app_alone_is_remembered_by_its_file_name(tmp_path):
+    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), display_name="iTerm2")
+
+    track_apps.ask_what_to_do([iterm], decisions_in(tmp_path), Terminal(IGNORE).step)
+
+    assert decisions_in(tmp_path).is_ignored("iTerm")
+    assert not decisions_in(tmp_path).is_ignored("iTerm2")
 
 
 def test_keeping_an_app_listed_writes_nothing(tmp_path):
@@ -324,7 +333,7 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
     terminal = Terminal(ADOPT_ALL)
 
     def adopt(app):
-        asked.append(app.name)
+        asked.append(app.file_stem)
         return True, "done"
 
     swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopt: adopt(app))
@@ -486,7 +495,7 @@ def test_moving_an_app_to_the_trash_asks_first_and_settles_the_app(tmp_path):
     dealt_with = track_apps.ask_what_to_do([app("Juice")], decisions_in(tmp_path), terminal.step)
 
     assert trashed == [Path("/Applications/Juice.app")]
-    assert [found.name for found in dealt_with] == ["Juice"]
+    assert [found.file_stem for found in dealt_with] == ["Juice"]
     assert "Juice is in the Trash." in terminal.text
 
 

@@ -215,7 +215,7 @@ def _installed_twice(findings):
 
 
 def _not_restarted(findings):
-    rows = [Row(app.name, app.version, app.comment()) for app in findings.stale]
+    rows = [Row(app.display_name, app.version, app.comment()) for app in findings.stale]
     return [
         Section(WARNING, NOT_RESTARTED, "", rows)
     ]
@@ -245,9 +245,9 @@ def _row_for_homebrew_trouble(item):
             if item.available else item.installed
         return Row(item.name, change, _what_homebrew_holds_against(item))
     if not item.false_version_recorded:
-        return Row(item.app.name, item.version_change(), "needs --greedy")
+        return Row(item.app.display_name, item.version_change(), "needs --greedy")
     own = _own_updater_note(item.updater)
-    return Row(item.app.name, item.version_change(),
+    return Row(item.app.display_name, item.version_change(),
                "version recorded wrongly" + (f" · {own}" if own else ""))
 
 
@@ -263,7 +263,7 @@ def _untracked_to_sort_out(findings):
     # One reason for several of them is said once, over the rows.
     shared = reasons.pop() if len(reasons) == 1 and len(concerns) > 1 else ""
     rows = [
-        Row(app.name, _updates_available(app, findings), concern.detail if shared else concern.note)
+        Row(app.display_name, _updates_available(app, findings), concern.detail if shared else concern.note)
         for app, concern in concerns
     ]
     urgent = any(concern.urgent for _, concern in concerns)

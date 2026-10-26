@@ -5,6 +5,7 @@ from pathlib import Path
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
+from update_my_mac.checks import running_apps
 from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.checks import to_sort_out
 from update_my_mac.managers.homebrew import flagged
@@ -326,7 +327,7 @@ def test_a_reason_every_untracked_app_shares_is_said_once_over_them(monkeypatch)
 
     monkeypatch.setattr(
         to_sort_out, "last_changed",
-        lambda found: time.mktime((2024, 4, 3, 0, 0, 0, 0, 0, -1)) if found.name == "Old" else None,
+        lambda found: time.mktime((2024, 4, 3, 0, 0, 0, 0, 0, -1)) if found.file_stem == "Old" else None,
     )
     found = sections.of(Findings(untracked=[app("Old"), app("Unknown")]))
 
@@ -345,3 +346,21 @@ def test_different_reasons_stay_on_their_rows(monkeypatch):
     assert untracked.note == ""
     assert [row.note for row in untracked.rows] == ["updater off, last checked 2026-08-16", to_sort_out.CANNOT_CHECK]
 
+
+def test_the_report_names_an_app_by_what_it_calls_itself(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: None)
+    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), UpdaterStatus(),
+                         display_name="iTerm2")
+    each_group = [
+        Findings(untracked=[iterm]),
+        Findings(apps_behind=[behind_the_recipe.Behind(
+            iterm, Cask("iterm2", "https://x.test/", "3.6"), "3.5", UpdaterStatus()
+        )]),
+        Findings(stale=[running_apps.StillRunningOld(
+            "iTerm", iterm.path, 1, 0.0, 0.0, "3.5", display_name="iTerm2"
+        )]),
+    ]
+
+    names = [row.name for findings in each_group for section in sections.of(findings) for row in section.rows]
+
+    assert names == ["iTerm2", "iTerm2", "iTerm2"]
