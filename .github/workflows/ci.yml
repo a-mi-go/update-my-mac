@@ -40,6 +40,17 @@ jobs:
           uv tool install --editable .
           export PATH="${{ runner.temp }}/tools:$PATH"
           UPDATE_MY_MAC_PREFIXES= update --version
+      - name: Install from the archive of this commit
+        env:
+          UV_TOOL_DIR: ${{ runner.temp }}/archive-tools
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/archive-bin
+          XDG_DATA_HOME: ${{ runner.temp }}/share
+        run: |
+          git archive --prefix=update-my-mac/ -o "$RUNNER_TEMP/update-my-mac.tar.gz" HEAD
+          export UPDATE_MY_MAC_ARCHIVE_URL="file://$RUNNER_TEMP/update-my-mac.tar.gz"
+          export PATH="$UV_TOOL_BIN_DIR:$PATH"
+          ./install.sh --name update
+          UPDATE_MY_MAC_PREFIXES= update --version
       - name: Lint the setup script
         if: runner.os == 'Linux'
         run: shellcheck setup.sh install.sh
