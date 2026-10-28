@@ -93,7 +93,9 @@ def full_screen():
     try:
         yield
     finally:
-        leave_full_screen()
+        if _in_full_screen:
+            leave_full_screen()
+            replay(console)
 
 
 def leave_full_screen():

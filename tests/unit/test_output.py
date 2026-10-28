@@ -55,6 +55,18 @@ def test_the_screen_is_left_when_the_run_is_stopped():
     assert written.getvalue().count(LEAVE) == 1
 
 
+def test_what_was_printed_on_the_screen_is_printed_again_when_the_run_ends_on_it():
+    written = io.StringIO()
+    output.console = output.RecordingConsole(file=written, force_terminal=True, height=40, width=100)
+
+    with pytest.raises(RuntimeError):
+        with output.full_screen():
+            output.console.print("a check that failed")
+            raise RuntimeError
+
+    assert "a check that failed" in written.getvalue().split(LEAVE)[1]
+
+
 def test_a_pipe_gets_no_screen_of_its_own():
     written = io.StringIO()
     output.console = Console(file=written, width=100)

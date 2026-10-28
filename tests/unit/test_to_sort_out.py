@@ -82,6 +82,12 @@ def test_a_recipe_matching_the_build_rather_than_the_short_version_says_the_app_
     assert concern(found, cask=Cask("dockish", "https://x.test/", "6.2.1")) is None
 
 
+def test_an_app_with_an_updater_nobody_switched_off_is_not_a_problem_for_lack_of_a_feed():
+    electron = UpdaterStatus(app_updaters.SQUIRREL)
+
+    assert concern(app("Chatty", updater=electron)) is None
+
+
 def test_an_app_nobody_can_check_is_a_problem_that_says_so_and_since_when(monkeypatch):
     monkeypatch.setattr(to_sort_out, "last_changed", lambda found: time.mktime((2024, 4, 3, 0, 0, 0, 0, 0, -1)))
 

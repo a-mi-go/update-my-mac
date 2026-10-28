@@ -125,9 +125,15 @@ def move_to_trash(path):
     executable = find_executable("osascript")
     if executable is None:
         return False
-    return run_command(
-        [executable, "-e", f'tell application "Finder" to delete POSIX file "{path}"']
-    ).success
+    # The path goes in as an argument, so a quote in an app's name stays text.
+    return run_command([
+        executable,
+        "-e", "on run argv",
+        "-e", "set thePath to POSIX file (item 1 of argv)",
+        "-e", 'tell application "Finder" to delete thePath',
+        "-e", "end run",
+        str(path),
+    ]).success
 
 
 def open_application(path):

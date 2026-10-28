@@ -437,6 +437,13 @@ def test_while_the_terminal_reports_modifiers_cmd_c_and_the_keys_that_would_chan
         assert keys_read_from("\x1b[27u") == [Keys.Escape]
 
 
+def test_the_keys_are_read_as_before_once_the_menu_is_over():
+    with scrolling_report.reporting_keys_with_modifiers(Terminal()):
+        pass
+
+    assert keys_read_from("\x1b[99;9u") != [scrolling_report.Keys.F24]
+
+
 def test_the_terminal_is_asked_to_report_modifiers_and_asked_to_stop_afterwards():
     terminal = Terminal()
 

@@ -48,7 +48,7 @@ def concern_about(app, findings):
     standing = adopting.compare_to_app(app, cask)
     if standing == adopting.NEWER:
         return Concern(f"Homebrew has {versions.without_build(cask.version)}")
-    if standing in (adopting.SAME, adopting.OLDER):
+    if standing in (adopting.SAME, adopting.OLDER) or updater.looks_after_itself:
         return None
     changed = last_changed(app)
     since = f"unchanged since {time.strftime('%Y-%m', time.localtime(changed))}" if changed else ""

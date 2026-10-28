@@ -323,6 +323,7 @@ class Scrolling:
 @contextmanager
 def reporting_keys_with_modifiers(output):
     """Has the terminal tell which modifier went with a key, so Cmd-C reaches the run instead of the terminal."""
+    before = dict(ANSI_SEQUENCES)
     ANSI_SEQUENCES.update(KEYS_WITH_MODIFIERS)
     _IS_PREFIX_OF_LONGER_MATCH_CACHE.clear()
     output.write_raw(PUSH_KITTY_DISAMBIGUATE)
@@ -332,3 +333,6 @@ def reporting_keys_with_modifiers(output):
     finally:
         output.write_raw(POP_KITTY_FLAGS)
         output.flush()
+        ANSI_SEQUENCES.clear()
+        ANSI_SEQUENCES.update(before)
+        _IS_PREFIX_OF_LONGER_MATCH_CACHE.clear()

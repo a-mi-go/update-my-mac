@@ -23,6 +23,22 @@ def test_a_command_that_never_ran_is_not_described_by_a_number():
     assert shell.describe_exit(2) == "exited with 2"
 
 
+def test_the_path_moved_to_the_trash_goes_in_as_an_argument_not_as_script(tmp_path, monkeypatch):
+    written = tmp_path / "arguments"
+    fake = tmp_path / "bin" / "osascript"
+    fake.parent.mkdir()
+    fake.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{written}"\n')
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake.parent}:/usr/bin:/bin")
+    name = 'Evil" & (do shell script "id") & ".app'
+
+    assert shell.move_to_trash(tmp_path / name)
+
+    arguments = written.read_text().splitlines()
+    assert arguments[-1] == str(tmp_path / name)
+    assert not any(name in script for script in arguments[:-1])
+
+
 class Status:
     """What the runner starts and stops, and when it did so relative to the output."""
 

@@ -42,9 +42,9 @@ def run(tmp_path, home, *args, answer=""):
 
 
 # Sort things out, go through the untracked apps, and keep the one app
-# untracked. Nothing here has a Homebrew recipe, so the walk-through starts
-# without asking first.
-LEAVE_IT_ALONE = "1\n1\n"
+# untracked: the third choice, after opening it and moving it to the Trash.
+# Nothing here has a Homebrew recipe, so the walk-through starts without asking first.
+LEAVE_IT_ALONE = "1\n3\n"
 
 
 def decisions_file(tmp_path):
