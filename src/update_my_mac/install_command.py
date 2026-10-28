@@ -172,8 +172,9 @@ def decide_about_shadowing(name, interactive):
 
 
 def install_with_uv(project_dir):
-    # --editable so a git pull updates the command, with no reinstall.
-    return subprocess.run(["uv", "tool", "install", "--editable", str(project_dir)]).returncode == 0
+    # --editable so new code needs no reinstall, --reinstall so a rerun brings new dependencies.
+    command = ["uv", "tool", "install", "--editable", "--reinstall", str(project_dir)]
+    return subprocess.run(command).returncode == 0
 
 
 def update_shell_with_uv():

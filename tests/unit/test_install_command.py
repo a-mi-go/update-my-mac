@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 
 import pytest
@@ -82,6 +83,16 @@ def installed_before(machine, *links):
     (bin_dir / "update").write_text("# update_my_mac\n")
     for link in links:
         (bin_dir / link).symlink_to(bin_dir / "update")
+
+
+def test_uv_installs_editable_and_rebuilds_the_environment(monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        install_command.subprocess, "run",
+        lambda command: seen.append(command) or subprocess.CompletedProcess(command, 0),
+    )
+    assert install_command.install_with_uv("/repo")
+    assert seen == [["uv", "tool", "install", "--editable", "--reinstall", "/repo"]]
 
 
 def test_enter_keeps_the_default_name(machine):

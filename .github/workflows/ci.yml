@@ -42,4 +42,4 @@ jobs:
           UPDATE_MY_MAC_PREFIXES= update --version
       - name: Lint the setup script
         if: runner.os == 'Linux'
-        run: shellcheck setup.sh
+        run: shellcheck setup.sh install.sh

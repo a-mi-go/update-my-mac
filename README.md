@@ -2,7 +2,14 @@
   <img src="docs/banner.webp" width="760" alt="update-my-mac: a CLI tool to check and update everything on your Mac" />
 </p>
 
-<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue" />&nbsp;<img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<a href="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml/badge.svg" /></a></p>
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue" />&nbsp;
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue" />&nbsp;
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;
+  <a href="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/a-mi-go/update-my-mac/actions/workflows/ci.yml/badge.svg" />
+  </a>
+</p>
 
 <p align="center">
   <a href="https://buymeacoffee.com/a.mi.go">
@@ -28,22 +35,41 @@ update-my-mac is an interactive tool that checks and updates:
 
 ## Installation
 
+This unpacks the latest release into `~/.local/share/update-my-mac` and runs its setup.
+
+```bash
+/bin/bash -c "$(curl -fsSL https://github.com/a-mi-go/update-my-mac/releases/latest/download/install.sh)"
+```
+
+To work on the code, clone the repository and run `./setup.sh` there instead:
+
 ```bash
 git clone https://github.com/a-mi-go/update-my-mac.git
 cd update-my-mac
 ./setup.sh
 ```
 
-Setup asks what to call the command, or takes the name (alias) up front with `./setup.sh --name update-my-mac`.
-Default name is `update`.
+Setup asks what to call the command, or takes the name (alias) up front with `./setup.sh --name <YOUR_NAME>`.  
+Default name is `update`.  
+Run the setup again to pick a different name.
 
 ## Updating
+
+Run the installer again:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://github.com/a-mi-go/update-my-mac/releases/latest/download/install.sh)"
+```
+
+If you cloned the project with git, pull instead:
 
 ```bash
 git pull
 ```
 
-The command runs from the clone, so there is nothing to reinstall.
+Run `./setup.sh` again in case new dependencies are introduced.
+
+Your command name is kept: setup recognises the earlier install and offers the name it has.
 
 ## Usage
 
@@ -51,15 +77,10 @@ The command runs from the clone, so there is nothing to reinstall.
 update
 ```
 
-Or any other name you set during the setup! You can also rerun the `setup.sh` to set a different name.
+.. or the name you chose during the setup.
 
-After a report, you pick what should be updated and what should be left alone. Nothing runs before you answer, and updates run in your terminal, so a password prompt from `brew` or `mas` works as usual.
-
-An upgrade replaces the app on disk, but an app that was already running keeps the old version in memory and goes on offering its own update. The run lists those and offers to quit and start them again.
-
-When the same command has been installed by two managers, the run says which one PATH actually picks and offers to drop the other. Both managers report themselves as up to date in that case, so nothing else would ever mention it.
-
-For an app no package manager tracks you can also ask where it came from. The app is looked up in Homebrew's list of casks by its file name, and its website opens in your browser, which is where you go when the app cannot update itself.
+After a report, you pick what should be fixed, updated and what should be left alone.  
+Nothing runs before you answer, and updates run in your terminal, so a password prompt from `brew` or `mas` works as usual.
 
 The tool can also be run in a cli mode if you prefer or want to integrate it in you own pipeline:
 ```bash
@@ -82,10 +103,25 @@ The package managers may or may not be installed. None of them is a requirement.
 | [pnpm](https://github.com/pnpm/pnpm) | `pnpm outdated -g --json`<br>`pnpm update -g` | Global packages. "--json" because npm exits 1 both when it finds updates and when it fails. |
 | Installed apps | `Info.plist` in `/Applications` and `~/Applications` | Apps from a `.dmg` or `.pkg` belong to no manager, so they are listed, not upgraded. You can tell the tool to leave one alone. |
 
+### Beyond updating
+
+An upgrade replaces the app on disk, but an app that was already running keeps the old version in memory and goes on
+offering its own update. The run lists those and offers to quit and start them again.
+
+When the same command has been installed by two managers, the run says which one PATH actually picks and offers to drop
+the other. Both managers report themselves as up to date in that case, so nothing else would ever mention it.
+
+For an app no package manager tracks you can also ask where it came from. The app is looked up in Homebrew's list of
+casks by its file name, and its website opens in your browser, which is where you go when the app cannot update itself.
+
 ### Planned / WIP
 
 <!-- planned-sources:start -->
-`softwareupdate`, [Homebrew Cask](https://github.com/Homebrew/homebrew-cask), [MacPorts](https://github.com/macports/macports-base), [Yarn](https://github.com/yarnpkg/yarn), [Bun](https://github.com/oven-sh/bun), [uv](https://github.com/astral-sh/uv), [pipx](https://github.com/pypa/pipx), [RubyGems](https://github.com/rubygems/rubygems), [Cargo](https://github.com/rust-lang/cargo), [Nix](https://github.com/NixOS/nix).
+`softwareupdate`, [Homebrew Cask](https://github.com/Homebrew/homebrew-cask),
+[MacPorts](https://github.com/macports/macports-base), [Yarn](https://github.com/yarnpkg/yarn),
+[Bun](https://github.com/oven-sh/bun), [uv](https://github.com/astral-sh/uv), [pipx](https://github.com/pypa/pipx),
+[RubyGems](https://github.com/rubygems/rubygems), [Cargo](https://github.com/rust-lang/cargo),
+[Nix](https://github.com/NixOS/nix).
 
 The commands and the open questions behind each of these are in the [roadmap](docs/roadmap.md).
 <!-- planned-sources:end -->
@@ -101,13 +137,16 @@ uv run pytest
 tests/integration/playground.sh
 ```
 
-The second one runs the real command against fake package managers, so you can click through the menus without touching anything on your Mac.
+The second one runs the real command against fake package managers, so you can click through the menus without touching 
+anything on your Mac.
 
-Two layers, both run by CI on macOS and Linux. `tests/unit/` is pure logic with no mocking and no subprocesses. `tests/integration/` runs the real CLI against fake package managers that sit alone on `PATH`, with an empty `HOME`, so nothing installed on the machine takes part.
+Two layers, both run by CI on macOS and Linux. `tests/unit/` is pure logic with no mocking and no subprocesses. 
+`tests/integration/` runs the real CLI against fake package managers that sit alone on `PATH`, with an empty `HOME`, so 
+nothing installed on the machine takes part.
 
 
 <div>
-  Or just  
+  Another good way to help would be to 
   <a href="https://buymeacoffee.com/a.mi.go">
      buy me a coffee ☕️
   </a>
