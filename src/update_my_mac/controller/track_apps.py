@@ -10,7 +10,7 @@ from update_my_mac.controller.walkthrough import CANCEL
 from update_my_mac.view.prompting import Step, Stopped
 
 ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"
-IGNORE, LATER = "ignore", "later"
+IGNORE, LATER, TRASH = "ignore", "later", "trash"
 
 
 def ask_what_to_do(
@@ -32,17 +32,6 @@ def ask_what_to_do(
         lambda step: adopt_all(found, step),
         lambda step: _walk_through(found, decisions, offered or {}, step),
     )
-
-
-def worth_sorting_out(app, cask, answer=None):
-    """Returns whether this app is a problem at all."""
-    if not app.updater.looks_after_itself:
-        return True
-
-    answer = answer or appcast.FeedAnswer()
-    if answer.error or appcast.offers_newer(app, answer):
-        return True
-    return adopting.compare_to_app(app, cask) == adopting.NEWER
 
 
 def known_to_homebrew(found):
@@ -131,7 +120,7 @@ def _walk_through(found, decisions, offered, step):
                 if not decisions.save():
                     _print_that_it_was_not_written(decisions, step)
                 dealt_with.append(app)
-            elif chosen == ADOPT:
+            elif chosen in (ADOPT, TRASH):
                 dealt_with.append(app)
     except Stopped:
         step.print_empty_line()
@@ -143,11 +132,10 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
     results = step.inside()
     answer = appcast.answer_for(app, offered)
     vendor_site = app_updaters.vendor_site(app.updater.feed_url)
-    can_ask_the_app = app.updater.kind != app_updaters.NONE
 
     while True:
         chosen = step.choose(
-            _app_choices(app, cask, vendor_site, can_ask_the_app and not answer.error, is_walkthrough),
+            _app_choices(app, cask, vendor_site, not answer.error, is_walkthrough),
             f"{app.display_name} {app.version}",
             note=_what_is_known(app, cask, answer),
         )
@@ -159,6 +147,9 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
                 results.print_indented("Could not open that in a browser.", style="yellow")
         elif chosen == LAUNCH:
             _ask_the_app_itself(app, results)
+        elif chosen == TRASH:
+            if _move_to_the_trash(app, step, results):
+                return chosen
         elif chosen != ADOPT or _hand_to_homebrew(app, cask, results):
             return chosen
 
@@ -169,9 +160,10 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     if handover:
         choices.append((ADOPT, handover))
     if can_ask_the_app:
-        choices.append((LAUNCH, f"open {app.display_name} and let it update itself"))
+        choices.append((LAUNCH, f"open {app.display_name} and check for updates there"))
     if vendor_site:
         choices.append((WEBSITE, f"download and install manually from {vendor_site}"))
+    choices.append((TRASH, f"move {app.display_name} to the Trash"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
     choices.append((LATER, "leave it for now"))
     return walkthrough.options_for_single_item(choices, is_walkthrough)
@@ -203,6 +195,17 @@ def _ask_the_app_itself(app, step):
         "does not offer there is under its own menu.",
         style="green",
     )
+
+
+def _move_to_the_trash(app, step, results):
+    if not step.yes_or_no(f"Move {app.display_name} to the Trash? Quit it first if it is running.", default=False):
+        return False
+    moved = shell.move_to_trash(app.path)
+    results.print_indented(
+        f"{app.display_name} is in the Trash." if moved else f"Could not move {app.display_name} to the Trash.",
+        style="green" if moved else "red",
+    )
+    return moved
 
 
 def _hand_to_homebrew(app, cask, step):

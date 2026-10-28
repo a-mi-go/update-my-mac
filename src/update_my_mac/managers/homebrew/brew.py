@@ -47,6 +47,46 @@ def recorded_cask_versions():
     return recorded
 
 
+def variations_for_this_mac():
+    """Returns the names a recipe gives the version for this Mac under, most exact first, or none."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return ()
+
+    env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
+    asked = 'puts "#{Hardware::CPU.arch} #{MacOS.version.to_sym}"'
+    result = shell.run_command([executable, "ruby", "-e", asked], (0,), env)
+    parts = result.stdout.split() if result.success else []
+    if len(parts) != 2:
+        return ()
+    arch, macos = parts
+    # Homebrew names an Intel variation by the macOS alone, and an Apple silicon one with arm64_ in front.
+    return (f"arm64_{macos}", macos) if arch == "arm64" else (macos,)
+
+
+def versions_homebrew_would_install():
+    """Returns, for each cask Homebrew installed, the version its own recipe gives for this Mac."""
+    executable = shell.find_executable("brew")
+    if executable is None:
+        return {}
+
+    env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
+    result = shell.run_command([executable, "info", "--json=v2", "--installed", "--cask"], (0,), env)
+    if not result.success:
+        return {}
+    try:
+        described = json.loads(result.stdout)
+    except ValueError:
+        return {}
+    if not isinstance(described, dict):
+        return {}
+    return {
+        cask["token"]: cask["version"]
+        for cask in described.get("casks", [])
+        if isinstance(cask, dict) and cask.get("token") and cask.get("version")
+    }
+
+
 def recorded_cask_version(token):
     """Returns the version Homebrew wrote down for a cask."""
     executable = shell.find_executable("brew")

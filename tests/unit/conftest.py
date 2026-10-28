@@ -6,6 +6,7 @@ import pytest
 
 import fake_run
 
+from update_my_mac.checks import to_sort_out
 from update_my_mac.system import shell
 from update_my_mac.view import arrow_menu
 from update_my_mac.view import output
@@ -26,6 +27,23 @@ def restore_where_the_run_reads_and_prints():
      arrow_menu.can_be_drawn, arrow_menu.pick_several) = saved
 
 
+@pytest.fixture(autouse=True)
+def no_real_bundles():
+    """The age of an app is read from the disk, and the apps a test names may exist on this Mac."""
+    real = to_sort_out.last_changed
+    to_sort_out.last_changed = lambda app: None
+    yield
+    to_sort_out.last_changed = real
+
+
+@pytest.fixture(autouse=True)
+def forget_what_the_screen_kept():
+    """What a run keeps of its own screen outlives the screen, so a test starts without it."""
+    output._remembered.clear()
+    output._remembering = False
+    output._unfinished_line = ""
+
+
 def _no_real_commands(*args, **kwargs):
     raise AssertionError("a test reached the real shell; give it a fake with use_shell()")
 
@@ -34,7 +52,8 @@ def _no_real_commands(*args, **kwargs):
 def no_real_shell(request):
     """Every command goes to a fake, except in the tests of the shell itself."""
     names = ("find_executable", "run_command", "stream_command", "open_in_browser",
-             "ask_application_to_quit", "open_application", "is_running")
+             "ask_application_to_quit", "open_application", "is_running", "copy_to_clipboard",
+             "move_to_trash")
     saved = {name: getattr(shell, name) for name in names}
     if request.module.__name__ != "test_shell":
         for name in names:

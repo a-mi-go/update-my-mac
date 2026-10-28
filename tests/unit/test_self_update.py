@@ -150,3 +150,11 @@ def test_a_manager_whose_check_failed_is_not_offered():
 
     assert run.updated == []
     assert shell.streamed == []
+
+
+def test_a_blank_line_stands_between_what_is_said_and_the_question():
+    answer_with(answers(NOT_NOW))
+
+    printed = printed_by(lambda: self_update._confirm_updates([MANAGER_UPDATES[0]]))
+
+    assert "check accurate.\n\nUpdate them now?" in printed

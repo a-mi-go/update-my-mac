@@ -5,6 +5,7 @@ import pytest
 from update_my_mac.view.prompting import BULLET
 
 from update_my_mac.view import arrow_menu
+from update_my_mac.view import output
 from update_my_mac.view import prompting
 
 from fake_terminal import Terminal
@@ -680,3 +681,158 @@ def test_y_and_n_pick_directly():
 
 def test_a_no_default_starts_on_no():
     assert answered_with(ENTER, default=False) is False
+
+
+def picked_below(*pressed):
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    def print_report(console):
+        for number in range(100):
+            console.print(f"line {number}")
+
+    with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
+        typed.send_text("".join(pressed))
+        return arrow_menu.pick_one_below(
+            print_report, "Which one?", [("a", "one"), ("b", "two"), ("c", "three")]
+        )
+
+
+PAGE_DOWN, PAGE_UP, END, DOWN = "\x1b[6~", "\x1b[5~", "\x1b[F", "\x1b[B"
+
+
+def test_a_menu_below_a_report_is_answered_like_any_other():
+    assert picked_below(ENTER) == "a"
+    assert picked_below(DOWN, DOWN, ENTER) == "c"
+
+
+def test_the_page_keys_scroll_the_report_and_leave_the_menu_alone():
+    assert picked_below(PAGE_DOWN, END, PAGE_UP, ENTER) == "a"
+
+
+def test_the_screen_is_the_whole_terminal_while_the_menu_below_a_report_asks():
+    # Decided when an Application is made, so it is set on the menu's own.
+    import questionary
+
+    seen = []
+
+    def run(prompt):
+        seen.append(prompt.application.full_screen)
+        return "a"
+
+    original = arrow_menu._run
+    arrow_menu._run = run
+    try:
+        arrow_menu.pick_one_below(lambda console: None, "Which one?", [("a", "one")])
+    finally:
+        arrow_menu._run = original
+
+    assert seen == [True]
+
+
+def test_a_menu_below_a_report_leaves_the_screen_to_whoever_entered_it(monkeypatch):
+    monkeypatch.setattr(output, "_in_full_screen", True)
+    seen = []
+    original = arrow_menu._run
+    arrow_menu._run = lambda prompt: seen.append(prompt.application.output) or "a"
+    try:
+        arrow_menu.pick_one_below(lambda console: None, "Which one?", [("a", "one")])
+    finally:
+        arrow_menu._run = original
+
+    screen = seen[0]
+    # Neither writes the codes, and the rest is the real output's.
+    screen.enter_alternate_screen()
+    screen.quit_alternate_screen()
+    assert screen.get_size() is not None
+
+
+def test_the_terminal_gets_the_mouse_back_while_the_menu_below_a_report_asks(monkeypatch):
+    seen = []
+    original = arrow_menu._run
+    arrow_menu._run = lambda prompt: seen.append(prompt.application.mouse_support) or "a"
+    try:
+        arrow_menu.pick_one_below(lambda console: None, "Which one?", [("a", "one")])
+    finally:
+        arrow_menu._run = original
+
+    assert seen[0]() is True
+
+
+
+def test_a_blank_row_separates_the_report_from_the_question_on_the_screen_below_it():
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    rows = []
+
+    def run(prompt):
+        app = prompt.application
+
+        def look(_app):
+            screen = app.renderer._last_screen
+            if screen is not None and not rows:
+                rows.extend(
+                    "".join(screen.data_buffer[y][x].char for x in range(40)).rstrip() for y in range(40)
+                )
+                typed.send_text("\r")
+
+        app.after_render += look
+        return prompt.unsafe_ask()
+
+    original = arrow_menu._run
+    arrow_menu._run = run
+    try:
+        with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
+            typed.send_text("\x1b[F")
+            arrow_menu.pick_one_below(
+                lambda console: console.print("the report"), "Which one?", [("a", "one")]
+            )
+    finally:
+        arrow_menu._run = original
+
+    at = next(i for i, row in enumerate(rows) if "Which one?" in row)
+    assert rows[at - 1] == ""
+    assert "the report" in rows[at - 2]
+
+
+def test_a_blank_row_separates_the_last_option_from_the_line_with_the_keys():
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    rows, drawn = [], []
+
+    def run(prompt):
+        app = prompt.application
+
+        def look(_app):
+            screen = app.renderer._last_screen
+            drawn.append(screen)
+            # The first drawing is of the start, where the menu is out of sight below the report.
+            if screen is not None and len(drawn) == 2 and not rows:
+                rows.extend(
+                    "".join(screen.data_buffer[y][x].char for x in range(60)).rstrip() for y in range(40)
+                )
+                typed.send_text("\r")
+
+        app.after_render += look
+        return prompt.unsafe_ask()
+
+    original = arrow_menu._run
+    arrow_menu._run = run
+    try:
+        with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
+            typed.send_text("\x1b[F")
+            arrow_menu.pick_one_below(
+                lambda console: [console.print(f"line {n}") for n in range(100)],
+                "Which one?", [("a", "one"), ("b", "two")],
+            )
+    finally:
+        arrow_menu._run = original
+
+    last = max(i for i, row in enumerate(rows) if row.strip().endswith("two"))
+    assert rows[last + 1] == ""
+    assert "Up/Down choose" in rows[last + 2]
