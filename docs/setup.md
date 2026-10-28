@@ -2,6 +2,16 @@
 
 What `setup.sh` does beyond installing, and the one setting the tool has.
 
+## Where the release copy lives
+
+`install.sh` unpacks the release into `~/.local/share/update-my-mac`, or under
+`XDG_DATA_HOME` when you have that set, and runs the `setup.sh` inside it.
+Running it again replaces that folder with the newest release; the old one is
+only removed after the new one has downloaded and unpacked. If the folder is a
+git clone, it stops and leaves it alone.
+
+To remove the tool, run `uv tool uninstall update-my-mac` and delete that folder.
+
 ## Choosing the command name
 
 The command is called `update` unless you choose otherwise, either at the

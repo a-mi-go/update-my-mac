@@ -12,6 +12,7 @@ A test fails when the two have come apart, so nobody has to remember.
 import pathlib
 import re
 import sys
+import textwrap
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROADMAP = REPO_ROOT / "docs" / "roadmap.md"
@@ -42,9 +43,11 @@ def names_in(table):
 
 
 def sentence_for(names):
-    listed = ", ".join(names)
+    listed = "\n".join(
+        textwrap.wrap(", ".join(names) + ".", width=120, break_long_words=False, break_on_hyphens=False)
+    )
     return (
-        f"{listed}.\n\n"
+        f"{listed}\n\n"
         "The commands and the open questions behind each of these are in the "
         "[roadmap](docs/roadmap.md).\n"
     )
