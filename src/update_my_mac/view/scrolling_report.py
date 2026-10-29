@@ -47,7 +47,7 @@ class ScrollingReport(UIControl):
         self._print_report = print_report
         self._lines = []
         self._width = None
-        self.show_line = lambda line: None
+        self.show_the_end = lambda: None
         self.report_starts_at = 0
 
     def _printed(self, print_to, width):
@@ -69,7 +69,7 @@ class ScrollingReport(UIControl):
             self._width = width
             self.report_starts_at = len(earlier)
             if first_time:
-                self.show_line(self.report_starts_at)
+                self.show_the_end()
         return self._lines
 
     def preferred_height(self, width, max_available_height, wrap_lines, get_line_prefix):
@@ -281,10 +281,10 @@ class Scrolling:
         self._report = report
         self._selection = selection
         selection.scroll_by = self.by
-        report.show_line = self._show_line
+        report.show_the_end = self._show_the_end
 
-    def _show_line(self, line):
-        self._pane.vertical_scroll = line
+    def _show_the_end(self):
+        self._pane.vertical_scroll = TO_THE_END
 
     def by(self, rows):
         self._selection.notice = ""

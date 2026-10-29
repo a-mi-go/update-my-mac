@@ -132,7 +132,7 @@ def pick_one(question, entries, note=""):
 def _select(question, entries, note):
     import questionary
 
-    return questionary.select(
+    prompt = questionary.select(
         question,
         choices=_choices(entries),
         pointer=POINTER,
@@ -141,6 +141,35 @@ def _select(question, entries, note):
         instruction=beside_the_question(note) if note else " ",
         # Without a question there is nothing for the mark to introduce.
         qmark=QMARK if question else "",
+    )
+    _highlight_styled_rows(prompt)
+    return prompt
+
+
+def _highlight_styled_rows(prompt):
+    """Makes the pointed row blue even when its label is styled pieces, which questionary leaves as they are."""
+    control = _menu_window(prompt).content
+    draw_rows = control._get_choice_tokens
+
+    def draw_with_pointed_row_blue():
+        tokens = []
+        row = 0
+        for style, text in draw_rows():
+            if row == control.pointed_at and not style.startswith(("class:", "[")):
+                style = f"class:highlighted {style}"
+            tokens.append((style, text))
+            row += text == "\n"
+        return tokens
+
+    control.text = draw_with_pointed_row_blue
+
+
+def _menu_window(prompt):
+    from questionary.prompts.common import InquirerControl
+
+    return next(
+        window for window in prompt.application.layout.find_all_windows()
+        if isinstance(window.content, InquirerControl)
     )
 
 
@@ -173,7 +202,6 @@ def pick_one_below(print_report, question, entries, note=""):
     from prompt_toolkit.key_binding import merge_key_bindings
     from prompt_toolkit.layout import HSplit, Layout, ScrollablePane, Window
     from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-    from questionary.prompts.common import InquirerControl
 
     from update_my_mac.view import scrolling_report
 
@@ -182,10 +210,7 @@ def pick_one_below(print_report, question, entries, note=""):
 
     app = prompt.application
     report = scrolling_report.ScrollingReport(print_report)
-    menu_window = next(
-        window for window in app.layout.find_all_windows()
-        if isinstance(window.content, InquirerControl)
-    )
+    menu = _menu_window(prompt)
     # Not keeping the menu in view, or the top of a long report could never be scrolled to.
     pane = ScrollablePane(
         HSplit([Window(report, dont_extend_height=True), Window(height=1), app.layout.container, Window(height=1)]),
@@ -203,7 +228,7 @@ def pick_one_below(print_report, question, entries, note=""):
     app.mouse_support = app.renderer.mouse_support = to_filter(True)
     app.layout = Layout(
         HSplit([pane, Window(FormattedTextControl(scrolling.status_line), height=1, dont_extend_height=True)]),
-        focused_element=menu_window,
+        focused_element=menu,
     )
     for window in app.layout.find_all_windows():
         if isinstance(window.content, (FormattedTextControl, BufferControl, scrolling_report.ScrollingReport)):
@@ -313,16 +338,13 @@ def _ask_twice_before_aborting(prompt, warn_in_menu=False, blank_line=False):
     from prompt_toolkit.keys import Keys
     from prompt_toolkit.layout import ConditionalContainer, Window
     from prompt_toolkit.layout.controls import FormattedTextControl
-    from questionary.prompts.common import InquirerControl
 
     app = prompt.application
     parts = app.layout.container.children if warn_in_menu else None
     if parts is not None:
         # The options would stretch over the free space below them, and a row
         # after them would end up at the bottom of the screen.
-        for window in app.layout.find_all_windows():
-            if isinstance(window.content, InquirerControl):
-                window.dont_extend_height = Always()
+        _menu_window(prompt).dont_extend_height = Always()
 
         if blank_line:
             parts.insert(1, ConditionalContainer(
@@ -380,10 +402,9 @@ def _shape_checkbox(prompt, ends_menu, confirm):
     from prompt_toolkit.keys import Keys
     from questionary import Separator
     from questionary.prompts import common
-    from questionary.prompts.common import InquirerControl
 
     app = prompt.application
-    rows = next(c for c in app.layout.find_all_controls() if isinstance(c, InquirerControl))
+    rows = _menu_window(prompt).content
     buttons = tuple(value for value in (*ends_menu, confirm) if value is not None)
     labels = {
         row.title for row in rows.choices

@@ -290,6 +290,15 @@ def test_what_belongs_above_a_menu_is_printed_before_the_numbered_options():
     assert terminal.lines[:3] == ["the report", "", "Which one?"]
 
 
+def test_a_ctrl_c_at_the_numbered_options_does_not_print_the_report_again():
+    terminal = Terminal()
+    step = terminal.answering(interrupting(INTERRUPT, "1"))
+
+    step.choose([("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report"))
+
+    assert terminal.lines.count("the report") == 1
+
+
 def test_on_a_screen_of_its_own_the_report_and_the_answer_are_printed_once_it_is_over(monkeypatch):
     terminal = Terminal()
     step = terminal.with_arrows()

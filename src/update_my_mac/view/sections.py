@@ -78,7 +78,7 @@ def of(findings):
     """Returns the sections that have rows, loudest first."""
     built = (
         _checks_that_failed(findings)
-        + _homebrew_cannot_update(findings)
+        + _blocking_brew_upgrade(findings)
         + _untracked_to_sort_out(findings)
         + _owned_by_someone_else(findings)
         + _installed_twice(findings)
@@ -221,8 +221,8 @@ def _not_restarted(findings):
     ]
 
 
-def _homebrew_cannot_update(findings):
-    items = to_sort_out.homebrew_cannot_update(findings)
+def _blocking_brew_upgrade(findings):
+    items = to_sort_out.blocking_brew_upgrade(findings)
     wrong = any(_is_wrong(item) for item in items)
     rows = [_row_for_homebrew_trouble(item) for item in items]
     return [Section(CRITICAL if wrong else WARNING, HOMEBREW_CANNOT_UPDATE, "", rows)]

@@ -129,8 +129,15 @@ def read_users_app_settings(bundle_id):
 
 
 def detect(app_path, info=None):
-    """Returns what the app's updater is and whether it is switched on."""
+    """Returns what the app's updater is and whether it is switched on, or none for a bundle it can't read."""
     info = read_bundle_info(app_path) if info is None else info
+    try:
+        return _detect_readable(app_path, info)
+    except OSError:
+        return UpdaterStatus()
+
+
+def _detect_readable(app_path, info):
     if not has_sparkle(app_path, info):
         return _other_updater(app_path, info)
 

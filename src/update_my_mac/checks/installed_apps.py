@@ -96,7 +96,10 @@ def belongs_to_macos(app_path):
 
 def comes_from_the_app_store(app_path):
     # mas covers these, and an App Store app always carries its receipt.
-    return (app_path / "Contents" / "_MASReceipt").exists()
+    try:
+        return (app_path / "Contents" / "_MASReceipt").exists()
+    except OSError:
+        return False
 
 
 def apps_installed_by_homebrew():

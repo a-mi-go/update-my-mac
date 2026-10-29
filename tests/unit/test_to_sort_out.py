@@ -110,7 +110,7 @@ def test_what_another_app_keeps_current_is_not_a_problem():
     assert concern(app("Docs", updater=shortcut)) is None
 
 
-def test_an_app_already_listed_with_what_homebrew_cannot_update_is_not_listed_again():
+def test_an_app_already_listed_with_what_blocks_brew_upgrade_is_not_listed_again():
     found = app("Google Drive")
     behind = behind_the_recipe.Behind(found, Cask("google-drive", "x", "133"), "132")
 
@@ -136,7 +136,7 @@ def test_what_apple_updates_is_not_offered_to_homebrew_to_handle():
         behind_the_recipe.Behind(other, Cask("firefox", "x", "158"), "157.0.1"),
     ])
 
-    assert [item.app.file_stem for item in to_sort_out.homebrew_cannot_update(findings)] == ["Firefox"]
+    assert [item.app.file_stem for item in to_sort_out.blocking_brew_upgrade(findings)] == ["Firefox"]
 
 
 def test_the_age_of_an_app_is_read_from_its_bundle(tmp_path):

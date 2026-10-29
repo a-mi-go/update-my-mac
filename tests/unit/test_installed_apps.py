@@ -56,6 +56,21 @@ def test_an_app_nobody_tracks_is_found(tmp_path):
     assert [(app.file_stem, app.version) for app in found] == [("TokenEater", "5.12.2")]
 
 
+def test_an_app_that_may_not_be_read_does_not_stop_the_others_being_found(tmp_path):
+    locked = make_app(tmp_path, "Locked") / "Contents"
+    make_app(tmp_path, "TokenEater", "5.12.2")
+    locked.chmod(0)
+
+    use_shell(FakeShell(casks=[]))
+    use_environment(env_for(tmp_path))
+    try:
+        found = installed_apps.find_untracked()
+    finally:
+        locked.chmod(0o755)
+
+    assert "TokenEater" in [app.file_stem for app in found]
+
+
 def test_an_app_store_app_is_left_out(tmp_path):
     make_app(tmp_path, "Xcode", from_app_store=True)
 

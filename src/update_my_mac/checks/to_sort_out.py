@@ -81,16 +81,25 @@ def untracked_to_sort_out(findings):
     return [app for app, _ in untracked_concerns(findings)]
 
 
-def homebrew_cannot_update(findings):
-    """Returns what Homebrew will not update by itself, the things that are wrong before the ones left behind."""
+def blocking_brew_upgrade(findings):
+    """Returns what `brew upgrade` skips or gets wrong until it is fixed, worst first."""
     behind = [item for item in findings.apps_behind if not _by_macos(item)]
+    recorded_at_a_false_version = [item for item in behind if item.false_version_recorded]
+    held_at_another_version = _flagged_as(findings, flagged.DIFFERS)
+    disabled = _flagged_as(findings, flagged.DISABLED)
+    installer_still_mounted = findings.mounted
+    replaced_outside_homebrew = [item for item in behind if not item.false_version_recorded]
     return [
-        *(item for item in behind if item.false_version_recorded),
-        *(item for item in findings.flagged if item.kind == flagged.DIFFERS),
-        *(item for item in findings.flagged if item.kind == flagged.DISABLED),
-        *findings.mounted,
-        *(item for item in behind if not item.false_version_recorded),
+        *recorded_at_a_false_version,
+        *held_at_another_version,
+        *disabled,
+        *installer_still_mounted,
+        *replaced_outside_homebrew,
     ]
+
+
+def _flagged_as(findings, kind):
+    return [item for item in findings.flagged if item.kind == kind]
 
 
 def _by_macos(item):

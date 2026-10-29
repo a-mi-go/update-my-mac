@@ -191,6 +191,22 @@ def test_print_above_leaves_the_screen_then_prints_what_ran_on_it_and_then_the_r
     assert text.index("\x1b[?1049l") < text.rindex("earlier output") < text.rindex("the report")
 
 
+def test_the_same_report_is_printed_above_only_once():
+    written = recording_console()
+
+    def report(console):
+        console.print("the report")
+
+    with output.full_screen():
+        output.console.print("earlier output")
+        output.print_above(report)
+        output.print_above(report)
+
+    text = written.getvalue()
+    assert text.count("the report") == 1
+    assert text.count("earlier output") == 2
+
+
 def test_a_run_switches_off_any_mouse_reporting_an_earlier_program_left_on():
     written = terminal()
 

@@ -52,28 +52,28 @@ def test_the_report_is_printed_again_at_the_width_it_is_given():
     assert widths == [40, 60]
 
 
-def test_what_ran_before_comes_first_and_the_screen_starts_at_the_report(monkeypatch):
-    shown_line = []
+def test_what_ran_before_comes_first_and_the_screen_starts_at_the_bottom(monkeypatch):
+    shown_the_end = []
     monkeypatch.setattr(
         scrolling_report.output, "replay", lambda console: console.print("earlier 1\nearlier 2")
     )
     report = ScrollingReport(numbered(2))
-    report.show_line = shown_line.append
+    report.show_the_end = lambda: shown_the_end.append(True)
 
     assert text_of(report.create_content(40, 5)) == ["earlier 1", "earlier 2", "line 0", "line 1"]
-    assert shown_line == [2]
+    assert shown_the_end == [True]
 
 
-def test_the_screen_is_put_at_the_report_only_when_it_is_first_drawn(monkeypatch):
-    shown_line = []
+def test_the_screen_is_put_at_the_bottom_only_when_it_is_first_drawn(monkeypatch):
+    shown_the_end = []
     monkeypatch.setattr(scrolling_report.output, "replay", lambda console: console.print("earlier"))
     report = ScrollingReport(numbered(2))
-    report.show_line = shown_line.append
+    report.show_the_end = lambda: shown_the_end.append(True)
 
     report.create_content(40, 5)
     report.create_content(60, 5)
 
-    assert shown_line == [1]
+    assert shown_the_end == [True]
 
 
 class Pane:
@@ -177,12 +177,12 @@ def test_scrolling_takes_the_note_about_a_copy_away():
     assert selection.notice == ""
 
 
-def test_the_pane_is_scrolled_to_the_line_the_report_starts_at():
+def test_the_pane_is_scrolled_to_the_end_when_the_report_asks():
     _, pane, report, _ = scrolling()
 
-    report.show_line(7)
+    report.show_the_end()
 
-    assert pane.vertical_scroll == 7
+    assert pane.vertical_scroll == scrolling_report.TO_THE_END
 
 
 class Screen:
@@ -320,6 +320,7 @@ def test_a_line_that_the_window_draws_a_prefix_before_can_be_selected_with_the_p
 
 def test_the_wheel_over_any_control_scrolls_the_pane(monkeypatch):
     screen = Screen(monkeypatch)
+    screen.pane.vertical_scroll = 0
 
     screen.event(MouseEventType.SCROLL_DOWN, 0, 0, control=1)
 

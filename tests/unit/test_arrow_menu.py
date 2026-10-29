@@ -798,21 +798,19 @@ def test_a_blank_row_separates_the_report_from_the_question_on_the_screen_below_
     assert "the report" in rows[at - 2]
 
 
-def test_a_blank_row_separates_the_last_option_from_the_line_with_the_keys():
+def first_screen_below_a_long_report():
     from prompt_toolkit.application import create_app_session
     from prompt_toolkit.input import create_pipe_input
     from prompt_toolkit.output import DummyOutput
 
-    rows, drawn = [], []
+    rows = []
 
     def run(prompt):
         app = prompt.application
 
         def look(_app):
             screen = app.renderer._last_screen
-            drawn.append(screen)
-            # The first drawing is of the start, where the menu is out of sight below the report.
-            if screen is not None and len(drawn) == 2 and not rows:
+            if screen is not None and not rows:
                 rows.extend(
                     "".join(screen.data_buffer[y][x].char for x in range(60)).rstrip() for y in range(40)
                 )
@@ -825,14 +823,37 @@ def test_a_blank_row_separates_the_last_option_from_the_line_with_the_keys():
     arrow_menu._run = run
     try:
         with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
-            typed.send_text("\x1b[F")
             arrow_menu.pick_one_below(
                 lambda console: [console.print(f"line {n}") for n in range(100)],
                 "Which one?", [("a", "one"), ("b", "two")],
             )
     finally:
         arrow_menu._run = original
+    return rows
+
+
+def test_a_long_report_starts_scrolled_to_the_menu_below_it():
+    rows = first_screen_below_a_long_report()
+
+    assert any("Which one?" in row for row in rows)
+    assert any(row.strip().endswith("two") for row in rows)
+    assert "line 99" in "\n".join(rows)
+
+
+def test_a_blank_row_separates_the_last_option_from_the_line_with_the_keys():
+    rows = first_screen_below_a_long_report()
 
     last = max(i for i, row in enumerate(rows) if row.strip().endswith("two"))
     assert rows[last + 1] == ""
     assert "Up/Down choose" in rows[last + 2]
+
+
+def test_pointed_row_with_styled_pieces_is_highlighted_and_others_are_not():
+    prompt = arrow_menu._select("Q", [("a", "plain"), ("b", arrow_menu.styled("[bold]styled[/]"))], "")
+    control = arrow_menu._menu_window(prompt).content
+
+    control.pointed_at = 1
+    assert ("class:highlighted bold", "styled") in control.text()
+
+    control.pointed_at = 0
+    assert ("bold", "styled") in control.text()

@@ -165,7 +165,7 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
         choices.append((WEBSITE, f"download and install manually from {vendor_site}"))
     choices.append((TRASH, f"move {app.display_name} to the Trash"))
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
-    choices.append((LATER, "leave it for now"))
+    choices.append((LATER, "next ⇥"))
     return walkthrough.options_for_single_item(choices, is_walkthrough)
 
 

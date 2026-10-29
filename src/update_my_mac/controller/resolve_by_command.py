@@ -91,7 +91,7 @@ def _walk_through(fixes, step):
 def _choices_for(fix, is_walkthrough):
     choices = [(fix.main, " ".join(fix.main.command))]
     choices += [(option, option.label or " ".join(option.command)) for option in fix.others]
-    return walkthrough.options_for_single_item(choices + [(LATER, "leave it for now")], is_walkthrough)
+    return walkthrough.options_for_single_item(choices + [(LATER, "next ⇥")], is_walkthrough)
 
 
 def _run_one(fix, option, step):

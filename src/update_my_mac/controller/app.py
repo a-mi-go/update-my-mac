@@ -232,7 +232,7 @@ def _issues(findings, decisions):
 
 
 def _homebrew_problem(findings):
-    items = to_sort_out.homebrew_cannot_update(findings)
+    items = to_sort_out.blocking_brew_upgrade(findings)
     if not items:
         return None
     caskroom = brew.caskroom() if findings.apps_behind else None

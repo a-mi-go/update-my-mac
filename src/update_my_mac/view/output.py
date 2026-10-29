@@ -34,6 +34,7 @@ MOUSE_REPORTING_OFF = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l"
 _in_full_screen = False
 _remembered = []
 _remembering = False
+_printed_above = None
 _decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 _unfinished_line = ""
 
@@ -67,10 +68,15 @@ def remember_command_output(data):
 
 
 def print_above(above):
-    """Leaves the screen of its own and prints what ran on it, then what `above` prints."""
+    """Leaves the screen of its own and prints what ran on it, then what `above` prints, once for each `above`."""
+    global _printed_above
+    if above is _printed_above:
+        return
     leave_full_screen()
     replay(console)
+    _remembered.clear()
     above(console)
+    _printed_above = above
 
 
 def in_full_screen():

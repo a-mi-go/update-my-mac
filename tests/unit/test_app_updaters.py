@@ -260,6 +260,18 @@ def test_a_web_app_chrome_made_is_updated_with_chrome(tmp_path):
     assert status.update_method_note() == "updated with Chrome"
 
 
+def test_an_app_with_a_folder_it_may_not_read_has_no_updater(tmp_path):
+    app = make_app(tmp_path, info={})
+    locked = app / "Contents" / "MacOS"
+    locked.mkdir()
+    locked.chmod(0)
+    use_shell(FakeShell())
+    try:
+        assert app_updaters.detect(app).kind == app_updaters.NONE
+    finally:
+        locked.chmod(0o755)
+
+
 def test_an_app_without_any_trace_of_an_updater_has_none(tmp_path):
     status = detected(tmp_path, {"CFBundleIdentifier": "com.example.thing"}, inside=["Frameworks/Other.framework"])
 
