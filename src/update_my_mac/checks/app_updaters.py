@@ -14,11 +14,11 @@ import urllib.parse
 from update_my_mac.system import shell
 
 SPARKLE = "sparkle"
-SQUIRREL = "squirrel"
-KEYSTONE = "keystone"
-OWN = "own"
+SQUIRREL = "Electron updater"
+KEYSTONE = "Google's updater"
+OWN = "its own updater"
 HOST_APP = "host app"
-NONE = "none"
+NONE = "none found"
 
 # What Google's updater writes into the apps it keeps current.
 KEYSTONE_KEYS = ("KSProductID", "KSUpdateURL", "KSChannelID")
@@ -57,22 +57,28 @@ class UpdaterStatus:
         """Returns whether an updater is there with nobody having said if it runs."""
         return self.kind != NONE and self.automatic is None
 
-    def update_method_note(self):
-        # Squirrel is told its feed and schedule while the app runs, so
-        # nothing on disk says whether it is on.
+    def how_it_updates(self):
+        """Returns in a few words which updater the app has and what it is set to do."""
         if self.kind != SPARKLE:
-            return OTHER_UPDATERS.get(self.kind) or f"updated with {self.updated_by}"
+            return self._describe_non_sparkle_updater()
+        setting, history = self._sparkle_setting(), self.history_note()
+        return f"{setting}, {history}" if history else setting
+
+    def _describe_non_sparkle_updater(self):
+        """Returns the updater's name, or the app that updates it."""
+        if self.kind == HOST_APP:
+            return f"updated with {self.updated_by}"
+        return self.kind
+
+    def _sparkle_setting(self):
         if self.automatic is None:
-            answer = "state unknown"
-        elif self.automatic:
-            answer = "installs updates" if self.installs_silently else "checks only"
-        else:
-            answer = "auto checking off"
-        history = self.history_note()
-        return f"{answer}, {history}" if history else answer
+            return "state unknown"
+        if not self.automatic:
+            return "auto checking off"
+        return "installs updates" if self.installs_silently else "checks only"
 
     def history_note(self):
-        """Returns when the updater last looked and which update was waved away."""
+        """Returns when the updater last checked for updates and which update was skipped."""
         parts = []
         if self.last_checked:
             parts.append(f"last checked {self.last_checked}")
@@ -98,7 +104,7 @@ def read_bundle_info(app_path):
 
 
 def has_sparkle(app_path, info):
-    """Returns whether the app ships Sparkle or names a Sparkle feed."""
+    """Returns whether the app ships the Sparkle updater or names a Sparkle feed."""
     framework = app_path / "Contents" / "Frameworks" / "Sparkle.framework"
     return framework.is_dir() or bool(info.get(FEED_URL))
 
@@ -139,7 +145,7 @@ def detect(app_path, info=None):
 
 def _detect_readable(app_path, info):
     if not has_sparkle(app_path, info):
-        return _other_updater(app_path, info)
+        return _detect_non_sparkle_updater(app_path, info)
 
     users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""))
     return UpdaterStatus(
@@ -152,15 +158,7 @@ def _detect_readable(app_path, info):
     )
 
 
-OTHER_UPDATERS = {
-    SQUIRREL: "Electron updater",
-    KEYSTONE: "Google's updater",
-    OWN: "its own updater",
-    NONE: "none found",
-}
-
-
-def _other_updater(app_path, info):
+def _detect_non_sparkle_updater(app_path, info):
     """Returns the updater an app without Sparkle ships, judged by the traces it leaves in the bundle."""
     contents = app_path / "Contents"
     bundle_id = info.get("CFBundleIdentifier", "")

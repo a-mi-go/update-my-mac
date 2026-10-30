@@ -131,7 +131,7 @@ def _own_updater_note(updater):
     """Returns what the app's own updater is doing, where it has one."""
     if updater.kind == app_updaters.NONE:
         return ""
-    return updater.update_method_note()
+    return updater.how_it_updates()
 
 
 def _homebrew_outdated(findings):

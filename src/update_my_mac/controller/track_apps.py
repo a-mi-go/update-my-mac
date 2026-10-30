@@ -171,18 +171,18 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
 
 def _what_is_known(app, cask, answer):
     """Everything this Mac has to say about an app, before the options."""
-    told = []
+    known = []
     standing = adopting.homebrew_note(app, cask)
     if standing:
-        told.append(standing)
+        known.append(standing)
 
-    told.append(f"Built-in updater: {app.updater.update_method_note()}.")
+    known.append(f"Built-in updater: {app.updater.how_it_updates()}.")
 
     if appcast.offers_newer(app, answer):
-        told.append(f"Update source offers {answer.version}.")
+        known.append(f"Update source offers {answer.version}.")
     if answer.error:
-        told.append(f"But {answer.error}.")
-    return ' '.join(told)
+        known.append(f"But {answer.error}.")
+    return ' '.join(known)
 
 
 def _ask_the_app_itself(app, step):
