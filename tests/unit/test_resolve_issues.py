@@ -207,3 +207,58 @@ def test_the_menu_comes_back_after_a_line_but_does_not_open_with_one():
     )[1:3]
     assert prompting.SEPARATOR_CHARACTER not in terminal.text.split("1) ")[0]
     assert prompting.SEPARATOR_CHARACTER in first
+
+
+def test_the_report_is_printed_above_the_first_menu_only():
+    shown = []
+    terminal = Terminal("1", "3")
+
+    resolve_issues.ask_what_to_fix(
+        [problem("apps")], terminal.step, above=lambda console: shown.append("report")
+    )
+
+    assert shown == ["report"]
+
+
+def test_the_report_is_printed_even_when_there_is_nothing_to_ask():
+    shown = []
+
+    resolve_issues.ask_what_to_fix(
+        [], Terminal().step, above=lambda console: shown.append("report")
+    )
+
+    assert shown == ["report"]
+
+
+class Updates:
+    def __init__(self, *counts):
+        self.counts = list(counts)
+        self.changed = 0
+
+    def count(self):
+        return self.counts[0]
+
+    def something_changed(self):
+        self.changed += 1
+        self.counts.pop(0)
+
+
+def test_the_way_out_says_how_many_updates_the_next_menu_offers_and_follows_a_fix():
+    terminal = Terminal("1", "3")
+    updates = Updates(5, 3)
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=updates)
+
+    way_out = [line for line in terminal.lines if "take care of that later" in line]
+    assert "update (5)!" in way_out[0]
+    assert "update (3)!" in way_out[1]
+    assert updates.changed == 1
+
+
+def test_a_step_that_dealt_with_nothing_leaves_the_count_alone():
+    terminal = Terminal("1", "3")
+    updates = Updates(5)
+
+    resolve_issues.ask_what_to_fix([problem("apps", count=0)], terminal.step, updates=updates)
+
+    assert updates.changed == 0

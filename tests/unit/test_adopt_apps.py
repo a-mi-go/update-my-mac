@@ -137,6 +137,18 @@ def test_homebrew_writing_down_a_version_it_did_not_install_is_caught(tmp_path):
     assert "brew reinstall --cask betterdisplay" in message
 
 
+def test_a_browsers_own_numbering_is_not_taken_for_a_version_that_was_never_installed(tmp_path):
+    app = bundle(tmp_path, "Brave Browser", "156.1.98.60")
+    cask = Cask("brave-browser", "https://brave.com/", "1.98.60.0")
+    shell = BrewShell("brave-browser 1.98.60.0")
+
+    use_shell(shell)
+    taken, message = adopting.hand_to_homebrew(app, cask)
+    assert taken
+    assert "wrote down" not in message
+    assert shell.streamed == [["/fake/brew", "install", "--cask", "brave-browser", "--adopt"]]
+
+
 def test_a_build_number_after_the_comma_is_not_a_difference(tmp_path):
     app = bundle(tmp_path, "Docker", "4.92.0")
     cask = Cask("docker-desktop", "https://docker.com/", "4.92.0,240144")

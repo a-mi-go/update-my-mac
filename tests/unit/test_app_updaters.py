@@ -42,7 +42,7 @@ def test_an_app_without_sparkle_has_no_updater(tmp_path):
     use_shell(FakeShell())
     status = app_updaters.detect(app)
     assert status.kind == app_updaters.NONE
-    assert status.update_method_note() == "none found"
+    assert status.how_it_updates() == "none found"
 
 
 def test_the_framework_alone_counts_as_an_updater(tmp_path):
@@ -60,14 +60,14 @@ def test_a_feed_alone_counts_as_an_updater(tmp_path):
     assert app_updaters.detect(app).kind == app_updaters.SPARKLE
 
 
-def test_an_updater_nobody_answered_for_is_unclear(tmp_path):
+def test_an_updater_nobody_answered_for_still_looks_after_the_app(tmp_path):
     app = make_app(tmp_path, info={"SUFeedURL": "https://example.com/a.xml"}, with_sparkle=True)
 
     use_shell(FakeShell())
     status = app_updaters.detect(app)
     assert status.is_unclear
-    assert not status.looks_after_itself
-    assert status.update_method_note() == "state unknown"
+    assert status.looks_after_itself
+    assert status.how_it_updates() == "state unknown"
 
 
 def test_what_the_developer_shipped_counts_when_nobody_answered(tmp_path):
@@ -96,7 +96,7 @@ def test_the_users_answer_beats_the_shipped_default(tmp_path):
     use_shell(shell)
     status = app_updaters.detect(app)
     assert status.is_switched_off
-    assert status.update_method_note() == "auto checking off"
+    assert status.how_it_updates() == "auto checking off"
 
 
 def test_silent_installing_is_said_differently(tmp_path):
@@ -108,7 +108,7 @@ def test_silent_installing_is_said_differently(tmp_path):
     shell = FakeShell({"SUEnableAutomaticChecks": True, "SUAutomaticallyUpdate": True})
 
     use_shell(shell)
-    assert app_updaters.detect(app).update_method_note() == "installs updates"
+    assert app_updaters.detect(app).how_it_updates() == "installs updates"
 
 
 def test_the_last_check_is_shown_as_a_day(tmp_path):
@@ -125,7 +125,7 @@ def test_the_last_check_is_shown_as_a_day(tmp_path):
     )
 
     use_shell(shell)
-    assert "last checked 2026-09-24" in app_updaters.detect(app).update_method_note()
+    assert "last checked 2026-09-24" in app_updaters.detect(app).how_it_updates()
 
 
 def test_an_app_without_a_readable_plist_has_no_updater(tmp_path):
@@ -196,7 +196,7 @@ def test_a_skipped_update_is_part_of_what_the_updater_note_says(tmp_path):
     status = app_updaters.detect(app)
 
     assert status.skipped == "317"
-    assert status.update_method_note() == "auto checking off, skipped version 317"
+    assert status.how_it_updates() == "auto checking off, skipped version 317"
     assert status.history_note() == "skipped version 317"
 
 
@@ -211,4 +211,70 @@ def test_no_skipped_update_adds_nothing(tmp_path):
     status = app_updaters.detect(app)
 
     assert status.skipped == ""
-    assert "skipped" not in status.update_method_note()
+    assert "skipped" not in status.how_it_updates()
+
+
+def detected(tmp_path, info=None, inside=()):
+    app = make_app(tmp_path, info=info or {})
+    for place in inside:
+        target = app / "Contents" / place
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if place.endswith(".yml"):
+            target.write_text("provider: github\n")
+        else:
+            target.mkdir()
+    use_shell(FakeShell())
+    return app_updaters.detect(app)
+
+
+def test_googles_updater_is_found_by_what_it_writes_into_the_app(tmp_path):
+    status = detected(tmp_path, {"KSProductID": "com.google.Chrome"})
+
+    assert status.kind == app_updaters.KEYSTONE
+    assert status.looks_after_itself
+    assert status.how_it_updates() == "Google's updater"
+
+
+def test_an_updater_shipped_as_a_program_of_its_own_is_found(tmp_path):
+    assert detected(tmp_path, inside=["MacOS/updater.app"]).kind == app_updaters.OWN
+
+
+def test_an_updater_of_the_vendors_own_is_found_by_its_name(tmp_path):
+    assert detected(tmp_path, inside=["Frameworks/ZoomAutoUpdater.app"]).kind == app_updaters.OWN
+
+
+def test_electrons_other_updater_is_found_by_its_settings_file(tmp_path):
+    assert detected(tmp_path, inside=["Resources/app-update.yml"]).kind == app_updaters.OWN
+
+
+def test_a_shortcut_google_drive_installs_is_updated_with_google_drive(tmp_path):
+    status = detected(tmp_path, {"CFBundleIdentifier": "com.google.drivefs.shortcuts.docs"})
+
+    assert status.kind == app_updaters.HOST_APP
+    assert status.how_it_updates() == "updated with Google Drive"
+
+
+def test_a_web_app_chrome_made_is_updated_with_chrome(tmp_path):
+    status = detected(tmp_path, {"CrAppModeShortcutID": "abc"})
+
+    assert status.how_it_updates() == "updated with Chrome"
+
+
+def test_an_app_with_a_folder_it_may_not_read_has_no_updater(tmp_path):
+    app = make_app(tmp_path, info={})
+    locked = app / "Contents" / "MacOS"
+    locked.mkdir()
+    locked.chmod(0)
+    use_shell(FakeShell())
+    try:
+        assert app_updaters.detect(app).kind == app_updaters.NONE
+    finally:
+        locked.chmod(0o755)
+
+
+def test_an_app_without_any_trace_of_an_updater_has_none(tmp_path):
+    status = detected(tmp_path, {"CFBundleIdentifier": "com.example.thing"}, inside=["Frameworks/Other.framework"])
+
+    assert status.kind == app_updaters.NONE
+    assert not status.looks_after_itself
+

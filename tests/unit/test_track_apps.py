@@ -28,11 +28,11 @@ def decisions_in(tmp_path):
     # question is skipped and the first answer is already about the first app.
 
 
-ADOPT_ALL, DECIDE_AFTER_ADOPT_ALL = "1", "2"
-# Inside the walk-through, for an app Homebrew cannot take over.
-IGNORE, LATER, CANCEL = "1", "2", "3"
-# And for one it can, where "add to Homebrew" takes the first place.
-ADOPT, IGNORE_AFTER_ADOPT = "1", "2"
+ADOPT_ALL = "1"
+# Inside the walk-through, after the app can be opened to check and moved to the Trash.
+IGNORE, LATER, CANCEL = "3", "4", "5"
+# And for one Homebrew can take over, where "add to Homebrew" takes the first place.
+ADOPT, IGNORE_AFTER_ADOPT, LATER_AFTER_ADOPT = "1", "4", "5"
 
 
 # The apps here are 1.0, and Homebrew can only take over the version its
@@ -309,7 +309,7 @@ def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
 def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
     decisions = decisions_in(tmp_path)
     # Adopting it did not work, so the same app is asked about again.
-    terminal = Terminal(DECIDE_AFTER_ADOPT_ALL, ADOPT, IGNORE_AFTER_ADOPT)
+    terminal = Terminal(ADOPT, IGNORE_AFTER_ADOPT)
 
     swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
@@ -320,7 +320,7 @@ def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
 
 
 def test_the_menu_says_which_cask_would_take_the_app(tmp_path):
-    terminal = Terminal(DECIDE_AFTER_ADOPT_ALL, "4")
+    terminal = Terminal(LATER_AFTER_ADOPT)
 
     swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("BetterDisplay")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
@@ -389,8 +389,9 @@ def test_an_app_with_no_recipe_counts_as_neither():
     # two places further down than an app with neither.
 
 
-START_IT, LATER_AFTER_START = "1", "4"
-LATER_AFTER_SITE = "3"
+START_IT, LATER_AFTER_START = "1", "5"
+# Without the first option, which an app whose feed is gone is not offered.
+LATER_AFTER_SITE = "4"
 
 
 def sparkle_app(name="Dockish", version="1.1", feed="https://appish.app/appcast.xml"):
@@ -409,7 +410,7 @@ def test_an_app_with_an_updater_can_be_asked_to_update_itself(tmp_path):
     swap(track_apps.shell, "open_application", lambda path: started.append(path) or True)
     track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
 
-    assert f"1) {BULLET}open Dockish and let it update itself" in terminal.text
+    assert f"1) {BULLET}open Dockish and check for updates there" in terminal.text
     assert started == [Path("/Applications/Dockish.app")]
     # Starting it settles nothing, so the same app is asked about again.
     assert f"2) {BULLET}download and install manually" in terminal.text
@@ -424,13 +425,13 @@ def test_an_app_that_will_not_start_says_so(tmp_path):
     assert "would not start" in terminal.text
 
 
-def test_an_app_with_no_updater_is_not_offered_to_be_started(tmp_path):
+def test_an_app_without_a_known_updater_can_still_be_opened_to_check_for_updates(tmp_path):
     terminal = Terminal(LATER)
 
     swap(track_apps.shell, "open_application", lambda path: True)
     track_apps.ask_what_to_do([app("Evoto")], decisions_in(tmp_path), terminal.step)
 
-    assert "let it update itself" not in terminal.text
+    assert f"1) {BULLET}open Evoto and check for updates there" in terminal.text
 
 
 def test_an_app_whose_feed_is_gone_is_not_told_to_ask_it(tmp_path):
@@ -441,13 +442,13 @@ def test_an_app_whose_feed_is_gone_is_not_told_to_ask_it(tmp_path):
     swap(track_apps.shell, "open_application", lambda path: True)
     track_apps.ask_what_to_do([sparkle_app(feed=feed)], decisions_in(tmp_path), terminal.step, offered={feed: appcast.FeedAnswer(error="update source answers 403")})
 
-    assert "let it update itself" not in terminal.text
+    assert "check for updates there" not in terminal.text
     assert "But update source answers 403." in terminal.text
 
 
 def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
     feed = "https://appish.app/appcast.xml"
-    terminal = Terminal(LATER_AFTER_SITE)
+    terminal = Terminal(LATER_AFTER_START)
 
     track_apps.ask_what_to_do(
         [sparkle_app(feed=feed)],
@@ -459,82 +460,10 @@ def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
     assert "Update source offers 1.2.5." in terminal.text
 
 
-def self_updating(name="Codex", version="26.831.21537"):
-    return InstalledApp(
-        name,
-        version,
-        Path(f"/Applications/{name}.app"),
-        UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
-    )
-
-
-def test_an_app_that_keeps_itself_ahead_of_its_recipe_is_no_problem():
-    # Codex updates itself and has run ahead of the cask. Offering to hand it
-    # over would only put an older build back, so it is not mentioned at all.
-    behind_it = cask(token="codex-app", version="26.623.141536")
-
-    assert not track_apps.worth_sorting_out(self_updating(), behind_it)
-
-
-def test_an_app_that_looks_after_itself_and_has_nothing_pending_is_no_problem():
-    assert not track_apps.worth_sorting_out(
-        self_updating("uTorrent Web", "1.6.0"), None
-    )
-    assert not track_apps.worth_sorting_out(
-        self_updating("uTorrent Web", "1.6.0"),
-        None,
-        appcast.FeedAnswer(version="1.6.0"),
-    )
-
-
-def test_a_recipe_matching_the_build_rather_than_the_short_version_is_no_problem():
-    # Dockish says 6.2 for itself and carries 6.2.1 as its build, which is the
-    # version the recipe names.
-    on_disk = InstalledApp(
-        "Dockish",
-        "6.2",
-        Path("/Applications/Dockish.app"),
-        UpdaterStatus(app_updaters.SPARKLE, True, True, "2026-09-23", ""),
-        build="6.2.1",
-    )
-
-    assert not track_apps.worth_sorting_out(on_disk, cask(version="6.2.1"))
-
-
-def test_an_app_whose_own_feed_offers_more_than_it_installed_is_a_problem():
-    # Dockish says it checks by itself, sits on 1.1, and its feed has 1.2.5.
-    # Whatever it is doing, it is not updating itself.
-    pending = appcast.FeedAnswer(version="1.2.5")
-
-    assert track_apps.worth_sorting_out(self_updating("Dockish", "1.1"), None, pending)
-
-
-def test_an_app_whose_feed_stopped_answering_is_a_problem():
-    broken = appcast.FeedAnswer(error="update source answers 403")
-
-    assert track_apps.worth_sorting_out(
-        self_updating("Air", "262.579.44"), None, broken
-    )
-
-
-def test_an_app_that_does_not_update_itself_is_still_worth_asking_about():
-    quiet = app("Codex", "26.831.21537")
-    behind_it = cask(token="codex-app", version="26.623.141536")
-
-    assert track_apps.worth_sorting_out(quiet, behind_it)
-
-
-def test_a_self_updating_app_its_recipe_leads_is_still_worth_asking_about():
-    # The recipe knowing a newer version is evidence it stopped keeping up.
-    ahead = cask(token="codex-app", version="26.999.1")
-
-    assert track_apps.worth_sorting_out(self_updating(), ahead)
-
-
 def test_one_app_has_no_walk_through_to_cancel(tmp_path):
     swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
     ask = lambda apps, terminal: track_apps.ask_what_to_do(apps, decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
-    one, two = Terminal("2"), Terminal("2", "2", "2")
+    one, two = Terminal(LATER), Terminal(LATER, LATER, LATER)
 
     ask([app("A")], one)
     ask([app("A"), app("B")], two)
@@ -553,3 +482,40 @@ def test_an_app_left_alone_is_remembered_even_if_the_run_is_interrupted_after(tm
         )
 
     assert decisions_in(tmp_path).ignored_names() == ["First"]
+
+
+TRASH = "2"
+
+
+def test_moving_an_app_to_the_trash_asks_first_and_settles_the_app(tmp_path):
+    trashed = []
+    swap(track_apps.shell, "move_to_trash", lambda path: trashed.append(path) or True)
+    terminal = Terminal(TRASH, "1")
+
+    dealt_with = track_apps.ask_what_to_do([app("Juice")], decisions_in(tmp_path), terminal.step)
+
+    assert trashed == [Path("/Applications/Juice.app")]
+    assert [found.file_stem for found in dealt_with] == ["Juice"]
+    assert "Juice is in the Trash." in terminal.text
+
+
+def test_saying_no_to_the_trash_leaves_the_app_asked_about_again(tmp_path):
+    trashed = []
+    swap(track_apps.shell, "move_to_trash", lambda path: trashed.append(path) or True)
+    terminal = Terminal(TRASH, "2", LATER)
+
+    dealt_with = track_apps.ask_what_to_do([app("Juice")], decisions_in(tmp_path), terminal.step)
+
+    assert trashed == []
+    assert dealt_with == []
+
+
+def test_an_app_that_could_not_be_moved_says_so_and_is_asked_about_again(tmp_path):
+    swap(track_apps.shell, "move_to_trash", lambda path: False)
+    terminal = Terminal(TRASH, "1", LATER)
+
+    dealt_with = track_apps.ask_what_to_do([app("Juice")], decisions_in(tmp_path), terminal.step)
+
+    assert "Could not move Juice to the Trash." in terminal.text
+    assert dealt_with == []
+

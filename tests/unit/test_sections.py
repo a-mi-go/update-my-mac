@@ -5,7 +5,10 @@ from pathlib import Path
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
+from update_my_mac.checks import running_apps
 from update_my_mac.managers.homebrew import behind_the_recipe
+from update_my_mac.checks import to_sort_out
+from update_my_mac.managers.homebrew import flagged
 from update_my_mac.view import sections
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.managers.homebrew.casks import Cask
@@ -39,6 +42,10 @@ def find(title, found):
     return next(section for section in found if section.title == title)
 
 
+FIX = sections.HOMEBREW_CANNOT_UPDATE
+UNTRACKED = sections.UNTRACKED
+
+
 def test_nothing_found_means_no_sections():
     assert sections.of(Findings()) == []
 
@@ -61,23 +68,22 @@ def test_a_manager_that_failed_both_questions_is_named_once():
     assert find("Checks that could not run", found).count == 1
 
 
-def test_homebrew_packages_and_apps_behind_the_recipe_share_one_section():
+def test_apps_behind_the_recipe_are_not_counted_with_what_homebrew_upgrades_by_itself():
     found = sections.of(Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
         apps_behind=[behind()],
     ))
 
-    homebrew = find("Homebrew", found)
-    assert [row.name for row in homebrew.rows] == ["git", "BetterDisplay"]
-    assert homebrew.rows[1].note == "needs --greedy"
+    assert [row.name for row in find("Homebrew", found).rows] == ["git"]
+    assert [(row.name, row.note) for row in find(FIX, found).rows] == [("BetterDisplay", "needs --greedy")]
 
 
-def test_a_version_homebrew_never_installed_is_louder_than_an_upgrade():
+def test_a_version_homebrew_never_installed_makes_its_group_loud():
     found = sections.of(Findings(apps_behind=[behind(recorded="5.0.6")]))
 
-    written_down = find("Need action to update", found)
-    assert written_down.level == sections.CRITICAL
-    assert written_down.rows[0].note == ""
+    fix = find(FIX, found)
+    assert fix.level == sections.CRITICAL
+    assert fix.rows[0].note == "version recorded wrongly"
     assert "Homebrew" not in titles(found)
 
 
@@ -85,9 +91,15 @@ def test_an_app_with_a_false_record_says_what_its_own_updater_does():
     switched_off = sparkle(automatic=False)
     found = sections.of(Findings(apps_behind=[behind(recorded="5.0.6", updater=switched_off)]))
 
-    written_down = find("Need action to update", found)
-    assert written_down.rows[0].note == "auto checking off, last checked 2026-08-16"
-    assert written_down.note == "fix issues or update manually"
+    assert find(FIX, found).rows[0].note == (
+        "version recorded wrongly · auto checking off, last checked 2026-08-16"
+    )
+
+
+def test_an_app_only_left_behind_by_homebrew_is_not_loud():
+    found = sections.of(Findings(apps_behind=[behind()]))
+
+    assert find(FIX, found).level == sections.WARNING
 
 
 def test_every_other_manager_gets_its_own_section():
@@ -105,41 +117,54 @@ def test_a_doubled_command_counts_once_although_it_takes_two_rows():
         Copy("npm (global)", Path("/b"), "@openai/codex", (), "0.157.1"),
     ])
 
-    twice = find("Installed twice", sections.of(Findings(doubled=[doubled])))
+    twice = find(sections.INSTALLED_TWICE, sections.of(Findings(doubled=[doubled])))
 
     assert twice.count == 1
     assert len(twice.rows) == 2
 
 
-def test_an_app_whose_feed_is_quiet_is_not_also_called_self_updating():
+def test_an_app_whose_feed_is_quiet_makes_the_untracked_group_loud():
     feed = "https://x.test/appcast.xml"
     found = sections.of(Findings(
         untracked=[app("Air", "1.0", sparkle(feed=feed))],
         offered={feed: appcast.FeedAnswer(error="update source answers 403")},
     ))
 
-    assert titles(found) == ["Update source not answering"]
+    assert titles(found) == [UNTRACKED]
+    assert find(UNTRACKED, found).level == sections.CRITICAL
+    assert find(UNTRACKED, found).rows[0].note == "update source answers 403, last checked 2026-08-16"
 
 
-def test_an_app_that_looks_after_itself_is_only_information():
+def test_an_app_whose_feed_offers_more_than_it_installed_says_which_version_is_out():
     feed = "https://x.test/appcast.xml"
     found = sections.of(Findings(
         untracked=[app("Dockish", "1.1", sparkle(feed=feed))],
         offered={feed: appcast.FeedAnswer(version="1.2.5")},
     ))
 
-    section = find("Apps that update themselves", found)
-    assert section.level == sections.INFO
-    assert section.rows[0].version == "1.1 → 1.2.5"
+    row = find(UNTRACKED, found).rows[0]
+    assert row.version == "1.1 → 1.2.5"
+    assert row.note == "1.2.5 is out"
 
 
-def test_an_app_with_a_recipe_says_which_one():
+def test_an_app_whose_feed_says_it_is_current_is_not_in_the_report():
+    feed = "https://x.test/appcast.xml"
     found = sections.of(Findings(
-        untracked=[app("BetterDisplay", "5.0.6")],
+        untracked=[app("Dockish", "1.2", sparkle(feed=feed))],
+        offered={feed: appcast.FeedAnswer(version="1.2")},
+    ))
+
+    assert found == []
+
+
+def test_the_recipe_that_could_take_an_app_over_is_not_named_when_the_app_is_behind_it():
+    found = sections.of(Findings(
+        untracked=[app("BetterDisplay", "5.0.5")],
         find_cask=lambda a: Cask("betterdisplay", "https://x.test/", "5.0.6"),
     ))
 
-    assert find("Untracked apps", found).rows[0].note == "cask betterdisplay"
+    row = find(UNTRACKED, found).rows[0]
+    assert (row.version, row.note) == ("5.0.5 → 5.0.6", "Homebrew has 5.0.6")
 
 
 def test_the_managers_that_answered_and_had_nothing_to_say_are_named():
@@ -152,44 +177,27 @@ def test_the_managers_that_answered_and_had_nothing_to_say_are_named():
     assert sections.clean_managers(findings) == ["Homebrew"]
 
 
-def test_what_needs_you_is_counted_apart_from_what_can_wait():
+def test_each_part_of_the_report_is_counted_apart():
     found = sections.of(Findings(
         reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])],
         untracked=[app("Evoto", "7.1.5")],
+        flagged=[flagged.Flagged("old", flagged.DEPRECATED, installed="1")],
     ))
 
-    assert sections.count_findings(found) == (1, 1)
+    assert sections.count_findings(found) == (1, 1, 1)
 
 
-def test_an_updater_that_is_switched_off_is_not_the_same_as_none():
+def test_an_untracked_app_says_whether_its_updater_is_off_or_that_nothing_can_check_it(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: None)
     found = sections.of(Findings(untracked=[
         app("Off", "1.0", sparkle(automatic=False, feed="")),
         app("Nothing", "1.0"),
     ]))
 
-    assert "Built-in updater switched off" in titles(found)
-    assert find("Built-in updater switched off", found).rows[0].name == "Off"
-    assert find("Untracked apps", found).rows[0].name == "Nothing"
-
-
-def test_an_updater_nobody_answered_for_gets_its_own_line():
-    found = sections.of(Findings(untracked=[
-        app("Unanswered", "1.0", sparkle(automatic=None, feed="")),
-    ]))
-
-    section = find("Built-in updater, state unknown", found)
-    assert section.rows[0].note == "last checked 2026-08-16"
-
-
-def test_an_electron_app_is_not_counted_as_having_nothing():
-    # Exodus ships Squirrel and keeps itself current, and was listed under
-    # "nobody checks these" because only Sparkle was ever looked for.
-    electron = UpdaterStatus(app_updaters.SQUIRREL)
-    found = sections.of(Findings(untracked=[app("Exodus", "24.33.4", electron)]))
-
-    section = find("Built-in updater, state unknown", found)
-    assert section.rows[0].name == "Exodus"
-    assert "Untracked apps" not in titles(found)
+    assert [(row.name, row.note) for row in find(UNTRACKED, found).rows] == [
+        ("Off", "updater off, last checked 2026-08-16"),
+        ("Nothing", "can't check for updates"),
+    ]
 
 
 def test_a_count_says_what_it_counts_where_the_title_does_not():
@@ -205,10 +213,10 @@ def test_a_count_says_what_it_counts_where_the_title_does_not():
 def test_a_title_that_already_names_the_thing_only_gets_the_number():
     found = sections.of(Findings(untracked=[app("Evoto", "7.1.5")]))
 
-    assert find("Untracked apps", found).counted() == "1"
+    assert find(UNTRACKED, found).counted() == "1"
 
 
-def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
+def test_what_homebrew_holds_wrongly_is_put_right_with_the_rest_and_its_doubts_are_only_worth_knowing():
     from update_my_mac.managers.homebrew import flagged, mounted_downloads
 
     found = sections.of(Findings(
@@ -221,24 +229,138 @@ def test_what_homebrew_has_doubts_about_is_split_by_how_loud_it_should_be():
         mounted=[mounted_downloads.MountedImage(Path("/c/downloads/ab--charles.dmg"), "/dev/disk8")],
     ))
 
-    assert find("Different from Homebrew's recipe", found).level == sections.CRITICAL
-    assert find("Different from Homebrew's recipe", found).rows[0].cells() == (
-        "tap/clerk", "64 → 3.4.1", "versions cannot be compared")
-    assert find("Disabled in Homebrew", found).level == sections.WARNING
-    assert find("Deprecated in Homebrew", found).level == sections.INFO
-    assert find("Downloads still attached", found).rows[0].name == "charles.dmg"
+    fix = find(FIX, found)
+    assert fix.level == sections.CRITICAL
+    assert [row.cells() for row in fix.rows] == [
+        ("tap/clerk", "64 → 3.4.1", "differs from the recipe"),
+        ("google-trends", "1.0", "disabled, fails gatekeeper check since 2026-10-12"),
+        ("charles.dmg", "", "download still attached"),
+    ]
+    assert find(sections.DEPRECATED, found).rows[0].cells() == ("old", "1", "still works, expect no more updates")
 
 
-def test_the_report_names_an_app_by_what_it_calls_itself():
-    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), UpdaterStatus(),
-                         display_name="iTerm2")
+def test_an_app_owned_by_another_user_is_its_own_loud_group():
+    found = sections.of(Findings(foreign=[Path("/Applications/Zoom.app")]))
+
+    taken = find(sections.OWNED_BY_ANOTHER_USER, found)
+    assert taken.level == sections.CRITICAL
+    assert taken.rows[0].cells() == ("Zoom.app", "", "belongs to another user")
+
+
+def test_what_needs_attention_comes_before_the_updates_and_the_info_and_within_a_part_the_loudest_first():
     found = sections.of(Findings(
-        untracked=[iterm],
-        apps_behind=[behind_the_recipe.Behind(
-            iterm, Cask("iterm2", "https://x.test/", "3.6"), "3.5", UpdaterStatus()
-        )],
+        reports=[ManagerReport("brew", "Homebrew", ["git  1 → 2"])],
+        untracked=[app("Evoto", "7.1.5")],
+        foreign=[Path("/Applications/Zoom.app")],
+        flagged=[flagged.Flagged("old", flagged.DEPRECATED, installed="1")],
     ))
 
-    names = [row.name for section in found for row in section.rows]
+    assert titles(found) == [
+        sections.OWNED_BY_ANOTHER_USER, UNTRACKED, "Homebrew", sections.DEPRECATED,
+    ]
 
-    assert names == ["iTerm2", "iTerm2"]
+
+def test_every_group_says_which_part_of_the_report_it_belongs_to():
+    found = sections.of(Findings(
+        reports=[ManagerReport("brew", "Homebrew", ["git  1 → 2"])],
+        untracked=[app("Evoto", "7.1.5")],
+        flagged=[flagged.Flagged("old", flagged.DEPRECATED, installed="1")],
+    ))
+
+    assert [(section.title, section.part) for section in found] == [
+        (UNTRACKED, sections.NEED_ATTENTION),
+        ("Homebrew", sections.UPDATES_AVAILABLE),
+        (sections.DEPRECATED, sections.INFO_ONLY),
+    ]
+
+
+def test_an_app_that_another_app_keeps_current_is_not_in_the_report():
+    shortcut = UpdaterStatus(app_updaters.HOST_APP, updated_by="Google Drive")
+
+    assert sections.of(Findings(untracked=[app("Docs", "1.0", shortcut)])) == []
+
+
+def test_a_homebrew_name_is_shown_without_the_tap_it_comes_from():
+    found = sections.of(Findings(reports=[ManagerReport("brew", "Homebrew", [
+        "anomalyco/tap/opencode  2.0.30 → 2.0.32",
+    ])]))
+
+    assert find("Homebrew", found).rows[0].name == "opencode"
+
+
+def test_two_packages_whose_short_names_are_the_same_keep_their_full_names():
+    found = sections.of(Findings(reports=[ManagerReport("brew", "Homebrew", [
+        "one/tap/tool  1 → 2", "two/tap/tool  1 → 2",
+    ])]))
+
+    assert [row.name for row in find("Homebrew", found).rows] == ["one/tap/tool", "two/tap/tool"]
+
+
+def test_a_scoped_npm_name_is_left_whole():
+    found = sections.of(Findings(reports=[ManagerReport("npm", "npm (global)", ["@openai/codex  1 → 2"])]))
+
+    assert find("npm (global)", found).rows[0].name == "@openai/codex"
+
+
+def test_a_long_version_is_cut_after_the_first_part_that_differs():
+    found = sections.of(Findings(reports=[ManagerReport("mas", "Mac App Store", [
+        "ChatGPT  26.1013.31256 → 26.1021.31345",
+        "Gemini  1.128.14.1166 → 1.131.4.1198",
+    ])]))
+
+    assert [row.version for row in find("Mac App Store", found).rows] == [
+        "26.1013... → 26.1021...", "1.128... → 1.131...",
+    ]
+
+
+def test_a_long_version_that_differs_only_at_the_end_is_kept_whole():
+    # Cut earlier, both sides would read the same.
+    found = sections.of(Findings(reports=[ManagerReport("mas", "Mac App Store", [
+        "ChatGPT  26.1013.31256 → 26.1013.40934",
+    ])]))
+
+    assert find("Mac App Store", found).rows[0].version == "26.1013.31256 → 26.1013.40934"
+
+
+def test_a_reason_every_untracked_app_shares_is_said_once_over_them(monkeypatch):
+    import time
+
+    monkeypatch.setattr(
+        to_sort_out, "last_changed",
+        lambda found: time.mktime((2024, 4, 3, 0, 0, 0, 0, 0, -1)) if found.file_stem == "Old" else None,
+    )
+    found = sections.of(Findings(untracked=[app("Old"), app("Unknown")]))
+
+    untracked = find(UNTRACKED, found)
+    assert untracked.note == to_sort_out.CANNOT_CHECK
+    assert [(row.name, row.note) for row in untracked.rows] == [
+        ("Old", "unchanged since 2024-04"), ("Unknown", ""),
+    ]
+
+
+def test_different_reasons_stay_on_their_rows(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: None)
+    found = sections.of(Findings(untracked=[app("Off", "1.0", sparkle(automatic=False, feed="")), app("Unknown")]))
+
+    untracked = find(UNTRACKED, found)
+    assert untracked.note == ""
+    assert [row.note for row in untracked.rows] == ["updater off, last checked 2026-08-16", to_sort_out.CANNOT_CHECK]
+
+
+def test_the_report_names_an_app_by_what_it_calls_itself(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: None)
+    iterm = InstalledApp("iTerm", "3.5", Path("/Applications/iTerm.app"), UpdaterStatus(),
+                         display_name="iTerm2")
+    each_group = [
+        Findings(untracked=[iterm]),
+        Findings(apps_behind=[behind_the_recipe.Behind(
+            iterm, Cask("iterm2", "https://x.test/", "3.6"), "3.5", UpdaterStatus()
+        )]),
+        Findings(stale=[running_apps.StillRunningOld(
+            "iTerm", iterm.path, 1, 0.0, 0.0, "3.5", display_name="iTerm2"
+        )]),
+    ]
+
+    names = [row.name for findings in each_group for section in sections.of(findings) for row in section.rows]
+
+    assert names == ["iTerm2", "iTerm2", "iTerm2"]

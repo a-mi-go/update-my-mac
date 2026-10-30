@@ -1,11 +1,13 @@
 """Sequencing the steps of a run, independent of how the flags were parsed."""
 
 import functools
+import getpass
 
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
+from update_my_mac.checks import to_sort_out
 from update_my_mac.controller import apply_updates
 from update_my_mac.controller import self_update
 from update_my_mac.managers.homebrew import behind_the_recipe
@@ -18,6 +20,7 @@ from update_my_mac.checks import installed_apps
 from update_my_mac import managers
 from update_my_mac.view import output
 from update_my_mac.view import report
+from update_my_mac.view import sections
 from update_my_mac.controller import resolve_duplicates
 from update_my_mac.controller import resolve_by_command
 from update_my_mac.controller import resolve_issues
@@ -36,6 +39,12 @@ def run_check_mode():
 
 
 def run_interactive_mode():
+    # One screen from the start to the first menu; the report goes to the normal one after it.
+    with output.full_screen():
+        return _run_interactive()
+
+
+def _run_interactive():
     installed = managers.installed()
     decisions = app_decisions.load()
 
@@ -45,14 +54,17 @@ def run_interactive_mode():
 
     findings = _check_the_mac(installed, decisions)
     findings.managers_behind = managers.still_behind(managers_behind, result.updated)
-    report.print_report(findings)
 
     # Resolving issues first, so the update menu below lists what is left.
-    resolved = resolve_issues.ask_what_to_fix(_issues(findings, decisions))
+    updates = _Updates(findings.reports)
+    resolved = resolve_issues.ask_what_to_fix(
+        _issues(findings, decisions),
+        above=lambda console: report.print_to(console, findings),
+        updates=updates,
+    )
 
-    reports = findings.reports
+    reports = updates.reports()
     if resolved:
-        reports = managers.check_what_is_outdated()
         report.print_outdated_summary(reports)
 
     failed = result.failed + apply_updates.ask_what_to_update(reports)
@@ -154,6 +166,7 @@ def _behind_the_recipe(reports):
         recorded,
         already_reported=_names_homebrew_reported(reports),
         recorded_at=brew.recorded_cask_times(recorded),
+        would_install=brew.versions_homebrew_would_install(),
     )
 
 
@@ -183,82 +196,124 @@ def _clean_up(installed):
     )
 
 
+class _Updates:
+    """What the managers would update, asked again once a step of the first menu put something right."""
+
+    def __init__(self, reports):
+        self._reports = reports
+        self._out_of_date = False
+
+    def something_changed(self):
+        self._out_of_date = True
+
+    def reports(self):
+        if self._out_of_date:
+            with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+                self._reports = managers.check_what_is_outdated()
+            self._out_of_date = False
+        return self._reports
+
+    def count(self):
+        return report.count_outdated_packages(self.reports())
+
+
 def _issues(findings, decisions):
-    """Returns the kinds of trouble that turned up, as choices the person can pick."""
-    cask_for = _website_and_cask()
-    found = []
-
-    untracked_problem = _untracked_problem(findings.untracked, cask_for, decisions, findings.offered)
-    if untracked_problem:
-        found.append(untracked_problem)
-
-    if findings.doubled:
-        found.append(
-            _problem(
-                lambda left: (
-                    f"⎷ uninstall the unused {'copy' if len(left) == 1 else 'copies'} "
-                    f"({len(left)})"
-                ),
-                findings.doubled,
-                resolve_duplicates.ask_what_to_do,
-                resolve_duplicates.remove_shadowed,
-            )
-        )
-
-    if findings.stale:
-        found.append(
-            _problem(
-                lambda left: f"⎷ restart updated apps ({len(left)})",
-                findings.stale,
-                restart_apps.ask_what_to_do,
-                _restart_every_app,
-            )
-        )
-
-    to_fix = [homebrew_fixes.fix_for_image(image) for image in findings.mounted]
-    to_fix += [fix for fix in map(homebrew_fixes.fix_for_flagged, findings.flagged) if fix]
-    if findings.apps_behind:
-        caskroom = brew.caskroom()
-        to_fix += [homebrew_fixes.fix_for_behind(item, caskroom) for item in findings.apps_behind]
-    if to_fix:
-        found.append(
-            _problem(
-                lambda left: f"⎷ fix apps & packages Homebrew cannot update ({len(left)})",
-                to_fix,
-                resolve_by_command.ask_what_to_do,
-                resolve_by_command.run_all,
-            )
-        )
-    return found
+    """Returns the kinds of trouble that turned up, as choices, in the order the report lists them."""
+    findings.find_cask = findings.find_cask or _website_and_cask()
+    by_group = {
+        sections.HOMEBREW_CANNOT_UPDATE: _homebrew_problem(findings),
+        sections.UNTRACKED: _untracked_problem(findings, decisions),
+        sections.OWNED_BY_ANOTHER_USER: _take_over_problem(findings),
+        sections.INSTALLED_TWICE: _copies_problem(findings),
+        sections.NOT_RESTARTED: _restart_problem(findings),
+    }
+    listed = [section.title for section in sections.of(findings)]
+    return [by_group[title] for title in listed if by_group.get(title) is not None]
 
 
-def _untracked_problem(untracked, cask_for, decisions, offered):
+def _homebrew_problem(findings):
+    items = to_sort_out.blocking_brew_upgrade(findings)
+    if not items:
+        return None
+    caskroom = brew.caskroom() if findings.apps_behind else None
+    return _problem(
+        lambda left: f"⎷ fix apps & packages Homebrew cannot update ({len(left)})",
+        [_fix_for(item, caskroom) for item in items],
+        resolve_by_command.ask_what_to_do,
+        resolve_by_command.run_all,
+    )
+
+
+def _fix_for(item, caskroom):
+    if isinstance(item, mounted_downloads.MountedImage):
+        return homebrew_fixes.fix_for_image(item)
+    if isinstance(item, flagged.Flagged):
+        return homebrew_fixes.fix_for_flagged(item)
+    return homebrew_fixes.fix_for_behind(item, caskroom)
+
+
+def _untracked_problem(findings, decisions):
     """Returns the entry for the apps no manager tracks, or None when none is a problem."""
-    troubled = [
-        app
-        for app in untracked
-        if track_apps.worth_sorting_out(app, cask_for(app), appcast.answer_for(app, offered))
-    ]
+    troubled = to_sort_out.untracked_to_sort_out(findings)
     if not troubled:
         return None
+    cask_for = findings.find_cask
 
     # Counted by what Homebrew has a recipe for, not by what the bulk step can
     # take: a handover that would be a downgrade is still one you can choose.
     def label(left):
         known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in left])
-        return (
-            f"⎷ get those apps back on track "
-            f"({known} of {len(left)} can go to Homebrew)" if known
-            else f"⎷ go through the apps nobody tracks ({len(left)})"
-        )
+        homebrew = f", {known} can be added to Homebrew" if known else ""
+        return f"⎷ go through untracked apps ({len(left)}{homebrew})"
 
     def go_through_apps(apps, step):
-        return track_apps.ask_what_to_do(apps, decisions, step, find_cask=cask_for, offered=offered)
+        return track_apps.ask_what_to_do(apps, decisions, step, find_cask=cask_for, offered=findings.offered)
 
     def adopt_every_app_we_can(apps, step):
         return track_apps.adopt_all([(app, cask_for(app)) for app in apps], step)
 
     return _problem(label, troubled, go_through_apps, adopt_every_app_we_can)
+
+
+def _take_over_problem(findings):
+    if not findings.foreign:
+        return None
+    return _problem(
+        lambda left: f"⎷ take over apps owned by another user ({len(left)})",
+        [_take_over(path) for path in findings.foreign],
+        resolve_by_command.ask_what_to_do,
+        resolve_by_command.run_all,
+    )
+
+
+def _take_over(path):
+    """Returns the fix that makes an app yours, so its updates can replace it."""
+    return resolve_by_command.Fix(
+        path.name, "belongs to another user",
+        resolve_by_command.Option("", ("sudo", "chown", "-R", getpass.getuser(), str(path)), "taken over"),
+    )
+
+
+def _copies_problem(findings):
+    if not findings.doubled:
+        return None
+    return _problem(
+        lambda left: f"⎷ uninstall the unused {'copy' if len(left) == 1 else 'copies'} ({len(left)})",
+        findings.doubled,
+        resolve_duplicates.ask_what_to_do,
+        resolve_duplicates.remove_shadowed,
+    )
+
+
+def _restart_problem(findings):
+    if not findings.stale:
+        return None
+    return _problem(
+        lambda left: f"⎷ restart updated apps ({len(left)})",
+        findings.stale,
+        restart_apps.ask_what_to_do,
+        _restart_every_app,
+    )
 
 
 def _problem(label_for, things, walk_through, fix_all):

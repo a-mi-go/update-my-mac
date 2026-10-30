@@ -8,6 +8,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from update_my_mac.managers.homebrew import brew
+
 SOURCE = "https://formulae.brew.sh/api/cask.json"
 STALE_AFTER_SECONDS = 24 * 60 * 60
 TIMEOUT_SECONDS = 30
@@ -88,8 +90,8 @@ def as_app_name(token):
     return token.replace("-", " ").lower()
 
 
-def reduce_to_apps(casks):
-    """Returns a lookup table, keeping the three fields of each cask we use."""
+def reduce_to_apps(casks, variations=()):
+    """Returns a lookup table, keeping the three fields of each cask we use, the version for this Mac."""
     by_app = {}
     for cask in casks:
         token = cask.get("token")
@@ -98,7 +100,7 @@ def reduce_to_apps(casks):
         entry = {
             "token": token,
             "homepage": cask.get("homepage") or "",
-            "version": cask.get("version") or "",
+            "version": version_for(cask, variations),
         }
         named = app_names_in(cask)
         for name in named:
@@ -109,9 +111,20 @@ def reduce_to_apps(casks):
     return by_app
 
 
+def version_for(cask, variations):
+    """Returns the version the recipe gives for the first of these variations it has, else its own."""
+    # A recipe's own version is the one for the newest macOS; an older one may have another.
+    given = cask.get("variations") or {}
+    for name in variations:
+        version = (given.get(name) or {}).get("version")
+        if version:
+            return version
+    return cask.get("version") or ""
+
+
 def download(source=SOURCE):
     with urllib.request.urlopen(source, timeout=TIMEOUT_SECONDS) as answer:
-        return reduce_to_apps(json.load(answer))
+        return reduce_to_apps(json.load(answer), brew.variations_for_this_mac())
 
 
 def read_cache(path):

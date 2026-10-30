@@ -13,6 +13,17 @@ def test_the_build_is_ignored_whichever_side_carries_it():
     assert versions.same_release("4.92.0,240144", "4.92.0,240145")
 
 
+def test_a_browser_major_in_front_of_the_vendors_own_version_is_the_same_release():
+    assert versions.same_release("156.1.98.60", "1.98.60.0")
+    assert versions.same_release("1.98.60.0", "156.1.98.60")
+
+
+def test_a_number_in_front_is_only_a_browser_major_where_it_could_be_one():
+    assert not versions.same_release("2.1.2.3", "1.2.3")
+    assert not versions.same_release("156.1.98.61", "1.98.60.0")
+    assert not versions.same_release("156.1.98", "1.98")
+
+
 def test_a_later_version_is_later():
     assert versions.is_newer("1.2.5", than="1.1")
     assert not versions.is_newer("1.1", than="1.2.5")

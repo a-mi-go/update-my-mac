@@ -18,6 +18,14 @@ class CommandResult:
 # The environment the run's commands start with. None until the run sets one.
 _run_environment = None
 
+_command_output_listener = None
+
+
+def listen_to_command_output(listener):
+    """Passes what a streamed command writes to the listener, and None when it ends."""
+    global _command_output_listener
+    _command_output_listener = listener
+
 
 def use_environment(env):
     """Makes every later command and lookup start from this environment."""
@@ -73,6 +81,19 @@ def stream_command(args, env=None, silent_status=None):
         return None
 
 
+def copy_to_clipboard(text):
+    """Puts the text on the clipboard. Returns whether it worked."""
+    executable = find_executable("pbcopy")
+    if executable is None:
+        return False
+    try:
+        # Without a UTF-8 locale pbcopy reads the text as something older.
+        env = {**current_environment(), "LANG": "en_US.UTF-8"}
+        return subprocess.run([executable], input=text, text=True, env=env).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def describe_exit(exit_code):
     """Returns how a streamed command ended, as a phrase to put after its name."""
     return "could not be run" if exit_code is None else f"exited with {exit_code}"
@@ -97,6 +118,22 @@ def ask_application_to_quit(bundle_id):
     return run_command(
         [executable, "-e", f'tell application id "{bundle_id}" to quit']
     ).success
+
+
+def move_to_trash(path):
+    """Moves a file or an app to the Trash, where it can be put back. Returns whether it worked."""
+    executable = find_executable("osascript")
+    if executable is None:
+        return False
+    # The path goes in as an argument, so a quote in an app's name stays text.
+    return run_command([
+        executable,
+        "-e", "on run argv",
+        "-e", "set thePath to POSIX file (item 1 of argv)",
+        "-e", 'tell application "Finder" to delete thePath',
+        "-e", "end run",
+        str(path),
+    ]).success
 
 
 def open_application(path):
@@ -158,6 +195,8 @@ def _run_until_it_writes(args, env, status):
                     status.stop()
                     waiting = False
                 _write_all(out, data)
+                if _command_output_listener is not None:
+                    _command_output_listener(data)
             elif process.poll() is not None:
                 # Something it started may still hold the pty open.
                 break
@@ -169,6 +208,8 @@ def _run_until_it_writes(args, env, status):
     finally:
         if waiting:
             status.stop()
+        if _command_output_listener is not None:
+            _command_output_listener(None)
         signal.signal(signal.SIGWINCH, previous)
         os.close(master)
 

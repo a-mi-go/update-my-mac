@@ -278,3 +278,72 @@ def test_a_menu_without_a_question_leaves_an_empty_line_without_spaces():
     terminal.step.inside().choose([("a", "one"), ("b", "two")])
 
     assert terminal.lines[0] == ""
+
+
+def test_what_belongs_above_a_menu_is_printed_before_the_numbered_options():
+    terminal = Terminal("1")
+
+    terminal.step.choose(
+        [("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report")
+    )
+
+    assert terminal.lines[:3] == ["the report", "", "Which one?"]
+
+
+def test_a_ctrl_c_at_the_numbered_options_does_not_print_the_report_again():
+    terminal = Terminal()
+    step = terminal.answering(interrupting(INTERRUPT, "1"))
+
+    step.choose([("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report"))
+
+    assert terminal.lines.count("the report") == 1
+
+
+def test_on_a_screen_of_its_own_the_report_and_the_answer_are_printed_once_it_is_over(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "can_fill_the_screen", lambda option_count: True)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one_below", lambda *a, **k: "b")
+
+    chosen = step.choose(
+        [("a", "one"), ("b", "two")], "Which one?",
+        above=lambda console: terminal.lines.append("the report"),
+    )
+
+    assert chosen == "b"
+    assert terminal.lines == ["the report", "", f"{prompting.arrow_menu.QMARK} Which one? {BULLET}two", ""]
+
+
+def test_a_screen_too_short_for_the_menu_prints_the_report_and_asks_in_place(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "can_fill_the_screen", lambda option_count: False)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
+
+    step.choose(
+        [("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report")
+    )
+
+    assert terminal.lines == ["the report", ""]
+
+
+def test_the_screen_of_its_own_is_left_before_the_report_is_printed(monkeypatch):
+    import io
+
+    from rich.console import Console
+
+    from update_my_mac.view import output
+
+    written = io.StringIO()
+    output.console = Console(file=written, force_terminal=True, height=40, width=100)
+    monkeypatch.setattr(output.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(output, "_in_full_screen", False)
+    terminal = Terminal("1")
+
+    with output.full_screen():
+        terminal.step.choose(
+            [("a", "one")], "Which one?", above=lambda console: console.print("the report")
+        )
+
+    text = written.getvalue()
+    assert text.index("\x1b[?1049l") < text.index("the report")
