@@ -116,18 +116,23 @@ def has_squirrel(app_path):
 
 
 def read_users_app_settings(bundle_id):
-    """Returns what the user set for the app, as a dict, empty where there is none or it can't be read."""
+    """Returns the user's settings for the app, or none where they can't be read."""
+    exported = _exported_preferences(bundle_id)
+    if not exported.strip():
+        return {}
     try:
-        exported = plistlib.loads(_exported_preferences(bundle_id).encode())
+        settings = plistlib.loads(exported.encode())
     except (ValueError, ExpatError):
         return {}
-    return exported if isinstance(exported, dict) else {}
+    return settings if isinstance(settings, dict) else {}
 
 
 def _exported_preferences(bundle_id):
     """Returns the plist text `defaults export` prints for the app, or "" when it prints none."""
+    if not bundle_id:
+        return ""
     executable = shell.find_executable("defaults")
-    if not bundle_id or executable is None:
+    if executable is None:
         return ""
     result = shell.run_command([executable, "export", bundle_id, "-"], (0,))
     return result.stdout if result.success else ""
