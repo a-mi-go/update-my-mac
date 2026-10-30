@@ -1,5 +1,7 @@
 import datetime
 import plistlib
+
+import pytest
 from fake_run import use_shell
 
 from update_my_mac.checks import app_updaters
@@ -278,3 +280,13 @@ def test_an_app_without_any_trace_of_an_updater_has_none(tmp_path):
     assert status.kind == app_updaters.NONE
     assert not status.looks_after_itself
 
+
+@pytest.mark.parametrize("exported", ["", "not a plist", "<?xml version=\"1.0\"?><plist><dict>"])
+def test_settings_that_cannot_be_parsed_are_empty(exported):
+    class Prints(FakeShell):
+        def run_command(self, args, success_exit_codes=(0,), env=None):
+            return CommandResult(True, exported, "")
+
+    use_shell(Prints())
+
+    assert app_updaters.read_users_app_settings("com.example.thing") == {}
