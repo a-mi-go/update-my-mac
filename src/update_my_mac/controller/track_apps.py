@@ -1,15 +1,12 @@
 """Going through the apps no package manager tracks, and revisiting that later."""
 
 
-from rich.markup import escape
-
 from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.controller import walkthrough
 from update_my_mac.system import shell
 from update_my_mac.controller.walkthrough import CANCEL
-from update_my_mac.view import arrow_menu
 from update_my_mac.view import prompting
 from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
@@ -173,9 +170,7 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
 def _handover_choice(app, cask):
     """Returns the handover as a menu label with what it costs in grey, or "" without a recipe."""
     offer, detail = adopting.handover_parts(app, cask)
-    if not detail:
-        return offer
-    return prompting.Markup(f"{escape(offer)} [{arrow_menu.NOTE_COLOUR}]({escape(detail)})[/]")
+    return prompting.label_with_note(offer, detail)
 
 
 def _what_is_known(app, cask, answer):

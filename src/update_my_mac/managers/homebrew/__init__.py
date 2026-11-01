@@ -9,6 +9,7 @@ from types import MappingProxyType
 from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.managers.homebrew import casks
+from update_my_mac.managers.homebrew import flagged
 from update_my_mac.managers.manager import (
     ManagerUpdate,
     PackageManager,
@@ -24,6 +25,14 @@ VERSION_CHANGE = re.compile(
 )
 # "✔︎ Cask cursor (3.27.22,b1aa50cb6db8)  Verified", as the downloads report themselves.
 CASK_DOWNLOAD = re.compile(rb"(Cask \S+ \([^\s,()]+),[^\s()]*\)")
+
+
+@dataclasses.dataclass
+class _Asked:
+    """What an upgrade does after the last outdated list: plain upgrade arguments (None for none) and greedy apps."""
+
+    plain_args: tuple
+    greedy: list
 
 
 class Homebrew(PackageManager):
@@ -46,28 +55,42 @@ class Homebrew(PackageManager):
     cleanup_args = ("cleanup",)
 
     def __init__(self):
-        self._greedy = None
+        self._asked = None
 
     def outdated(self):
-        """Returns Homebrew's outdated list, with the apps only a greedy upgrade reaches added."""
-        report = super().outdated()
-        self._greedy = []
-        if report is None or report.error_message:
-            return report
-        named = {package_name(line) for line in report.outdated_packages}
-        self._greedy = apps_only_a_greedy_upgrade_reaches(named)
-        lines = [f"{item.cask.token}  {item.version_change()}" for item in self._greedy]
-        return dataclasses.replace(report, outdated_packages=[*report.outdated_packages, *lines])
+        """Returns the outdated list without casks whose app is gone, plus the apps only a greedy upgrade reaches."""
+        report, self._asked = self._ask()
+        return report
 
     def upgrade(self, status=None):
-        if self._greedy is None:
-            self.outdated()
-        exit_code = super().upgrade(status)
-        if not self._greedy:
-            return exit_code
-        tokens = [item.cask.token for item in self._greedy]
+        asked = self._asked or self._ask()[1]
+        plain = 0 if asked.plain_args is None else self._stream(asked.plain_args, status)
+        if not asked.greedy:
+            return plain
+        tokens = [item.cask.token for item in asked.greedy]
         greedy = self._stream(("upgrade", "--cask", "--greedy", *tokens), status)
-        return exit_code or greedy
+        return plain or greedy
+
+    def _ask(self):
+        """Returns the outdated report and what an upgrade has to do about it."""
+        report = super().outdated()
+        if report is None or report.error_message:
+            return report, _Asked(self.upgrade_args, [])
+        names = {package_name(line) for line in report.outdated_packages}
+        gone = flagged.gone_casks(brew.packages_described(names, self.environment()))
+        greedy = apps_only_a_greedy_upgrade_reaches(names)
+        kept = [line for line in report.outdated_packages if package_name(line) not in gone]
+        lines = [f"{item.cask.token}  {item.version_change()}" for item in greedy]
+        shown = dataclasses.replace(report, outdated_packages=[*kept, *lines])
+        return shown, _Asked(self._plain_upgrade(kept, gone), greedy)
+
+    def _plain_upgrade(self, kept, gone):
+        """Returns the plain upgrade's arguments, naming the packages when a gone cask must stay out, or None."""
+        if not gone:
+            return self.upgrade_args
+        if not kept:
+            return None
+        return (*self.upgrade_args, *(package_name(line) for line in kept))
 
     def parse_outdated(self, stdout):
         """Returns what `brew outdated --verbose` names, formulae and casks alike."""

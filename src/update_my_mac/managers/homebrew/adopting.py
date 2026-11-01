@@ -9,6 +9,8 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
+from typing import NamedTuple
+
 from update_my_mac.checks import installed_apps
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.system.shell import describe_exit
@@ -21,9 +23,19 @@ SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 MAY_BE_A_DOWNGRADE = "the versions can't be compared, this may be a downgrade"
 
 
+class Handover(NamedTuple):
+    """What a handover offers and, apart from it, what it costs or touches."""
+
+    offer: str
+    detail: str
+
+
+NO_HANDOVER = Handover("", "")
+
+
 def compare_to_app(app, cask):
     """Returns how the recipe's version stands to the installed one."""
-    if cask is None:
+    if not has_a_recipe(cask):
         return ""
     if versions.any_version_matches(app.versions_named(), cask.version):
         return SAME
@@ -34,7 +46,7 @@ def compare_to_app(app, cask):
 
 def can_adopt(app, cask):
     """Returns whether Homebrew can register the app that is already there, as it is."""
-    return cask is not None and not cask.installs_a_package and compare_to_app(app, cask) == SAME
+    return has_a_recipe(cask) and not cask.installs_a_package and compare_to_app(app, cask) == SAME
 
 
 def would_downgrade(app, cask):
@@ -53,20 +65,20 @@ def fits_the_bulk_step(app, cask):
 
 
 def handover_parts(app, cask):
-    """Returns the offer and, apart from it, what it costs or touches. Both are empty without a recipe."""
+    """Returns the handover to offer, which is NO_HANDOVER without a recipe."""
     if not has_a_recipe(cask):
-        return "", ""
+        return NO_HANDOVER
     standing = compare_to_app(app, cask)
     cost = _cost_of_replacing(app, cask, standing)
     if cask.installs_a_package:
-        return "reinstall with Homebrew's installer", cost or f"{cask.token} {_shown(cask.version)}"
+        return Handover("reinstall with Homebrew's installer", cost or f"{cask.token} {_shown(cask.version)}")
     if cost:
-        return "let Homebrew take over", cost
+        return Handover("let Homebrew take over", cost)
     if standing == SAME:
-        return "add to Homebrew", f"{cask.token} {_shown(cask.version)}"
+        return Handover("add to Homebrew", f"{cask.token} {_shown(cask.version)}")
     if standing == NEWER:
-        return f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", ""
-    return "", ""
+        return Handover(f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", "")
+    return NO_HANDOVER
 
 
 def _cost_of_replacing(app, cask, standing):
@@ -104,7 +116,7 @@ def homebrew_note(app, cask):
 
 def hand_to_homebrew(app, cask, status=None):
     """Hands the app over. Returns whether it is now looked after, and why."""
-    if cask is None:
+    if not has_a_recipe(cask):
         return False, "Homebrew has no recipe for this app."
     if shell.find_executable("brew") is None:
         return False, "Homebrew is not installed."

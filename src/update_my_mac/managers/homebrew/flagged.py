@@ -29,11 +29,15 @@ def find(installed, already_reported=()):
     """Returns what Homebrew flagged in its description of the installed packages."""
     found = [_formula(one) for one in installed.get("formulae", []) if _is_installed(one)]
     found += [_cask(one) for one in installed.get("casks", []) if one.get("installed")]
-    return [
-        item for item in found
-        # Homebrew calls a gone app outdated too, and that upgrade is the one that fails.
-        if item and (item.kind == GONE or item.name.rsplit("/", 1)[-1] not in already_reported)
-    ]
+    return [item for item in found if item and item.name.rsplit("/", 1)[-1] not in already_reported]
+
+
+def gone_casks(described):
+    """Returns the tokens of the installed casks in Homebrew's description whose app is no longer there."""
+    return {
+        cask.get("token", "") for cask in described.get("casks", [])
+        if cask.get("installed") and _app_is_gone(cask)
+    }
 
 
 def _formula(formula):

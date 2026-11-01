@@ -83,8 +83,8 @@ def gone_cask(target, **more):
             "artifacts": [{"uninstall": []}, {"app": ["Charles.app"], "target": str(target)}], **more}
 
 
-def test_a_cask_whose_app_was_thrown_away_is_flagged_though_the_outdated_list_names_it(tmp_path):
-    (found,) = flagged.find({"casks": [gone_cask(tmp_path / "Charles.app")]}, already_reported={"charles"})
+def test_a_cask_whose_app_was_thrown_away_is_flagged(tmp_path):
+    (found,) = flagged.find({"casks": [gone_cask(tmp_path / "Charles.app")]})
 
     assert (found.name, found.kind, found.is_cask, found.installed) == ("charles", flagged.GONE, True, "5.2.1")
 
@@ -148,3 +148,12 @@ def test_an_unreadable_answer_means_nothing_is_found():
     use_shell(Garbled([]))
     assert mounted_downloads.find() == []
 
+
+
+def test_the_casks_among_the_described_packages_whose_app_is_gone_are_named_by_token(tmp_path):
+    (tmp_path / "Here.app").mkdir()
+    here = gone_cask(tmp_path / "Here.app", token="here")
+
+    gone = flagged.gone_casks({"casks": [gone_cask(tmp_path / "Charles.app"), here], "formulae": [{"name": "git"}]})
+
+    assert gone == {"charles"}

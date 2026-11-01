@@ -136,11 +136,20 @@ def install_cask_over(token, status=None):
 
 def installed_packages(env=None):
     """Returns Homebrew's own description of everything installed, as one parsed answer."""
+    return _described(["--installed"], env)
+
+
+def packages_described(names, env=None):
+    """Returns Homebrew's own description of these packages, as one parsed answer."""
+    return _described(sorted(names), env) if names else {}
+
+
+def _described(selection, env):
     executable = shell.find_executable("brew")
     if executable is None:
         return {}
 
-    result = shell.run_command([executable, "info", "--json=v2", "--installed"], (0,), env)
+    result = shell.run_command([executable, "info", "--json=v2", *selection], (0,), env)
     if not result.success:
         return {}
 

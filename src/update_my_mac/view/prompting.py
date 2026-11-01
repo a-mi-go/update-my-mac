@@ -4,6 +4,7 @@ import re
 import signal
 from contextlib import contextmanager
 
+from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 from update_my_mac.view import arrow_menu
@@ -32,6 +33,13 @@ class Stopped(Exception):
 
 class Markup(str):
     """A menu label that carries rich markup, drawn styled instead of escaped."""
+
+
+def label_with_note(label, note):
+    """Returns the menu label with the note after it in grey, or just the label without a note."""
+    if not note:
+        return label
+    return Markup(f"{escape(label)} [{arrow_menu.NOTE_COLOUR}]({escape(note)})[/]")
 
 
 class Step:

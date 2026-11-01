@@ -1,6 +1,5 @@
 """Sequencing the steps of a run, independent of how the flags were parsed."""
 
-import dataclasses
 import functools
 import getpass
 
@@ -60,7 +59,7 @@ def _run_interactive():
     findings.managers_behind = managers.still_behind(managers_behind, result.updated)
 
     # Resolving issues first, so the update menu below lists what is left.
-    updates = _Updates(findings.reports, _gone_casks(findings))
+    updates = _Updates(findings.reports)
     resolved = resolve_issues.ask_what_to_fix(
         _issues(findings, decisions),
         above=lambda console: report.print_to(console, findings),
@@ -135,7 +134,6 @@ def _check_the_mac(installed, decisions):
 
         now("asking Homebrew what it has doubts about")
         findings.flagged = _flagged_by_homebrew(findings.reports)
-        findings.reports = _reports_without_gone_casks(findings.reports, _gone_casks(findings))
         findings.mounted = mounted_downloads.find()
 
     return findings
@@ -176,21 +174,6 @@ def _flagged_by_homebrew(reports):
     return flagged.find(installed, _names_homebrew_reported(reports))
 
 
-def _gone_casks(findings):
-    return {item.name for item in findings.flagged if item.kind == flagged.GONE}
-
-
-def _reports_without_gone_casks(reports, gone):
-    if not gone:
-        return reports
-    return [_report_without_gone_casks(report, gone) if report.manager == "brew" else report for report in reports]
-
-
-def _report_without_gone_casks(report, gone):
-    kept = [line for line in report.outdated_packages if package_name(line) not in gone]
-    return dataclasses.replace(report, outdated_packages=kept)
-
-
 def _exit_code(reports, managers_behind=()):
     """Returns non-zero only when a check could not run, never for outdated packages."""
     failed = [thing for thing in list(reports) + list(managers_behind) if thing.error_message]
@@ -208,9 +191,8 @@ def _clean_up(installed):
 class _Updates:
     """What the managers would update, asked again once a step of the first menu put something right."""
 
-    def __init__(self, reports, gone=()):
+    def __init__(self, reports):
         self._reports = reports
-        self._gone = gone
         self._out_of_date = False
 
     def something_changed(self):
@@ -219,7 +201,7 @@ class _Updates:
     def reports(self):
         if self._out_of_date:
             with report.waiting("asking what is outdated"):
-                self._reports = _reports_without_gone_casks(managers.check_what_is_outdated(), self._gone)
+                self._reports = managers.check_what_is_outdated()
             self._out_of_date = False
         return self._reports
 
