@@ -135,7 +135,7 @@ def _check_the_mac(installed, decisions):
 
         now("asking Homebrew what it has doubts about")
         findings.flagged = _flagged_by_homebrew(findings.reports)
-        findings.reports = _without_gone_casks(findings.reports, _gone_casks(findings))
+        findings.reports = _reports_without_gone_casks(findings.reports, _gone_casks(findings))
         findings.mounted = mounted_downloads.find()
 
     return findings
@@ -180,13 +180,13 @@ def _gone_casks(findings):
     return {item.name for item in findings.flagged if item.kind == flagged.GONE}
 
 
-def _without_gone_casks(reports, gone):
+def _reports_without_gone_casks(reports, gone):
     if not gone:
         return reports
-    return [_without(report, gone) if report.manager == "brew" else report for report in reports]
+    return [_report_without_gone_casks(report, gone) if report.manager == "brew" else report for report in reports]
 
 
-def _without(report, gone):
+def _report_without_gone_casks(report, gone):
     kept = [line for line in report.outdated_packages if package_name(line) not in gone]
     return dataclasses.replace(report, outdated_packages=kept)
 
@@ -219,7 +219,7 @@ class _Updates:
     def reports(self):
         if self._out_of_date:
             with report.waiting("asking what is outdated"):
-                self._reports = _without_gone_casks(managers.check_what_is_outdated(), self._gone)
+                self._reports = _reports_without_gone_casks(managers.check_what_is_outdated(), self._gone)
             self._out_of_date = False
         return self._reports
 

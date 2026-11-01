@@ -577,7 +577,7 @@ def test_a_cask_whose_app_is_gone_is_left_out_of_the_updates_also_when_asked_aga
     npm = app.managers.ManagerReport("npm", "npm", ["charles  1 → 2"])
     monkeypatch.setattr(app.managers, "check_what_is_outdated", lambda: [brew, npm])
 
-    updates = app._Updates(app._without_gone_casks([brew, npm], {"charles"}), {"charles"})
+    updates = app._Updates(app._reports_without_gone_casks([brew, npm], {"charles"}), {"charles"})
     assert [report.outdated_packages for report in updates.reports()] == [["git  1 → 2"], ["charles  1 → 2"]]
 
     updates.something_changed()
