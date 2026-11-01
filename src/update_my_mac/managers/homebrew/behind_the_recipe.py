@@ -42,14 +42,14 @@ class Behind:
         return versions.same_release(self.recorded, self.cask.version)
 
     @property
-    def needs_greedy(self):
+    def needs_a_greedy_upgrade(self):
         """Returns whether `brew upgrade --cask --greedy` is all it takes to bring it level."""
         return not self.false_version_recorded and not kept_current_by_macos(self)
 
 
-def kept_current_by_macos(item):
+def kept_current_by_macos(behind):
     """Returns whether macOS keeps this app current, whatever a Homebrew recipe says."""
-    return item.app.updater.kind == app_updaters.HOST_APP or item.app.bundle_id.startswith("com.apple.")
+    return behind.app.updater.kind == app_updaters.HOST_APP or behind.app.bundle_id.startswith("com.apple.")
 
 
 def is_behind(app_version, cask_version):

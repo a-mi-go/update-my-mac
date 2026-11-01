@@ -41,7 +41,7 @@ def ask_what_to_do(
 
 def known_to_homebrew(found):
     """Returns how many of the (app, cask) pairs Homebrew has a recipe for."""
-    return sum(1 for app, cask in found if adopting.can_take_over(app, cask))
+    return sum(1 for app, cask in found if adopting.has_a_recipe(cask))
 
 
 def ready_for_homebrew(found):
@@ -144,8 +144,10 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
             if not shell.open_in_browser(vendor_site):
                 results.print_indented("Could not open that in a browser.", style="yellow")
         elif chosen == LAUNCH:
-            if _ask_the_app_itself(app, results):
+            if shell.open_application(app.path):
+                _say_it_started(results)
                 return chosen
+            results.print_indented("That app would not start.", style="yellow")
         elif chosen == TRASH:
             if _move_to_the_trash(app, step, results):
                 return chosen
@@ -192,17 +194,12 @@ def _what_is_known(app, cask, answer):
     return ' '.join(known)
 
 
-def _ask_the_app_itself(app, step):
-    """Returns whether the app started."""
-    if not shell.open_application(app.path):
-        step.print_indented("That app would not start.", style="yellow")
-        return False
+def _say_it_started(step):
     step.print_indented(
         "Started it. It looks for its update on startup, and anything it "
         "does not offer there is under its own menu.",
         style="green",
     )
-    return True
 
 
 def _move_to_the_trash(app, step, results):

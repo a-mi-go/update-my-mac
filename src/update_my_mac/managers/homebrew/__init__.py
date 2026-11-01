@@ -1,5 +1,6 @@
 """Homebrew, which answers differently from the other three."""
 
+import dataclasses
 import re
 import time
 from pathlib import Path
@@ -11,6 +12,7 @@ from update_my_mac.managers.homebrew import casks
 from update_my_mac.managers.manager import (
     ManagerUpdate,
     PackageManager,
+    package_name,
     nonblank_lines,
 )
 from update_my_mac.system import shell
@@ -44,7 +46,7 @@ class Homebrew(PackageManager):
     cleanup_args = ("cleanup",)
 
     def __init__(self):
-        self._greedy = []
+        self._greedy = None
 
     def outdated(self):
         """Returns Homebrew's outdated list, with the apps only a greedy upgrade reaches added."""
@@ -52,12 +54,14 @@ class Homebrew(PackageManager):
         self._greedy = []
         if report is None or report.error_message:
             return report
-        named = {line.split()[0] for line in report.outdated_packages}
+        named = {package_name(line) for line in report.outdated_packages}
         self._greedy = apps_only_a_greedy_upgrade_reaches(named)
-        report.outdated_packages += [f"{item.cask.token}  {item.version_change()}" for item in self._greedy]
-        return report
+        lines = [f"{item.cask.token}  {item.version_change()}" for item in self._greedy]
+        return dataclasses.replace(report, outdated_packages=[*report.outdated_packages, *lines])
 
     def upgrade(self, status=None):
+        if self._greedy is None:
+            self.outdated()
         exit_code = super().upgrade(status)
         if not self._greedy:
             return exit_code
@@ -144,5 +148,6 @@ def _without_builds(line, change, width):
 
 
 def apps_only_a_greedy_upgrade_reaches(already_reported):
+    """Returns the apps behind their recipe that only `brew upgrade --greedy` brings level."""
     behind = behind_the_recipe.find_installed(casks.load(), already_reported)
-    return [item for item in behind if item.needs_greedy]
+    return [item for item in behind if item.needs_a_greedy_upgrade]

@@ -551,6 +551,17 @@ def test_a_failure_in_either_homebrew_upgrade_is_reported():
     assert brew.upgrade() == 1
 
 
+def test_an_upgrade_nobody_asked_the_outdated_list_for_first_still_reaches_the_greedy_apps():
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", None)
+    swap(brew, "outdated", lambda: setattr(brew, "_greedy", [behind_its_recipe("cursor", "3", "4")]))
+    shell = use_shell(StreamingShell([0, 0]))
+
+    brew.upgrade()
+
+    assert shell.streamed[-1] == ["upgrade", "--cask", "--greedy", "cursor"]
+
+
 def test_without_such_apps_the_homebrew_upgrade_is_the_plain_one():
     brew = managers.by_key("brew")
     swap(brew, "_greedy", [])
@@ -563,11 +574,11 @@ def test_without_such_apps_the_homebrew_upgrade_is_the_plain_one():
 def test_a_greedy_upgrade_is_not_enough_where_homebrew_recorded_the_recipes_version_or_macos_updates_the_app():
     from update_my_mac.checks import app_updaters
 
-    assert behind_its_recipe("cursor", "3", "4").needs_greedy
-    assert not behind_its_recipe("cursor", "3", "4", recorded="4").needs_greedy
+    assert behind_its_recipe("cursor", "3", "4").needs_a_greedy_upgrade
+    assert not behind_its_recipe("cursor", "3", "4", recorded="4").needs_a_greedy_upgrade
     by_macos = behind_its_recipe("safari", "18", "19")
     by_macos.app.updater = app_updaters.UpdaterStatus(app_updaters.HOST_APP)
-    assert not by_macos.needs_greedy
+    assert not by_macos.needs_a_greedy_upgrade
 
 
 def test_the_app_store_notice_about_progress_is_dropped_from_what_upgrade_shows():

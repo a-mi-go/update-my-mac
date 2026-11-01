@@ -34,7 +34,7 @@ def compare_to_app(app, cask):
 
 def can_adopt(app, cask):
     """Returns whether Homebrew can register the app that is already there, as it is."""
-    return compare_to_app(app, cask) == SAME
+    return cask is not None and not cask.installs_a_package and compare_to_app(app, cask) == SAME
 
 
 def would_downgrade(app, cask):
@@ -42,42 +42,40 @@ def would_downgrade(app, cask):
     return compare_to_app(app, cask) == OLDER
 
 
-def can_take_over(app, cask):
+def has_a_recipe(cask):
     """Returns whether Homebrew has a recipe to take the app over with."""
     return cask is not None
 
 
 def fits_the_bulk_step(app, cask):
     """Returns whether the handover needs no answer about this app alone: no downgrade, no installer to run."""
-    return can_take_over(app, cask) and not would_downgrade(app, cask) and not cask.installs_a_package
-
-
-def handover_label(app, cask):
-    """Returns the menu wording for what the handover would do to this app."""
-    offer, detail = handover_parts(app, cask)
-    return f"{offer} ({detail})" if detail else offer
+    return has_a_recipe(cask) and not would_downgrade(app, cask) and not cask.installs_a_package
 
 
 def handover_parts(app, cask):
     """Returns the offer and, apart from it, what it costs or touches. Both are empty without a recipe."""
-    if not can_take_over(app, cask):
+    if not has_a_recipe(cask):
         return "", ""
     standing = compare_to_app(app, cask)
+    cost = _cost_of_replacing(app, cask, standing)
     if cask.installs_a_package:
-        what = {
-            OLDER: f"downgrade {_shown(app.version)} → {_shown(cask.version)}",
-            UNCLEAR: f"replace {_shown(app.version)} with {_shown(cask.version)}, {MAY_BE_A_DOWNGRADE}",
-        }.get(standing, f"{cask.token} {_shown(cask.version)}")
-        return "reinstall with Homebrew's installer", what
+        return "reinstall with Homebrew's installer", cost or f"{cask.token} {_shown(cask.version)}"
+    if cost:
+        return "let Homebrew take over", cost
     if standing == SAME:
         return "add to Homebrew", f"{cask.token} {_shown(cask.version)}"
     if standing == NEWER:
         return f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", ""
-    if standing == OLDER:
-        return "let Homebrew take over", f"downgrade {_shown(app.version)} → {_shown(cask.version)}"
-    if standing == UNCLEAR:
-        return "let Homebrew take over", f"replace {_shown(app.version)} with {_shown(cask.version)}, {MAY_BE_A_DOWNGRADE}"
     return "", ""
+
+
+def _cost_of_replacing(app, cask, standing):
+    """Returns what putting the recipe's version in place costs, or "" when it costs nothing."""
+    if standing == OLDER:
+        return f"downgrade {_shown(app.version)} → {_shown(cask.version)}"
+    if standing == UNCLEAR:
+        return f"replace {_shown(app.version)} with {_shown(cask.version)}, {MAY_BE_A_DOWNGRADE}"
+    return ""
 
 
 def homebrew_note(app, cask):
@@ -111,7 +109,7 @@ def hand_to_homebrew(app, cask, status=None):
     if shell.find_executable("brew") is None:
         return False, "Homebrew is not installed."
 
-    if can_adopt(app, cask) and not cask.installs_a_package:
+    if can_adopt(app, cask):
         exit_code = brew.adopt_cask(cask.token, status)
     else:
         # --adopt takes nothing but an identical app bundle.

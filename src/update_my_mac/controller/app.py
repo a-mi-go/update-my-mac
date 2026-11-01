@@ -7,6 +7,7 @@ import getpass
 from rich.text import Text
 
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.managers.manager import package_name
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
@@ -166,7 +167,7 @@ def _behind_the_recipe(reports):
 def _names_homebrew_reported(reports):
     """Returns the names on Homebrew's own outdated list."""
     brew_report = next((r for r in reports if r.manager == "brew"), None)
-    return {line.split()[0] for line in (brew_report.outdated_packages if brew_report else [])}
+    return {package_name(line) for line in (brew_report.outdated_packages if brew_report else [])}
 
 
 def _flagged_by_homebrew(reports):
@@ -180,12 +181,14 @@ def _gone_casks(findings):
 
 
 def _without_gone_casks(reports, gone):
-    return [
-        dataclasses.replace(report, outdated_packages=[
-            line for line in report.outdated_packages if line.split()[0] not in gone
-        ]) if report.manager == "brew" and gone else report
-        for report in reports
-    ]
+    if not gone:
+        return reports
+    return [_without(report, gone) if report.manager == "brew" else report for report in reports]
+
+
+def _without(report, gone):
+    kept = [line for line in report.outdated_packages if package_name(line) not in gone]
+    return dataclasses.replace(report, outdated_packages=kept)
 
 
 def _exit_code(reports, managers_behind=()):

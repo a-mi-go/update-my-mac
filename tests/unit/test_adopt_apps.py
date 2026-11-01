@@ -82,14 +82,12 @@ def test_what_the_handover_would_do_is_said_in_the_menu(tmp_path):
     older = bundle(tmp_path / "old", "BetterDisplay", "5.0.5")
     newer = bundle(tmp_path / "new", "BetterDisplay", "5.0.7")
 
-    assert adopting.handover_label(matching, CASK) == "add to Homebrew (betterdisplay 5.0.6)"
-    assert adopting.handover_label(older, CASK) == (
-        "update to betterdisplay 5.0.6 and let Homebrew take over"
+    assert adopting.handover_parts(matching, CASK) == ("add to Homebrew", "betterdisplay 5.0.6")
+    assert adopting.handover_parts(older, CASK) == (
+        "update to betterdisplay 5.0.6 and let Homebrew take over", ""
     )
-    assert adopting.handover_label(newer, CASK) == (
-        "let Homebrew take over (downgrade 5.0.7 → 5.0.6)"
-    )
-    assert adopting.handover_label(matching, None) == ""
+    assert adopting.handover_parts(newer, CASK) == ("let Homebrew take over", "downgrade 5.0.7 → 5.0.6")
+    assert adopting.handover_parts(matching, None) == ("", "")
 
 
 def test_a_recipe_matching_only_the_build_is_the_same_version(tmp_path):
@@ -102,7 +100,7 @@ def test_a_recipe_matching_only_the_build_is_the_same_version(tmp_path):
     assert adopting.compare_to_app(app, cask) == adopting.SAME
     assert adopting.can_adopt(app, cask)
     assert not adopting.would_downgrade(app, cask)
-    assert adopting.handover_label(app, cask) == "add to Homebrew (dockish 6.2.1)"
+    assert adopting.handover_parts(app, cask) == ("add to Homebrew", "dockish 6.2.1")
 
 
 def test_two_version_schemes_are_not_called_newer_or_older(tmp_path):
@@ -112,12 +110,12 @@ def test_two_version_schemes_are_not_called_newer_or_older(tmp_path):
     cask = Cask("foxit-pdf-editor", "https://foxit.com/", "14.0.8.69494")
 
     assert adopting.compare_to_app(app, cask) == adopting.UNCLEAR
-    assert adopting.handover_label(app, cask) == (
-        "let Homebrew take over (replace 2026.1.1.70276 with 14.0.8.69494, "
-        "the versions can't be compared, this may be a downgrade)"
+    assert adopting.handover_parts(app, cask) == (
+        "let Homebrew take over",
+        "replace 2026.1.1.70276 with 14.0.8.69494, the versions can't be compared, this may be a downgrade",
     )
     # Offered all the same, because refusing leaves the app untracked forever.
-    assert adopting.can_take_over(app, cask)
+    assert adopting.has_a_recipe(cask)
     assert not adopting.would_downgrade(app, cask)
 
 
@@ -202,8 +200,8 @@ def test_a_recipe_that_lags_the_app_says_so_in_the_option(tmp_path):
     cask = Cask("codex-app", "https://openai.com/codex", "26.623.141536")
 
     assert adopting.would_downgrade(app, cask)
-    assert adopting.handover_label(app, cask) == (
-        "let Homebrew take over (downgrade 26.831.21537 → 26.623.141536)"
+    assert adopting.handover_parts(app, cask) == (
+        "let Homebrew take over", "downgrade 26.831.21537 → 26.623.141536"
     )
 
 
@@ -251,24 +249,23 @@ PACKAGE = Cask("google-drive", "https://www.google.com/drive/", "131.0.2",
 def test_an_app_homebrew_installs_from_a_package_is_offered_a_reinstall(tmp_path):
     app = bundle(tmp_path, "Google Drive", "131.0")
 
-    assert adopting.can_take_over(app, PACKAGE)
-    assert adopting.handover_label(app, PACKAGE) == (
-        "reinstall with Homebrew's installer (google-drive 131.0.2)"
+    assert adopting.has_a_recipe(PACKAGE)
+    assert adopting.handover_parts(app, PACKAGE) == (
+        "reinstall with Homebrew's installer", "google-drive 131.0.2"
     )
 
 
 def test_a_package_reinstall_that_goes_back_a_version_says_so(tmp_path):
     app = bundle(tmp_path, "Google Drive", "132.0")
 
-    assert "downgrade 132.0 → 131.0.2" in adopting.handover_label(app, PACKAGE)
+    assert adopting.handover_parts(app, PACKAGE)[1] == "downgrade 132.0 → 131.0.2"
 
 
 def test_a_package_reinstall_across_version_schemes_warns_of_a_downgrade(tmp_path):
     app = bundle(tmp_path, "Google Drive", "2026.1.1")
 
-    assert (
+    assert adopting.handover_parts(app, PACKAGE)[1] == (
         "replace 2026.1.1 with 131.0.2, the versions can't be compared, this may be a downgrade"
-        in adopting.handover_label(app, PACKAGE)
     )
 
 
