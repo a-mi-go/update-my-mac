@@ -21,6 +21,7 @@ class MenuEntry:
     keys: list = field(default_factory=list)
     # What was outdated when the menu was drawn, to compare against afterwards.
     outdated: list = field(default_factory=list)
+    left_outdated: frozenset = frozenset()
 
 
 def build_menu(reports):
@@ -199,7 +200,7 @@ def print_what_changed(entries):
             continue
 
         remaining = again.outdated_packages
-        manager.left_outdated_in_last_upgrade = frozenset(report.parse_to_item(one).name for one in remaining)
+        entry.left_outdated = frozenset(report.parse_to_item(one).name for one in remaining)
         updated = max(0, len(entry.outdated) - len(remaining))
         if not remaining:
             output.print_plain((manager.label, "green"), f": {len(entry.outdated)} updated")
@@ -224,21 +225,20 @@ def run_chosen(entries):
     closed = close_apps.ask_before_the_update(upgraded)
     _, failed = upgrade_managers(package_keys)
     could_not_confirm = print_what_changed(upgraded)
-    _offer_the_app_store(package_keys)
+    _offer_the_app_store(upgraded)
     close_apps.ask_to_start_again(closed)
     return [key for key, _ in failed] + could_not_confirm
 
 
-def _offer_the_app_store(upgraded_keys):
+def _offer_the_app_store(upgraded):
     """Offers to open the App Store app on the updates mas left outdated."""
-    store = managers.by_key("mas")
-    if "mas" not in upgraded_keys or not store.left_outdated_in_last_upgrade:
+    if not any(entry.keys == ["mas"] and entry.left_outdated for entry in upgraded):
         return
     step = prompting.Step()
     step.print_empty_line()
     try:
-        opened = not step.yes_or_no("Open the App Store to update them there?") or store.open_updates_page()
+        wants_to = step.yes_or_no("Open the App Store to update them there?")
     except prompting.Stopped:
         return
-    if not opened:
+    if wants_to and not managers.by_key("mas").open_updates_page():
         step.print_indented("The App Store could not be opened.", style="yellow")

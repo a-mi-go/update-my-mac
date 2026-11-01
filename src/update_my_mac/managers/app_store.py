@@ -19,8 +19,8 @@ class AppStore(PackageManager):
     counted_as = "apps"
     asks_for_password = True
     failure_hint = (
-        "The App Store started no download for mas. Update it in the App Store app instead; "
-        "if that cannot either, it belongs to another Apple Account: sign in with that one there."
+        "An app the App Store refuses to download can be updated in the App Store app instead; "
+        "if it refuses there too, it belongs to another Apple Account: sign in with that one."
     )
 
     def __init__(self):

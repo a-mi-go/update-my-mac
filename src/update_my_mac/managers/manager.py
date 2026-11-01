@@ -47,7 +47,6 @@ class PackageManager(ABC):
     asks_for_password = False
     failure_hint = ""
     refused_in_last_upgrade = frozenset()
-    left_outdated_in_last_upgrade = frozenset()
 
     def parse_outdated(self, stdout):
         return nonblank_lines(stdout)

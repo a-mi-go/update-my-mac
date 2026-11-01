@@ -49,8 +49,10 @@ class _Waiting(Status):
         return super().__enter__()
 
     def __exit__(self, *exception):
-        super().__exit__(*exception)
-        self._warning.__exit__(None, None, None)
+        try:
+            super().__exit__(*exception)
+        finally:
+            self._warning.__exit__(None, None, None)
 
 
 def waiting(what=""):
