@@ -7,6 +7,8 @@ from update_my_mac.checks import appcast
 from update_my_mac.controller import walkthrough
 from update_my_mac.system import shell
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.view import prompting
+from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
 
 ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"
@@ -210,9 +212,10 @@ def _move_to_the_trash(app, step, results):
 
 def _hand_to_homebrew(app, cask, step):
     """Returns whether Homebrew took the app over."""
-    taken, message = adopting.hand_to_homebrew(app, cask)
-    colour = "green" if taken else "red"
-    step.print_indented(message, style=colour)
+    with prompting.warning_before_stopping():
+        taken, message = adopting.hand_to_homebrew(app, cask, status=report.waiting("waiting for Homebrew"))
+    color = "green" if taken else "red"
+    step.print_indented(message, style=color)
     return taken
 
 

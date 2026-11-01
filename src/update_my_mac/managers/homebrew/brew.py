@@ -118,20 +118,20 @@ def recorded_cask_times(recorded):
     return times
 
 
-def adopt_cask(token):
+def adopt_cask(token, status=None):
     """Hands an app that is already installed over to Homebrew, index first."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+    return shell.stream_command([executable, "install", "--cask", token, "--adopt"], silent_status=status)
 
 
-def install_cask_over(token):
+def install_cask_over(token, status=None):
     """Downloads the cask's version and puts it over the app already in place."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--force"])
+    return shell.stream_command([executable, "install", "--cask", token, "--force"], silent_status=status)
 
 
 def installed_packages(env=None):

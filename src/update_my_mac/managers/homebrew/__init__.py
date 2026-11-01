@@ -14,6 +14,12 @@ from update_my_mac.managers.manager import (
 from update_my_mac.system import shell
 
 INDEX_STALE_AFTER_SECONDS = 24 * 60 * 60
+# "cursor  3.25.6,f0df77 -> 3.27.14,69b724  (190 MB)", the name and the size optional.
+VERSION_CHANGE = re.compile(
+    rb"^(?P<name> *(?:[^\s>]+ +)?)(?P<old>[^\s,]+)(?:,\S*)? *-> (?P<new>[^\s,]+)(?:,\S*)?(?P<size> +\(.*\))?\s*$"
+)
+# "✔︎ Cask cursor (3.27.22,b1aa50cb6db8)  Verified", as the downloads report themselves.
+CASK_DOWNLOAD = re.compile(rb"(Cask \S+ \([^\s,()]+),[^\s()]*\)")
 
 
 class Homebrew(PackageManager):
@@ -53,6 +59,17 @@ class Homebrew(PackageManager):
             return []
         return brew.untrusted_taps()
 
+    def shorten_output(self, data):
+        """Returns the output with the build dropped from each version Homebrew writes for an upgrade."""
+        lines = CASK_DOWNLOAD.sub(rb"\1)", data).split(b"\n")
+        # The last piece may be the start of a line the next read finishes.
+        finished = [(line, _version_change(line)) for line in lines[:-1]]
+        if not any(b"," in line for line, change in finished if change):
+            return b"\n".join(lines)
+        width = max(len(change["old"]) for _, change in finished if change)
+        shown = [_without_builds(line, change, width) if change else line for line, change in finished]
+        return b"\n".join(shown + lines[-1:])
+
     def check_self(self):
         """Returns whether Homebrew's index is old enough to be worth refreshing."""
         executable = shell.find_executable(self.command)
@@ -89,3 +106,14 @@ class Homebrew(PackageManager):
         return ManagerUpdate(
             self.key, self.label, f"index is {days} day{'s' if days != 1 else ''} old"
         )
+
+
+def _version_change(line):
+    return VERSION_CHANGE.match(line.removesuffix(b"\r"))
+
+
+def _without_builds(line, change, width):
+    """Returns the line again with the builds gone and the arrows lined up at `width`."""
+    size = b"  " + change["size"].strip() if change["size"] else b""
+    ending = b"\r" if line.endswith(b"\r") else b""
+    return change["name"] + change["old"].ljust(width) + b" -> " + change["new"] + size + ending

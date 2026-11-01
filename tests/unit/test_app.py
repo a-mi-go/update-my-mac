@@ -222,7 +222,7 @@ class BrewShell:
     def find_executable(self, command):
         return f"/fake/{command}" if self.installed else None
 
-    def stream_command(self, args, env=None, silent_status=None):
+    def stream_command(self, args, env=None, silent_status=None, rewrite=None):
         self.calls.append((args, env))
         return 0
 

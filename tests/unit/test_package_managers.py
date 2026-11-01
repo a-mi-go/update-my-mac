@@ -2,8 +2,9 @@ import pytest
 
 from update_my_mac import managers
 from update_my_mac.managers import CheckFailed
+from update_my_mac.system import shell as real_shell
 from update_my_mac.system.shell import CommandResult
-from fake_run import use_shell
+from fake_run import swap, use_shell
 
 NPM_OUTDATED = """{
   "typescript": {"current": "5.4.2", "wanted": "5.4.5", "latest": "5.4.5"},
@@ -182,7 +183,7 @@ def test_only_homebrew_gets_an_environment_override():
 
 def test_a_manager_without_upgrade_arguments_is_not_run():
     shell = FakeShell(installed=("brew",), result=CommandResult(True, "", ""))
-    shell.stream_command = lambda args, env=None, silent_status=None: 0
+    shell.stream_command = lambda args, env=None, silent_status=None, rewrite=None: 0
     class WithoutUpgradeArguments(managers.PackageManager):
         key, label, command = "x", "X", "brew"
         outdated_args = ("outdated",)
@@ -415,7 +416,7 @@ class StreamingShell:
     def find_executable(self, command):
         return f"/fake/{command}"
 
-    def stream_command(self, args, env=None, silent_status=None):
+    def stream_command(self, args, env=None, silent_status=None, rewrite=None):
         self.streamed.append(args[1:])
         return self.codes.pop(0)
 
@@ -436,12 +437,75 @@ def test_a_manager_with_nothing_to_clear_out_runs_nothing():
     assert shell.streamed == []
 
 
-def test_the_app_store_upgrade_shows_no_status_because_sudo_asks_for_a_password():
-    statuses = []
-    shell = StreamingShell([0, 0])
-    shell.stream_command = lambda args, env=None, silent_status=None: statuses.append(silent_status) or 0
+def test_the_app_store_names_the_apps_it_started_no_download_for():
+    mas = managers.by_key("mas")
+    mas.parse_outdated("6469021132  PDFgear  (2.27 -> 2.28)\n585829637  Todoist  (9.30.0 -> 9.31.0)\n")
+    use_shell(StreamingShell([1]))
+    swap(
+        real_shell, "output_of_last_streamed_command",
+        lambda: "Error: No downloads initiated for ADAM ID 6469021132\nError: No downloads initiated for ADAM ID 1\n",
+    )
 
-    use_shell(shell)
-    managers.by_key("mas").upgrade(status="spinner")
-    managers.by_key("npm").upgrade(status="spinner")
-    assert statuses == [None, "spinner"]
+    mas.upgrade()
+
+    assert mas.refused_in_last_upgrade == {"PDFgear"}
+
+
+def test_homebrew_upgrade_output_loses_the_builds_after_a_comma():
+    brew = managers.by_key("brew")
+    written = (
+        b"==> Upgrading 2 outdated packages:\r\n"
+        b"cursor   3.25.6,f0df777c412b670d09e3eaf214967d779e67c088 -> 3.27.14,69b724ebc67e  (190 MB)\r\n"
+        b"charles  5.2.1                                           -> 5.2.2\r\n"
+        b"  3.25.6,f0df777c412b670d09e3eaf214967d779e67c088 -> 3.27.14,69b724ebc67e\r\n"
+        b"Moving App 'Cursor.app' to '/Applications/Cursor.app', 1,2 -> 3\r\n"
+        b"cursor   3.25.6,f0df -> 3.27"
+    )
+
+    assert brew.shorten_output(written).split(b"\n") == [
+        b"==> Upgrading 2 outdated packages:\r",
+        b"cursor   3.25.6 -> 3.27.14  (190 MB)\r",
+        b"charles  5.2.1  -> 5.2.2\r",
+        b"  3.25.6 -> 3.27.14\r",
+        b"Moving App 'Cursor.app' to '/Applications/Cursor.app', 1,2 -> 3\r",
+        b"cursor   3.25.6,f0df -> 3.27",
+    ]
+
+
+def test_homebrew_download_progress_loses_the_build_after_a_comma():
+    written = (
+        b"\xe2\x9c\x94\xef\xb8\x8e Cask cursor (3.27.22,b1aa50cb6db84fd3e8c808259cb172ea73425c1f)  Verified\r\n"
+        b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r\n"
+    )
+
+    assert managers.by_key("brew").shorten_output(written).split(b"\n") == [
+        b"\xe2\x9c\x94\xef\xb8\x8e Cask cursor (3.27.22)  Verified\r",
+        b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r",
+        b"",
+    ]
+
+
+def test_homebrew_upgrade_output_without_builds_keeps_its_own_layout():
+    written = b"signal  8.31.0       -> 8.32.0\nzoom    7.1.5.84650  -> 7.2.2.88465\n"
+
+    assert managers.by_key("brew").shorten_output(written) == written
+
+
+def test_other_managers_show_their_upgrade_output_as_it_is():
+    assert managers.by_key("npm").shorten_output(b"a 1,2 -> 3,4\n") == b"a 1,2 -> 3,4\n"
+
+
+def behind_its_recipe(token, app_version, cask_version, recorded=None):
+    from pathlib import Path
+    from update_my_mac.checks.installed_apps import InstalledApp
+    from update_my_mac.managers.homebrew import behind_the_recipe
+    from update_my_mac.managers.homebrew.casks import Cask
+
+    app = InstalledApp(token.title(), app_version, Path(f"/Applications/{token.title()}.app"))
+    return behind_the_recipe.Behind(app, Cask(token, "https://x.test/", cask_version), recorded or app_version)
+
+
+def test_the_app_store_notice_about_progress_is_dropped_from_what_upgrade_shows():
+    written = b"Update progress cannot be displayed\nInstalling CotEditor\n"
+
+    assert managers.by_key("mas").shorten_output(written) == b"Installing CotEditor\n"

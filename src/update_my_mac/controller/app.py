@@ -3,6 +3,8 @@
 import functools
 import getpass
 
+from rich.text import Text
+
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
@@ -79,7 +81,7 @@ def run_updates_only_mode():
     result = self_update.update_managers(managers_behind)
     _clean_up(installed)
 
-    with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+    with report.waiting("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
     failed = result.failed + apply_updates.ask_what_to_update(reports)
@@ -95,19 +97,16 @@ def run_retry_app_mode():
 
 
 def _check_the_managers(installed):
-    with output.console.status(
-        "[dim]asking the package managers if they need an update themselves[/]",
-        spinner=report.SPINNER,
-    ):
+    with report.waiting("asking the package managers if they need an update themselves"):
         return managers.check_themselves(installed)
 
 
 def _check_the_mac(installed, decisions):
     findings = Findings(any_manager_installed=bool(installed))
 
-    with output.console.status("", spinner=report.SPINNER) as spinner:
+    with report.waiting() as spinner:
         def now(what):
-            spinner.update(f"[dim]{what}[/]")
+            spinner.update(Text(what, style="dim"))
 
         now("asking each manager what is outdated")
         findings.reports = managers.check_what_is_outdated()
@@ -354,5 +353,6 @@ def _restart_every_app(apps, step):
 
 def _offer_to_restart_what_the_updates_replaced(already_offered=()):
     offered = {app.bundle for app in already_offered}
-    replaced = [app for app in running_apps.find() if app.bundle not in offered]
+    with report.waiting("looking for running apps the updates replaced"):
+        replaced = [app for app in running_apps.find() if app.bundle not in offered]
     restart_apps.ask_after_the_update(replaced)

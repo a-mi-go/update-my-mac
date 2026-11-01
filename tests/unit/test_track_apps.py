@@ -1,3 +1,4 @@
+import signal
 from update_my_mac.view.prompting import BULLET
 from pathlib import Path
 
@@ -100,7 +101,7 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 def test_doing_nothing_asks_about_no_app_at_all(tmp_path):
     terminal = Terminal("3")
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("Other")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert len(dealt_with) == 0
@@ -146,8 +147,6 @@ def test_apps_already_left_alone_are_not_asked_about_again(tmp_path):
     assert terminal.text == ""
 
 
-
-
 def test_revisiting_says_so_when_there_is_nothing_to_revisit(tmp_path):
     terminal = Terminal()
 
@@ -180,8 +179,6 @@ def test_answering_nothing_leaves_the_list_as_it_is(tmp_path):
 
     assert brought_back == 0
     assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
-
-
 
 
 def test_no_more_input_stops_instead_of_crashing(tmp_path):
@@ -288,7 +285,7 @@ def test_an_app_can_be_handed_to_homebrew(tmp_path):
     decisions = decisions_in(tmp_path)
     terminal = Terminal(ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "Homebrew looks after it now, as betterdisplay." in terminal.text
@@ -300,7 +297,7 @@ def test_an_app_can_be_handed_to_homebrew(tmp_path):
 def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
     terminal = Terminal(LATER)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
 
     assert "add to Homebrew" not in terminal.text
@@ -311,7 +308,7 @@ def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
     # Adopting it did not work, so the same app is asked about again.
     terminal = Terminal(ADOPT, IGNORE_AFTER_ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     # The second answer still counted, so nothing was swallowed.
@@ -322,7 +319,7 @@ def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
 def test_the_menu_says_which_cask_would_take_the_app(tmp_path):
     terminal = Terminal(LATER_AFTER_ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("BetterDisplay")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert f"1) {BULLET}add to Homebrew (betterdisplay 1.0)" in terminal.text
@@ -336,7 +333,7 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
         asked.append(app.file_stem)
         return True, "done"
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopt: adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopt: adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert asked == ["BetterDisplay"]
@@ -346,7 +343,7 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
 def test_the_menu_counts_how_many_homebrew_could_take(tmp_path):
     terminal = Terminal("3")
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "add all to Homebrew (1 of 2)" in terminal.text
@@ -461,7 +458,7 @@ def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
 
 
 def test_one_app_has_no_walk_through_to_cancel(tmp_path):
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     ask = lambda apps, terminal: track_apps.ask_what_to_do(apps, decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
     one, two = Terminal(LATER), Terminal(LATER, LATER, LATER)
 
@@ -518,4 +515,23 @@ def test_an_app_that_could_not_be_moved_says_so_and_is_asked_about_again(tmp_pat
 
     assert "Could not move Juice to the Trash." in terminal.text
     assert dealt_with == []
+
+
+def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping():
+    seen = []
+
+    def hand_over(app, cask, status=None):
+        seen.append((status, signal.getsignal(signal.SIGINT)))
+        return True, "taken"
+
+    swap(track_apps.adopting, "hand_to_homebrew", hand_over)
+    before = signal.getsignal(signal.SIGINT)
+
+    assert track_apps._hand_to_homebrew(object(), object(), Terminal().step)
+
+    status, handler = seen[0]
+    assert status is not None
+    assert handler is not before
+    assert signal.getsignal(signal.SIGINT) is before
+
 

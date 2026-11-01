@@ -8,6 +8,8 @@ from update_my_mac.system import shell
 from update_my_mac.system.shell import describe_exit
 from update_my_mac.controller import walkthrough
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.view import prompting
+from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
 
 KEEP_BOTH = "keep both"
@@ -97,4 +99,7 @@ def _remove(copy):
     executable = shell.find_executable(copy.remove_with[0])
     if executable is None:
         return None
-    return shell.stream_command([executable, *copy.remove_with[1:]])
+    with prompting.warning_before_stopping():
+        return shell.stream_command(
+            [executable, *copy.remove_with[1:]], silent_status=report.waiting(f"waiting for {copy.remove_with[0]}")
+        )

@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import pytest
+
 from update_my_mac.system import shell
 
 
@@ -62,6 +64,54 @@ def test_a_status_shows_until_the_command_first_writes(capfd):
     assert capfd.readouterr().out == "hello"
 
 
+def test_what_is_shown_is_rewritten_but_what_is_kept_is_what_the_command_wrote(capfd):
+    shell._run_until_it_writes(["sh", "-c", "printf hello"], None, Status(), rewrite=bytes.upper)
+
+    assert capfd.readouterr().out == "HELLO"
+    assert shell.output_of_last_streamed_command().endswith("hello")
+
+
+def test_a_status_keeps_showing_while_everything_the_command_wrote_is_dropped(capfd):
+    status = Status()
+
+    shell._run_until_it_writes(["sh", "-c", "printf noise; sleep 0.3; printf hello"], None, status, rewrite=lambda data: b"" if data == b"noise" else data)
+
+    assert status.events == ["start", "stop"]
+    assert capfd.readouterr().out == "hello"
+
+
+def test_a_status_comes_back_when_the_command_goes_quiet_and_stops_before_it_writes_again(monkeypatch, capfd):
+    monkeypatch.setattr(shell, "SECONDS_OF_SILENCE_BEFORE_STATUS", 0.2)
+    status = Status()
+
+    shell._run_until_it_writes(["sh", "-c", "echo one; sleep 0.8; echo two"], None, status)
+
+    assert status.events == ["start", "stop", "start", "stop"]
+    assert capfd.readouterr().out.split() == ["one", "two"]
+
+
+
+def test_a_line_followed_only_by_color_or_cursor_codes_still_counts_as_finished(monkeypatch):
+    monkeypatch.setattr(shell, "SECONDS_OF_SILENCE_BEFORE_STATUS", 0.2)
+    status = Status()
+
+    shell._run_until_it_writes(
+        ["sh", "-c", "printf 'done\\n\\033[0m'; sleep 0.1; printf '\\033[?25h'; sleep 0.8; echo end"],
+        None, status,
+    )
+
+    assert status.events == ["start", "stop", "start", "stop"]
+
+
+def test_a_status_does_not_start_in_the_middle_of_a_line(monkeypatch):
+    monkeypatch.setattr(shell, "SECONDS_OF_SILENCE_BEFORE_STATUS", 0.1)
+    status = Status()
+
+    shell._run_until_it_writes(["sh", "-c", "printf half; sleep 0.6; echo done"], None, status)
+
+    assert status.events == ["start", "stop"]
+
+
 def test_the_status_has_stopped_before_the_first_byte_is_passed_on(capfd):
     class Marking(Status):
         def stop(self):
@@ -84,6 +134,29 @@ def test_the_command_still_sees_a_terminal(capfd):
     shell._run_until_it_writes(["sh", "-c", "[ -t 1 ] && printf yes || printf no"], None, Status())
 
     assert capfd.readouterr().out == "yes"
+
+
+def test_what_the_command_asks_on_its_own_terminal_passes_through_and_stops_the_status(capfd):
+    status = Status()
+
+    shell._run_until_it_writes(["sh", "-c", "sleep 0.3; printf Password: > /dev/tty"], None, status)
+
+    assert status.events == ["start", "stop"]
+    assert capfd.readouterr().out == "Password:"
+
+
+def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
+    import pty
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    os.write(keys, b"secret\n")
+
+    shell._run_until_it_writes(["sh", "-c", "read answer; printf \"got $answer\""], None, Status())
+
+    assert capfd.readouterr().out.endswith("got secret")
+    os.close(keys)
+    os.close(keyboard)
 
 
 def test_something_the_command_left_running_does_not_hold_the_run_up():
@@ -154,3 +227,24 @@ def test_what_a_streamed_command_writes_reaches_a_listener_and_so_does_its_end(c
 
     assert b"hello" in b"".join(piece for piece in heard if piece is not None)
     assert heard[-1] is None
+
+
+def test_a_command_that_is_stopped_is_interrupted_rather_than_killed(tmp_path):
+    import signal
+    import threading
+
+    interrupted = tmp_path / "interrupted"
+    threading.Timer(0.5, os.kill, (os.getpid(), signal.SIGINT)).start()
+
+    with pytest.raises(KeyboardInterrupt):
+        shell._run_until_it_writes(
+            ["sh", "-c", f"trap 'touch {interrupted}; exit 5' INT; while :; do sleep 0.1; done"], None, Status()
+        )
+
+    assert interrupted.exists()
+
+
+def test_a_quick_command_is_out_of_reach_of_a_ctrl_c_meant_only_as_a_warning():
+    result = shell.run_command(["sh", "-c", "ps -o pgid= -p $$"])
+
+    assert int(result.stdout) != os.getpgrp()

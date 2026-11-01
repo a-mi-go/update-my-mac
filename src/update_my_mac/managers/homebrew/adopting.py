@@ -92,7 +92,7 @@ def homebrew_note(app, cask):
     return ""
 
 
-def hand_to_homebrew(app, cask):
+def hand_to_homebrew(app, cask, status=None):
     """Hands the app over. Returns whether it is now looked after, and why."""
     if cask is None:
         return False, "Homebrew has no recipe for this app."
@@ -102,11 +102,11 @@ def hand_to_homebrew(app, cask):
         return False, "Homebrew is not installed."
 
     if can_adopt(app, cask):
-        exit_code = brew.adopt_cask(cask.token)
+        exit_code = brew.adopt_cask(cask.token, status)
     else:
         # Any other version, ahead or behind, has to be downloaded and put in
         # place, because --adopt takes nothing but an identical copy.
-        exit_code = brew.install_cask_over(cask.token)
+        exit_code = brew.install_cask_over(cask.token, status)
     if exit_code != 0:
         how = describe_exit(exit_code)
         return False, f"Homebrew could not take it over, {cask.token} {how}."

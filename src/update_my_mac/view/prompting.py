@@ -1,6 +1,8 @@
 """Asking a question at the terminal, for the walk-throughs that do that."""
 
 import re
+import signal
+from contextlib import contextmanager
 
 from rich.rule import Rule
 from rich.text import Text
@@ -25,7 +27,7 @@ STARTS_WITH_SYMBOL = re.compile(r"[^\w\s(\[\"'] ")
 
 
 class Stopped(Exception):
-    """No more input to answer with. Ctrl-C is the other one, and it ends the run."""
+    """No more input to answer with."""
 
 
 class Markup(str):
@@ -222,6 +224,17 @@ def interrupted(print_line):
 
 def answered():
     arrow_menu.forget_ctrl_c()
+
+
+@contextmanager
+def warning_before_stopping():
+    """Makes the first Ctrl-C only warn while the block runs, as it does in a menu."""
+    previous = signal.signal(signal.SIGINT, lambda *_: interrupted(print_unwrapped))
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        answered()
 
 
 def read_answer(prompt):

@@ -1,12 +1,14 @@
 import pytest
 from rich.console import Console
 
+from update_my_mac import managers
 from update_my_mac.controller import apply_updates
 from update_my_mac.controller import close_apps
 
 from fake_run import swap, use_shell, MANAGER_UPDATES, RecordingShell, answer_with, answers, printed_by, printing_to, raising
 from update_my_mac.controller.apply_updates import CANCEL
 from update_my_mac.managers import ManagerReport, ManagerUpdate
+from update_my_mac.system import shell as real_shell
 from update_my_mac.system.shell import CommandResult
 
 REPORTS = [
@@ -181,7 +183,7 @@ def test_a_failed_upgrade_is_reported_back():
 
 def test_ctrl_c_during_an_upgrade_ends_the_run():
     class InterruptedShell(RecordingShell):
-        def stream_command(self, args, env=None, silent_status=None):
+        def stream_command(self, args, env=None, silent_status=None, rewrite=None):
             self.streamed.append(args)
             raise KeyboardInterrupt
 
@@ -295,7 +297,7 @@ def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
 
 def test_nothing_is_claimed_after_an_interrupted_run():
     class InterruptedShell(RecordingShell):
-        def stream_command(self, args, env=None, silent_status=None):
+        def stream_command(self, args, env=None, silent_status=None, rewrite=None):
             raise KeyboardInterrupt
 
     console = Console(width=100, no_color=True)
@@ -448,10 +450,73 @@ def test_an_app_the_app_store_cannot_download_comes_with_the_likely_reason():
     reports = [ManagerReport("mas", "Mac App Store", ["PDFgear  2.27 → 2.28"])]
     shell = RecordingShell(exit_code=1, still_outdated={"mas": "6469021132  PDFgear  (2.27 -> 2.28)"})
 
-    printed = printed_by(lambda: run(shell, "1", reports=reports))
+    printed = printed_by(lambda: run(shell, "1", "2", reports=reports))
 
     assert "PDFgear" in printed
     assert "another Apple Account" in printed
+
+
+def test_an_app_the_app_store_started_no_download_for_is_marked():
+    reports = [ManagerReport("mas", "Mac App Store", ["PDFgear  2.27 → 2.28", "Todoist  9.30.0 → 9.31.0"])]
+    shell = RecordingShell(
+        exit_code=1,
+        still_outdated={"mas": "1  PDFgear  (2.27 -> 2.28)\n2  Todoist  (9.30.0 -> 9.31.0)"},
+    )
+    managers.by_key("mas").parse_outdated("1  PDFgear  (2.27 -> 2.28)\n2  Todoist  (9.30.0 -> 9.31.0)")
+    swap(
+        real_shell, "output_of_last_streamed_command",
+        lambda: "Error: No downloads initiated for ADAM ID 1\n",
+    )
+
+    printed = printed_by(lambda: run(shell, "1", "2", reports=reports))
+
+    assert "PDFgear" in printed and "Todoist" in printed
+    assert printed.count("no download started") == 1
+    assert printed.index("PDFgear") < printed.index("no download started") < printed.index("Todoist")
+
+
+def refused_by_the_app_store(shell, *replies):
+    reports = [ManagerReport("mas", "Mac App Store", ["PDFgear  2.27 → 2.28"])]
+    managers.by_key("mas").parse_outdated("1  PDFgear  (2.27 -> 2.28)")
+    swap(real_shell, "output_of_last_streamed_command", lambda: "Error: No downloads initiated for ADAM ID 1\n")
+    return printed_by(lambda: run(shell, "1", *replies, reports=reports))
+
+
+class OpeningShell(RecordingShell):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ran = []
+
+    def run_command(self, args, success_exit_codes=(0,), env=None):
+        self.ran.append(args)
+        return super().run_command(args, success_exit_codes, env)
+
+
+def test_the_app_store_is_opened_on_its_updates_when_mas_started_no_download():
+    shell = OpeningShell(exit_code=1, still_outdated={"mas": "1  PDFgear  (2.27 -> 2.28)"})
+
+    refused_by_the_app_store(shell, "1")
+
+    assert ["/fake/open", "macappstore://showUpdatesPage"] in shell.ran
+
+
+def test_the_app_store_is_offered_for_an_outdated_app_even_when_mas_names_no_refusal():
+    reports = [ManagerReport("mas", "Mac App Store", ["PDFgear  2.27 → 2.28"])]
+    shell = OpeningShell(exit_code=1, still_outdated={"mas": "1  PDFgear  (2.27 -> 2.28)"})
+    managers.by_key("mas").parse_outdated("1  PDFgear  (2.27 -> 2.28)")
+    swap(real_shell, "output_of_last_streamed_command", lambda: "")
+
+    printed_by(lambda: run(shell, "1", "1", reports=reports))
+
+    assert ["/fake/open", "macappstore://showUpdatesPage"] in shell.ran
+
+
+def test_the_app_store_stays_closed_when_the_answer_is_no():
+    shell = OpeningShell(exit_code=1, still_outdated={"mas": "1  PDFgear  (2.27 -> 2.28)"})
+
+    refused_by_the_app_store(shell, "2")
+
+    assert not any("macappstore://showUpdatesPage" in args for args in shell.ran)
 
 
 def test_a_manager_without_a_known_reason_adds_no_explanation():

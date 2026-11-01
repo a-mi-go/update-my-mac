@@ -11,12 +11,14 @@ from rich.measure import Measurement
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.segment import Segment
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
 from update_my_mac.view import output
+from update_my_mac.view import prompting
 from update_my_mac.view import sections
 
 
@@ -40,9 +42,20 @@ class Item:
         return (self.name, self.version, self.comment)
 
 
-def waiting(what):
+class _Waiting(Status):
+    def __enter__(self):
+        self._warning = prompting.warning_before_stopping()
+        self._warning.__enter__()
+        return super().__enter__()
+
+    def __exit__(self, *exception):
+        super().__exit__(*exception)
+        self._warning.__exit__(None, None, None)
+
+
+def waiting(what=""):
     """Returns a spinner that says what the run is waiting for."""
-    return output.console.status(Text(what, style="dim"), spinner=SPINNER)
+    return _Waiting(Text(what, style="dim"), console=output.console, spinner=SPINNER)
 
 
 def print_as_list_or_grid(indent, items):
@@ -69,7 +82,7 @@ def print_as_list_or_grid(indent, items):
     output.console.print(Padding(table, (0, 0, 0, len(indent))))
 
 
-def item_for_package(package):
+def parse_to_item(package):
     """Returns a manager's "name  1.2.3 → 1.2.4" line split so the arrows line up."""
     name, _, change = package.partition("  ")
     return Item(name, versions.change_without_builds(change))
@@ -234,7 +247,7 @@ def print_outdated_summary(reports):
             console.print(f"[bold]{report.label}[/]: {count} outdated")
             print_as_list_or_grid(
                 "    ",
-                [item_for_package(package) for package in report.outdated_packages],
+                [parse_to_item(package) for package in report.outdated_packages],
             )
         else:
             console.print(f"[green]{report.label}[/]: up to date")

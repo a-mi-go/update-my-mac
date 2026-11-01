@@ -1,9 +1,12 @@
 """The one place that runs external commands."""
 
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 
 
@@ -19,6 +22,14 @@ class CommandResult:
 _run_environment = None
 
 _command_output_listener = None
+
+SECONDS_OF_SILENCE_BEFORE_STATUS = 2
+KEPT_OUTPUT_BYTES = 100_000
+SECONDS_TO_STOP = 5
+STDIN = 0
+KEYBOARD = STDIN
+COLOR_OR_CURSOR_VISIBILITY_AT_END = re.compile(rb"(?:\x1b\[(?:\?25[hl]|[0-9;]*m|0?K))+$")
+_last_streamed = bytearray()
 
 
 def listen_to_command_output(listener):
@@ -53,6 +64,8 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
             text=True,
             timeout=timeout,
             env=_for_command(env),
+            # Out of the terminal's reach, so a Ctrl-C that only warns does not stop it.
+            start_new_session=True,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return CommandResult(False, "", str(exc), -1)
@@ -65,20 +78,26 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
     )
 
 
-def stream_command(args, env=None, silent_status=None):
+def stream_command(args, env=None, silent_status=None, rewrite=None):
     """Runs a command with the terminal attached.
 
     Returns its exit code, or None when the command never started. A status,
-    which has start() and stop(), shows until the command first writes.
+    which has start() and stop(), shows whenever the command is not writing.
+    With a status, `rewrite` turns each piece of output into what is shown.
     """
-    # Not captured: a password prompt needs the real terminal.
     env = _for_command(env)
+    _last_streamed.clear()
     try:
         if silent_status is None or not sys.stdout.isatty():
             return subprocess.run(args, env=env).returncode
-        return _run_until_it_writes(args, env, silent_status)
+        return _run_until_it_writes(args, env, silent_status, rewrite)
     except (OSError, subprocess.SubprocessError):
         return None
+
+
+def output_of_last_streamed_command():
+    """Returns what the last streamed command wrote to its terminal, as far as it is kept."""
+    return bytes(_last_streamed).decode("utf-8", errors="replace")
 
 
 def copy_to_clipboard(text):
@@ -155,22 +174,26 @@ def _for_command(env):
     return _run_environment if env is None else env
 
 
-def _run_until_it_writes(args, env, status):
+def _run_until_it_writes(args, env, status, rewrite=None):
     """Runs a command whose output reaches the terminal through a pty.
 
-    The command still sees a terminal, with its colours and progress bars. The
-    status shows until its first byte, and stops before that byte is passed on.
+    The command still sees a terminal, with its colors and progress bars. The
+    status shows while it is silent, and stops before the next byte is passed on.
+    The pty is the command's own terminal, so what sudo asks reaches the screen
+    the same way, and what is typed is passed on to it.
     """
     import pty
     import select
-    import signal
 
     out = sys.stdout.fileno()
     master, slave = pty.openpty()
     _copy_window_size(out, master)
     previous = signal.signal(signal.SIGWINCH, lambda *_: _copy_window_size(out, master))
     try:
-        process = subprocess.Popen(args, env=env, stdout=slave, stderr=slave)
+        process = subprocess.Popen(
+            args, env=env, stdin=slave, stdout=slave, stderr=slave,
+            start_new_session=True, preexec_fn=_take_the_terminal_on_stdin,
+        )
     except BaseException:
         os.close(slave)
         os.close(master)
@@ -179,39 +202,102 @@ def _run_until_it_writes(args, env, status):
     os.close(slave)
 
     sys.stdout.flush()
-    status.start()
+    keys_as_they_were = _read_keys_as_typed()
+    typed = [KEYBOARD] if keys_as_they_were else []
     waiting = True
+    status.start()
+    quiet_since = None
+    at_line_start = False
+    stopping_since = None
     try:
+        # Read on while it stops: macOS holds a command's exit until its output is read.
         while True:
-            ready, _, _ = select.select([master], [], [], 0.1)
-            if ready:
-                try:
-                    data = os.read(master, 65536)
-                except OSError:
-                    break
-                if not data:
-                    break
-                if waiting:
-                    status.stop()
-                    waiting = False
-                _write_all(out, data)
-                if _command_output_listener is not None:
-                    _command_output_listener(data)
-            elif process.poll() is not None:
-                # Something it started may still hold the pty open.
+            try:
+                while True:
+                    ready, _, _ = select.select([master, *typed], [], [], 0.1)
+                    if KEYBOARD in typed and KEYBOARD in ready:
+                        _write_all(master, os.read(KEYBOARD, 1024))
+                    if master in ready:
+                        try:
+                            data = os.read(master, 65536)
+                        except OSError:
+                            break
+                        if not data:
+                            break
+                        shown = rewrite(data) if rewrite else data
+                        _last_streamed.extend(data)
+                        del _last_streamed[:-KEPT_OUTPUT_BYTES]
+                        if not shown:
+                            continue
+                        if waiting:
+                            status.stop()
+                            waiting = False
+                        _write_all(out, shown)
+                        if _command_output_listener is not None:
+                            _command_output_listener(shown)
+                        quiet_since = time.monotonic()
+                        text = COLOR_OR_CURSOR_VISIBILITY_AT_END.sub(b"", data)
+                        if text:
+                            at_line_start = text.endswith(b"\n")
+                    elif process.poll() is not None:
+                        # Something it started may still hold the pty open.
+                        break
+                    elif stopping_since is not None and time.monotonic() - stopping_since >= SECONDS_TO_STOP:
+                        process.kill()
+                    elif not waiting and at_line_start and time.monotonic() - quiet_since >= SECONDS_OF_SILENCE_BEFORE_STATUS:
+                        status.start()
+                        waiting = True
                 break
-        return process.wait()
+            except KeyboardInterrupt:
+                stopping_since = stopping_since or time.monotonic()
+                _interrupt(process)
+        exit_code = process.wait()
+        if stopping_since is not None:
+            raise KeyboardInterrupt
+        return exit_code
     except BaseException:
         process.kill()
-        process.wait()
         raise
     finally:
         if waiting:
             status.stop()
+        if keys_as_they_were:
+            import termios
+
+            termios.tcsetattr(KEYBOARD, termios.TCSANOW, keys_as_they_were)
         if _command_output_listener is not None:
             _command_output_listener(None)
         signal.signal(signal.SIGWINCH, previous)
         os.close(master)
+        process.wait()
+
+
+def _interrupt(process):
+    """Sends Ctrl-C to the command and what it started."""
+    try:
+        os.killpg(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass
+
+
+def _take_the_terminal_on_stdin():
+    import fcntl
+    import termios
+
+    fcntl.ioctl(STDIN, termios.TIOCSCTTY, 0)
+
+
+def _read_keys_as_typed():
+    """Returns the keyboard's terminal settings before it is read key by key without echo, or None."""
+    import termios
+    import tty
+
+    if not os.isatty(KEYBOARD):
+        return None
+    as_it_was = termios.tcgetattr(KEYBOARD)
+    # Ctrl-C still reaches this run rather than being passed on.
+    tty.setcbreak(KEYBOARD, termios.TCSANOW)
+    return as_it_was
 
 
 def _copy_window_size(source, target):

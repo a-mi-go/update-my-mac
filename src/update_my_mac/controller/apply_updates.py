@@ -1,7 +1,6 @@
 """Applying updates: the only module that changes the system."""
 
 from dataclasses import dataclass, field
-from rich.text import Text
 from update_my_mac.view import arrow_menu
 from update_my_mac.view import output
 from update_my_mac import managers
@@ -116,15 +115,14 @@ def run_each_manager(manager_keys, announce, run_one, dotted=False):
         label = f"{announce} {manager.label}"
         if dotted:
             console.print()
-            status = console.status(Text(label, style="dim"), spinner=report.SPINNER)
+            status = report.waiting(label)
         else:
             console.print(f"\n{label}")
             if manager.asks_for_password:
                 console.print("[dim]It may ask for your password.[/]")
-            status = console.status(
-                Text(f"waiting for {manager.label}", style="dim"), spinner=report.SPINNER
-            )
-        exit_code = run_one(manager, status)
+            status = report.waiting(f"waiting for {manager.label}")
+        with prompting.warning_before_stopping():
+            exit_code = run_one(manager, status)
         how = describe_exit(exit_code) if exit_code != 0 else ""
         if dotted:
             console.print(report.dotted_line(label, how or "done", not how))
@@ -193,13 +191,15 @@ def print_what_changed(entries):
     could_not_confirm = []
     for entry in entries:
         manager = managers.by_key(entry.keys[0])
-        again = manager.outdated()
+        with report.waiting(f"asking {manager.label} again what is outdated"):
+            again = manager.outdated()
         if again is None or again.error_message:
             output.print_plain(f"{manager.label}: could not check again", style="yellow")
             could_not_confirm.append(manager.key)
             continue
 
         remaining = again.outdated_packages
+        manager.left_outdated_in_last_upgrade = frozenset(report.parse_to_item(one).name for one in remaining)
         updated = max(0, len(entry.outdated) - len(remaining))
         if not remaining:
             output.print_plain((manager.label, "green"), f": {len(entry.outdated)} updated")
@@ -208,9 +208,11 @@ def print_what_changed(entries):
         output.print_plain(
             (manager.label, "yellow"), f": {updated} of {len(entry.outdated)} updated, still outdated:"
         )
-        report.print_as_list_or_grid(
-            "    ", [report.item_for_package(package) for package in remaining]
-        )
+        items = [report.parse_to_item(package) for package in remaining]
+        for item in items:
+            if item.name in manager.refused_in_last_upgrade:
+                item.comment = "no download started"
+        report.print_as_list_or_grid("    ", items)
         if manager.failure_hint:
             output.print_plain(f"    {manager.failure_hint}", style="dim")
     return could_not_confirm
@@ -222,5 +224,21 @@ def run_chosen(entries):
     closed = close_apps.ask_before_the_update(upgraded)
     _, failed = upgrade_managers(package_keys)
     could_not_confirm = print_what_changed(upgraded)
+    _offer_the_app_store(package_keys)
     close_apps.ask_to_start_again(closed)
     return [key for key, _ in failed] + could_not_confirm
+
+
+def _offer_the_app_store(upgraded_keys):
+    """Offers to open the App Store app on the updates mas left outdated."""
+    store = managers.by_key("mas")
+    if "mas" not in upgraded_keys or not store.left_outdated_in_last_upgrade:
+        return
+    step = prompting.Step()
+    step.print_empty_line()
+    try:
+        opened = not step.yes_or_no("Open the App Store to update them there?") or store.open_updates_page()
+    except prompting.Stopped:
+        return
+    if not opened:
+        step.print_indented("The App Store could not be opened.", style="yellow")

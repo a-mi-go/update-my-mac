@@ -6,6 +6,8 @@ from update_my_mac.system import shell
 from update_my_mac.system.shell import describe_exit
 from update_my_mac.controller import walkthrough
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.view import prompting
+from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
 
 LATER = "later"
@@ -65,7 +67,10 @@ def run_command(command):
     if executable is None:
         return None
     environment = managers.by_key("brew").environment() if program == "brew" else None
-    return shell.stream_command([executable, *arguments], environment)
+    with prompting.warning_before_stopping():
+        return shell.stream_command(
+            [executable, *arguments], environment, silent_status=report.waiting(f"waiting for {program}")
+        )
 
 
 def _walk_through(fixes, step):
