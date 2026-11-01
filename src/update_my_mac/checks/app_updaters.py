@@ -10,6 +10,7 @@ import plistlib
 import time
 from dataclasses import dataclass
 import urllib.parse
+from xml.parsers.expat import ExpatError
 
 from update_my_mac.system import shell
 
@@ -115,23 +116,26 @@ def has_squirrel(app_path):
 
 
 def read_users_app_settings(bundle_id):
-    """Returns the app's own preferences, as `defaults export` reports them."""
-    if not bundle_id:
+    """Returns the user's settings for the app, or none where they can't be read."""
+    exported = _exported_preferences(bundle_id)
+    if not exported.strip():
         return {}
+    try:
+        settings = plistlib.loads(exported.encode())
+    except (ValueError, ExpatError):
+        return {}
+    return settings if isinstance(settings, dict) else {}
 
+
+def _exported_preferences(bundle_id):
+    """Returns the plist text `defaults export` prints for the app, or "" when it prints none."""
+    if not bundle_id:
+        return ""
     executable = shell.find_executable("defaults")
     if executable is None:
-        return {}
-
+        return ""
     result = shell.run_command([executable, "export", bundle_id, "-"], (0,))
-    if not result.success or not result.stdout.strip():
-        return {}
-
-    try:
-        exported = plistlib.loads(result.stdout.encode())
-    except Exception:
-        return {}
-    return exported if isinstance(exported, dict) else {}
+    return result.stdout if result.success else ""
 
 
 def detect(app_path, info=None):
@@ -147,14 +151,14 @@ def _detect_readable(app_path, info):
     if not has_sparkle(app_path, info):
         return _detect_non_sparkle_updater(app_path, info)
 
-    users_answer = read_users_app_settings(info.get("CFBundleIdentifier", ""))
+    users_settings = read_users_app_settings(info.get("CFBundleIdentifier", ""))
     return UpdaterStatus(
         kind=SPARKLE,
-        automatic=_may_check_automatically(users_answer, info),
-        installs_silently=bool(users_answer.get(SILENT_INSTALL)),
-        last_checked=_timestamp_to_date(users_answer.get(LAST_CHECK)),
+        automatic=_may_check_automatically(users_settings, info),
+        installs_silently=bool(users_settings.get(SILENT_INSTALL)),
+        last_checked=_timestamp_to_date(users_settings.get(LAST_CHECK)),
         feed_url=info.get(FEED_URL, ""),
-        skipped=str(users_answer.get(SKIPPED_VERSION) or ""),
+        skipped=str(users_settings.get(SKIPPED_VERSION) or ""),
     )
 
 
@@ -182,9 +186,9 @@ def _names_an_updater(contents):
     return False
 
 
-def _may_check_automatically(users_answer, developers_default):
+def _may_check_automatically(users_settings, developers_default):
     """Returns the user's answer if they gave one, else what the app shipped with."""
-    answer = users_answer.get(AUTOMATIC_CHECKS)
+    answer = users_settings.get(AUTOMATIC_CHECKS)
     return developers_default.get(AUTOMATIC_CHECKS) if answer is None else answer
 
 
