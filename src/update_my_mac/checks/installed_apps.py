@@ -104,28 +104,45 @@ def comes_from_the_app_store(app_path):
 
 def apps_installed_by_homebrew():
     """Returns app file names Homebrew installed, empty when brew isn't there."""
+    return _app_names_in_casks(_installed_casks())
+
+
+def app_names_of_casks(names):
+    """Returns the app file names of the installed casks among these Homebrew packages."""
+    wanted = set(names)
+    if not wanted:
+        return set()
+    return _app_names_in_casks(
+        cask for cask in _installed_casks() if wanted & {cask.get("token"), cask.get("full_token")}
+    )
+
+
+def _installed_casks():
+    """Returns what Homebrew reports about the casks it installed, empty when it can't say."""
     executable = shell.find_executable("brew")
     if executable is None:
-        return set()
+        return []
 
     env = dict(shell.current_environment(), HOMEBREW_NO_AUTO_UPDATE="1")
     result = shell.run_command(
         [executable, "info", "--json=v2", "--installed", "--cask"], (0,), env
     )
     if not result.success:
-        return set()
+        return []
 
     try:
-        casks = json.loads(result.stdout).get("casks", [])
+        return json.loads(result.stdout).get("casks", [])
     except ValueError:
-        return set()
+        return []
 
-    names = set()
+
+def _app_names_in_casks(casks):
+    found = set()
     for cask in casks:
         for artifact in cask.get("artifacts", []):
             if isinstance(artifact, dict):
-                names.update(_app_names_in(artifact))
-    return names
+                found.update(_app_names_in(artifact))
+    return found
 
 
 def find_all():

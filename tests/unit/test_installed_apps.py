@@ -362,3 +362,22 @@ def test_an_app_is_shown_by_the_shortest_name_of_its_own_that_extends_the_file_n
 
     assert (app.file_stem, app.display_name) == (file_stem, shown)
     assert app.describe() == f"{shown}  1.0"
+
+
+def test_the_casks_among_some_packages_name_the_apps_they_install():
+    firefox = dict(cask_with("Firefox.app"), token="firefox")
+    tapped = dict(cask_with("Tapped.app"), token="tapped", full_token="owner/tap/tapped")
+    use_shell(FakeShell([firefox, tapped, cask_with("Other.app")]))
+
+    names = installed_apps.app_names_of_casks(["firefox", "owner/tap/tapped", "jq", "no-such-package"])
+
+    assert names == {"Firefox.app", "Tapped.app"}
+
+
+def test_no_packages_or_no_brew_name_no_apps():
+    firefox = dict(cask_with("Firefox.app"), token="firefox")
+    use_shell(FakeShell([firefox], brew=False))
+    assert installed_apps.app_names_of_casks(["firefox"]) == set()
+
+    use_shell(FakeShell([firefox]))
+    assert installed_apps.app_names_of_casks([]) == set()

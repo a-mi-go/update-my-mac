@@ -2,8 +2,9 @@ import pytest
 from rich.console import Console
 
 from update_my_mac.controller import apply_updates
+from update_my_mac.controller import close_apps
 
-from fake_run import use_shell, MANAGER_UPDATES, RecordingShell, answer_with, answers, printed_by, printing_to, raising
+from fake_run import swap, use_shell, MANAGER_UPDATES, RecordingShell, answer_with, answers, printed_by, printing_to, raising
 from update_my_mac.controller.apply_updates import CANCEL
 from update_my_mac.managers import ManagerReport, ManagerUpdate
 from update_my_mac.system.shell import CommandResult
@@ -459,3 +460,15 @@ def test_a_manager_without_a_known_reason_adds_no_explanation():
     printed = printed_by(lambda: update_menu(REPORTS, shell, answers("2")))
 
     assert "Apple Account" not in printed
+
+
+def test_apps_are_closed_before_the_update_and_offered_again_after_it():
+    calls = []
+    entry = apply_updates.MenuEntry(apply_updates.PACKAGES, "Homebrew", ["brew"])
+    swap(close_apps, "ask_before_the_update", lambda entries: calls.append("close") or ["Firefox"])
+    swap(apply_updates, "upgrade_managers", lambda keys: calls.append("upgrade") or ([], [("brew", 1)]))
+    swap(apply_updates, "print_what_changed", lambda entries: calls.append("report") or [])
+    swap(close_apps, "ask_to_start_again", lambda apps: calls.append(("start again", apps)))
+
+    assert apply_updates.run_chosen([entry]) == ["brew"]
+    assert calls == ["close", "upgrade", "report", ("start again", ["Firefox"])]

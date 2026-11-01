@@ -5,8 +5,8 @@ import time
 
 from update_my_mac.checks import app_updaters
 from update_my_mac.controller import walkthrough
-from update_my_mac.controller.walkthrough import CANCEL
-from update_my_mac.view.prompting import Step, Stopped
+from update_my_mac.view import report
+from update_my_mac.view.prompting import Step
 from update_my_mac.view.sections import NOT_RESTARTED
 from update_my_mac.system import shell
 
@@ -20,8 +20,8 @@ WALK_CHOICES = (
 )
 
 
-def restart(app):
-    """Quits the app and starts it again. Returns whether it worked, and a sentence."""
+def quit_app(app):
+    """Asks the app to quit and waits for it. Returns whether it is gone, and a sentence."""
     info = app_updaters.read_bundle_info(app.bundle)
     bundle_id = info.get("CFBundleIdentifier", "")
     if not bundle_id:
@@ -31,13 +31,21 @@ def restart(app):
         return False, "It would not take the request to quit."
 
     waited = 0.0
-    while shell.is_running(app.pid) and waited < WAIT_SECONDS:
-        time.sleep(LOOK_AGAIN_EVERY)
-        waited += LOOK_AGAIN_EVERY
+    with report.waiting(f"waiting for {app.display_name} to quit"):
+        while shell.is_running(app.pid) and waited < WAIT_SECONDS:
+            time.sleep(LOOK_AGAIN_EVERY)
+            waited += LOOK_AGAIN_EVERY
 
     if shell.is_running(app.pid):
         return False, "It is still running, probably asking about unsaved work."
+    return True, "Quit."
 
+
+def restart(app):
+    """Quits the app and starts it again. Returns whether it worked, and a sentence."""
+    gone, message = quit_app(app)
+    if not gone:
+        return False, message
     if not shell.open_application(app.bundle):
         return False, "It quit, but starting it again did not work."
     return True, "Quit and started again, now running the version on disk."
@@ -66,7 +74,7 @@ def ask_what_to_do(apps, step=None):
     return walkthrough.batch_or_walkthrough(
         step, apps, "restart all (WARNING: unsaved work can be lost)",
         lambda step: _restart_all(apps, step),
-        lambda step: _walk_through(apps, step),
+        lambda step: walkthrough.decide_for_each(apps, step, WALK_CHOICES, RESTART_THIS_ONE, _restart_one),
     )
 
 
@@ -88,24 +96,3 @@ def _restart_one(app, step):
     colour = "green" if done else "red"
     step.print_indented(message, style=colour)
     return done
-
-
-def _walk_through(apps, step):
-    """Lets the user decide how to deal with each app. Returns the restarted ones."""
-    results = step.inside()
-    restarted = []
-    try:
-        for app in apps:
-            step.begin_menu()
-            chosen = step.choose(
-                walkthrough.options_for_single_item(WALK_CHOICES, len(apps) > 1),
-                app.title(),
-                note=app.comment(),
-            )
-            if chosen == CANCEL:
-                break
-            if chosen == RESTART_THIS_ONE and _restart_one(app, results):
-                restarted.append(app)
-    except Stopped:
-        step.print_empty_line()
-    return restarted

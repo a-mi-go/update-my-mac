@@ -5,6 +5,7 @@ from rich.text import Text
 from update_my_mac.view import arrow_menu
 from update_my_mac.view import output
 from update_my_mac import managers
+from update_my_mac.controller import close_apps
 from update_my_mac.system.shell import describe_exit
 from update_my_mac.view import prompting
 from update_my_mac.view import report
@@ -218,6 +219,8 @@ def print_what_changed(entries):
 def run_chosen(entries):
     upgraded = [entry for entry in entries if entry.kind == PACKAGES]
     package_keys = [key for entry in upgraded for key in entry.keys]
+    closed = close_apps.ask_before_the_update(upgraded)
     _, failed = upgrade_managers(package_keys)
     could_not_confirm = print_what_changed(upgraded)
+    close_apps.ask_to_start_again(closed)
     return [key for key, _ in failed] + could_not_confirm

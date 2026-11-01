@@ -40,6 +40,11 @@ class Item:
         return (self.name, self.version, self.comment)
 
 
+def waiting(what):
+    """Returns a spinner that says what the run is waiting for."""
+    return output.console.status(Text(what, style="dim"), spinner=SPINNER)
+
+
 def print_as_list_or_grid(indent, items):
     """Prints one item per line, or up to PRINT_GRID_COLUMNS items to a line when there are many."""
     if not items:

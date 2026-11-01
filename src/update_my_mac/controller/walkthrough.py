@@ -27,6 +27,25 @@ def batch_or_walkthrough(step, things, all_label, do_all, walk):
     return []
 
 
+def decide_for_each(things, step, choices, act_choice, act):
+    """Asks about each thing and acts on those answered with act_choice. Returns the ones where it worked."""
+    results = step.inside()
+    dealt_with = []
+    try:
+        for thing in things:
+            step.begin_menu()
+            chosen = step.choose(
+                options_for_single_item(choices, len(things) > 1), thing.title(), note=thing.comment()
+            )
+            if chosen == CANCEL:
+                break
+            if chosen == act_choice and act(thing, results):
+                dealt_with.append(thing)
+    except Stopped:
+        step.print_empty_line()
+    return dealt_with
+
+
 def options_for_single_item(options, is_walkthrough):
     """Returns one thing's options, plus cancel when others are waiting."""
     return list(options) + ([CANCEL_WALK_ENTRY] if is_walkthrough else [])
