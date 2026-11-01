@@ -12,6 +12,19 @@ from update_my_mac.managers.npm import Npm
 from update_my_mac.managers.pnpm import Pnpm
 from update_my_mac.system import shell
 
+__all__ = [
+    "MANAGERS",
+    "CheckFailed",
+    "ManagerReport",
+    "ManagerUpdate",
+    "PackageManager",
+    "by_key",
+    "check_themselves",
+    "check_what_is_outdated",
+    "installed",
+    "still_behind",
+]
+
 MANAGERS = (AppStore(), Homebrew(), Npm(), Pnpm())
 
 

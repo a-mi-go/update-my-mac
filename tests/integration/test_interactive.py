@@ -8,8 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 HERE = Path(__file__).parent
 MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"

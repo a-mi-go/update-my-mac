@@ -1,12 +1,11 @@
 """Going through the apps no package manager tracks, and revisiting that later."""
 
 
-from update_my_mac.managers.homebrew import adopting
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
+from update_my_mac.checks import app_updaters, appcast
 from update_my_mac.controller import walkthrough
-from update_my_mac.system import shell
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.managers.homebrew import adopting
+from update_my_mac.system import shell
 from update_my_mac.view.prompting import Step, Stopped
 
 ADOPT, WEBSITE, LAUNCH = "adopt", "website", "launch"

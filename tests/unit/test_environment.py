@@ -1,8 +1,8 @@
 import os
 
-from update_my_mac.system import environment
-
 from fake_run import swap, use_environment
+
+from update_my_mac.system import environment
 
 LAUNCHD_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 

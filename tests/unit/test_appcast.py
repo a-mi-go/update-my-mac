@@ -4,10 +4,9 @@ import json
 import urllib.error
 from pathlib import Path
 
-from fake_run import use_environment, swap
+from fake_run import swap, use_environment
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
+from update_my_mac.checks import app_updaters, appcast
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.installed_apps import InstalledApp
 

@@ -12,8 +12,7 @@ not an upgrade.
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import versions
+from update_my_mac.checks import app_updaters, versions
 
 SAME_INSTALL_SECONDS = 60
 

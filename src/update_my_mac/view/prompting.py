@@ -4,8 +4,8 @@ import re
 
 from rich.rule import Rule
 from rich.text import Text
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
+
+from update_my_mac.view import arrow_menu, output
 
 # Leads an answer that leaves the menu without doing anything.
 WAY_OUT = "↩ "

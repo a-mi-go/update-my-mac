@@ -1,14 +1,11 @@
 """Answering a menu with the arrow keys, and not doing so anywhere else."""
 
 import pytest
-
-from update_my_mac.view.prompting import BULLET
-
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
-from update_my_mac.view import prompting
-
+import questionary
 from fake_terminal import Terminal
+
+from update_my_mac.view import arrow_menu, output, prompting
+from update_my_mac.view.prompting import BULLET
 
 
 def test_the_keys_are_not_offered_without_a_terminal():
@@ -215,8 +212,6 @@ def test_a_note_goes_to_the_menu_apart_from_the_question(monkeypatch):
 
     assert seen == [("Which one?", "seen before")]
 
-
-import questionary
 
 REAL_SELECT = questionary.select
 REAL_CHECKBOX = questionary.checkbox
@@ -713,7 +708,6 @@ def test_the_page_keys_scroll_the_report_and_leave_the_menu_alone():
 
 def test_the_screen_is_the_whole_terminal_while_the_menu_below_a_report_asks():
     # Decided when an Application is made, so it is set on the menu's own.
-    import questionary
 
     seen = []
 

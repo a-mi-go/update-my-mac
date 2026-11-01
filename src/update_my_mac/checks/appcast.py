@@ -11,9 +11,9 @@ import os
 import time
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
+from xml.etree import ElementTree
 
 from update_my_mac.checks import versions
 

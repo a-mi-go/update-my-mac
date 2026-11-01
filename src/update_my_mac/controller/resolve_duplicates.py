@@ -4,10 +4,10 @@ Both copies work, so this only lays out who installed what and runs the
 uninstall that was picked.
 """
 
-from update_my_mac.system import shell
-from update_my_mac.system.shell import describe_exit
 from update_my_mac.controller import walkthrough
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.system import shell
+from update_my_mac.system.shell import describe_exit
 from update_my_mac.view.prompting import Step, Stopped
 
 KEEP_BOTH = "keep both"

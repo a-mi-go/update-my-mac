@@ -1,14 +1,13 @@
 """Applying updates: the only module that changes the system."""
 
 from dataclasses import dataclass, field
+
 from rich.text import Text
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
+
 from update_my_mac import managers
 from update_my_mac.controller import close_apps
 from update_my_mac.system.shell import describe_exit
-from update_my_mac.view import prompting
-from update_my_mac.view import report
+from update_my_mac.view import arrow_menu, output, prompting, report
 
 CANCEL = "cancel"
 UPDATE = "update"
@@ -26,17 +25,17 @@ class MenuEntry:
 
 def build_menu(reports):
     entries = []
-    for report in reports:
-        if not report.outdated_packages:
+    for manager_report in reports:
+        if not manager_report.outdated_packages:
             continue
-        count = len(report.outdated_packages)
-        counted_as = managers.by_key(report.manager).counted_as
+        count = len(manager_report.outdated_packages)
+        counted_as = managers.by_key(manager_report.manager).counted_as
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
-                [report.manager],
-                outdated=list(report.outdated_packages),
+                f"{manager_report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
+                [manager_report.manager],
+                outdated=list(manager_report.outdated_packages),
             )
         )
 

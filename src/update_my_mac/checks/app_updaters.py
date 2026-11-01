@@ -8,8 +8,8 @@ neither is the one that really goes stale unnoticed.
 
 import plistlib
 import time
-from dataclasses import dataclass
 import urllib.parse
+from dataclasses import dataclass
 from xml.parsers.expat import ExpatError
 
 from update_my_mac.system import shell

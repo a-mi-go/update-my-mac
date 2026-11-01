@@ -1,19 +1,16 @@
 import time
 from pathlib import Path
 
+from fake_run import printed_by
 from rich.console import Console
 from rich.text import Text
 
 from update_my_mac import __version__
-from update_my_mac.checks import Findings
-from update_my_mac.checks import app_updaters
-from update_my_mac.view import report
-from update_my_mac.view import sections
+from update_my_mac.checks import Findings, app_updaters
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.installed_apps import InstalledApp
-from update_my_mac.managers import ManagerReport, ManagerUpdate
-
-from fake_run import printed_by
+from update_my_mac.managers import ManagerReport
+from update_my_mac.view import report, sections
 
 
 def rendered(reports):

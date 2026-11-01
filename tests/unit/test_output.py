@@ -48,9 +48,8 @@ def test_leaving_twice_leaves_once():
 def test_the_screen_is_left_when_the_run_is_stopped():
     written = terminal()
 
-    with pytest.raises(KeyboardInterrupt):
-        with output.full_screen():
-            raise KeyboardInterrupt
+    with pytest.raises(KeyboardInterrupt), output.full_screen():
+        raise KeyboardInterrupt
 
     assert written.getvalue().count(LEAVE) == 1
 
@@ -59,10 +58,9 @@ def test_what_was_printed_on_the_screen_is_printed_again_when_the_run_ends_on_it
     written = io.StringIO()
     output.console = output.RecordingConsole(file=written, force_terminal=True, height=40, width=100)
 
-    with pytest.raises(RuntimeError):
-        with output.full_screen():
-            output.console.print("a check that failed")
-            raise RuntimeError
+    with pytest.raises(RuntimeError), output.full_screen():
+        output.console.print("a check that failed")
+        raise RuntimeError
 
     assert "a check that failed" in written.getvalue().split(LEAVE)[1]
 
