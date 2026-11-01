@@ -226,3 +226,14 @@ def test_a_pipe_gets_no_codes_for_the_mouse_either():
 
     assert output.MOUSE_REPORTING_OFF not in written.getvalue()
 
+
+def test_printing_the_screen_again_does_not_keep_it_a_second_time(monkeypatch):
+    kept = []
+    monkeypatch.setattr(output, "_remembering", True)
+    monkeypatch.setattr(output, "_remembered", kept)
+    kept.append(lambda console: output.remember(lambda c: None))
+
+    output.clear_and_replay()
+
+    assert len(kept) == 1
+    assert output._remembering

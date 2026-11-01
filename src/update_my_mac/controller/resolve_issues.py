@@ -3,12 +3,15 @@
 from dataclasses import dataclass
 
 from update_my_mac.view import output
-from update_my_mac.view.prompting import Markup, Step, Stopped
+from update_my_mac.view.prompting import WAY_OUT, Markup, Step, Stopped
 
 QUESTION = "Should we sort things out before updating?"
+QUESTION_WITHOUT_UPDATES = "There's nothing to update but we could fix some issues"
 FIX_EVERYTHING = Markup("⎷ [bold]FIX EVERYTHING[/]......... I trust you !!! [red](use at your own risk)[/]")
-NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]!")
-NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})!"
+NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]")
+NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})"
+NOT_NOW_NAMED = "↳ I'll take care of that later, [bold]update[/] {} ({})"
+EXIT = f"{WAY_OUT}Exit"
 
 
 @dataclass
@@ -36,7 +39,10 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
             if not problems:
                 break
             options = [(problem, problem.label) for problem in problems]
-            options += [(FIX_EVERYTHING, FIX_EVERYTHING), (NOT_NOW, _not_now(updates))]
+            if len(problems) > 1:
+                options.append((FIX_EVERYTHING, FIX_EVERYTHING))
+            nothing_to_update = updates is not None and updates.count() == 0
+            options.append((NOT_NOW, EXIT if nothing_to_update else _not_now(updates)))
 
             # The first time it follows the report, which is divider enough.
             if asked_before:
@@ -44,10 +50,13 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
             elif above is None:
                 step.print_empty_line()
             asked_before = True
-            chosen = step.choose(options, QUESTION, above=above)
-            above = None
+            chosen = step.choose(options, QUESTION_WITHOUT_UPDATES if nothing_to_update else QUESTION, above=above)
+            if above is not None:
+                above = above if isinstance(above, output.Printed) else output.Printed(above)
 
             if chosen == NOT_NOW:
+                if updates is not None:
+                    updates.chosen_to_update = True
                 break
             before = dealt_with
             if chosen == FIX_EVERYTHING:
@@ -67,9 +76,14 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
 
 
 def _not_now(updates):
-    return NOT_NOW if updates is None else Markup(NOT_NOW_COUNTED.format(updates.count()))
+    if updates is None:
+        return NOT_NOW
+    named = updates.named()
+    if named:
+        return Markup(NOT_NOW_NAMED.format(named, updates.count()))
+    return Markup(NOT_NOW_COUNTED.format(updates.count()))
 
 
 def _print(above):
-    if above is not None:
+    if above is not None and not isinstance(above, output.Printed):
         output.print_above(above)

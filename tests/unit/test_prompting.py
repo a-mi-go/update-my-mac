@@ -316,7 +316,7 @@ def test_on_a_screen_of_its_own_the_report_and_the_answer_are_printed_once_it_is
     )
 
     assert chosen == "b"
-    assert terminal.lines == ["the report", "", f"{prompting.arrow_menu.QMARK} Which one? {BULLET}two", ""]
+    assert terminal.lines == ["the report", ""]
 
 
 def test_a_screen_too_short_for_the_menu_prints_the_report_and_asks_in_place(monkeypatch):
@@ -388,3 +388,31 @@ def test_once_it_has_run_a_ctrl_c_is_its_own_again():
     assert not prompting.arrow_menu.pressed_ctrl_c()
 
 
+def test_a_menu_on_a_screen_of_its_own_leaves_nothing_behind(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "b")
+
+    chosen = step.choose([("a", "one"), ("b", "two")], "Which one?")
+
+    assert chosen == "b"
+    assert terminal.lines == []
+
+
+def test_no_line_sets_a_menu_apart_when_it_comes_up_on_a_screen_of_its_own(monkeypatch):
+    terminal = Terminal()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+
+    terminal.step.begin_menu()
+
+    assert terminal.lines == []
+
+
+def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
+    terminal = Terminal()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: False)
+
+    terminal.step.begin_menu()
+
+    assert len(terminal.lines) == 2

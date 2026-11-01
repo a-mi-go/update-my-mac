@@ -68,10 +68,13 @@ def _run_interactive():
 
     reports = updates.reports()
     if resolved:
+        output.console.print()
         report.print_outdated_summary(reports)
 
-    failed = result.failed + apply_updates.ask_what_to_update(reports)
-    _offer_to_restart_what_the_updates_replaced(findings.stale)
+    failed_updates = apply_updates.ask_what_to_update(reports, already_chosen=updates.chosen_to_update)
+    if resolved or failed_updates is not None:
+        _offer_to_restart_what_the_updates_replaced(findings.stale)
+    failed = result.failed + (failed_updates or [])
     return 1 if failed else _exit_code(reports, findings.managers_behind)
 
 
@@ -85,8 +88,10 @@ def run_updates_only_mode():
     with report.waiting_spinner("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
-    failed = result.failed + apply_updates.ask_what_to_update(reports)
-    _offer_to_restart_what_the_updates_replaced()
+    failed_updates = apply_updates.ask_what_to_update(reports)
+    if failed_updates is not None:
+        _offer_to_restart_what_the_updates_replaced()
+    failed = result.failed + (failed_updates or [])
     return 1 if failed else _exit_code(
         reports, managers.still_behind(managers_behind, result.updated)
     )
@@ -194,6 +199,7 @@ class _Updates:
     def __init__(self, reports):
         self._reports = reports
         self._out_of_date = False
+        self.chosen_to_update = False
 
     def something_changed(self):
         self._out_of_date = True
@@ -207,6 +213,13 @@ class _Updates:
 
     def count(self):
         return report.count_outdated_packages(self.reports())
+
+    def named(self):
+        """Returns what to update, as in "Homebrew packages", when only one manager has any, else None."""
+        outdated = [one for one in self.reports() if one.outdated_packages]
+        if len(outdated) != 1:
+            return None
+        return f"{outdated[0].label} {apply_updates.counted_as(outdated[0])}"
 
 
 def _issues(findings, decisions):

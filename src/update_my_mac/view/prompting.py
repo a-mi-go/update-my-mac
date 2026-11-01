@@ -39,7 +39,7 @@ def label_with_note(label, note):
     """Returns the menu label with the note after it in grey, or just the label without a note."""
     if not note:
         return label
-    return Markup(f"{escape(label)} [{arrow_menu.NOTE_COLOUR}]({escape(note)})[/]")
+    return Markup(f"{escape(label)} [{arrow_menu.NOTE_COLOR}]({escape(note)})[/]")
 
 
 class Step:
@@ -104,7 +104,7 @@ class Step:
     def _remember_answer(self, question, shown):
         # The menu drew this line itself, which is not on any console to be kept.
         output.remember(lambda console: console.print(Text.assemble(
-            (arrow_menu.QMARK, "cyan"), " ", (f"{question} ", "bold"), (shown, arrow_menu.ANSWER_COLOUR),
+            (arrow_menu.QMARK, "cyan"), " ", (f"{question} ", "bold"), (shown, arrow_menu.ANSWER_COLOR),
         )))
 
     def _yes_or_no_by_arrows_or_typed_number(self, question, default):
@@ -132,6 +132,8 @@ class Step:
         return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(len(options))
 
     def _print_above(self, above):
+        if isinstance(above, output.Printed):
+            return
         output.print_above(above)
         self.print_empty_line()
 
@@ -139,13 +141,13 @@ class Step:
         # An empty question still takes its line, as it does with the arrow keys.
         first, *rest = note.splitlines() or [""]
         if first:
-            self.print_indented((question, "bold"), "  ", (first, arrow_menu.NOTE_COLOUR))
+            self.print_indented((question, "bold"), "  ", (first, arrow_menu.NOTE_COLOR))
         elif question:
             self.print_indented(question, style="bold")
         else:
             self.print_empty_line()
         for line in rest:
-            self.inside().print_indented(line, style=arrow_menu.NOTE_COLOUR)
+            self.inside().print_indented(line, style=arrow_menu.NOTE_COLOR)
         if question or note:
             self.print_empty_line()
         self._print_numbered(options)
@@ -179,19 +181,9 @@ class Step:
             # questionary gives None when the menu was aborted.
             raise Stopped
         if above is not None:
-            # The screen the menu was on is gone, with the report and the answer.
+            # The screen the menu was on is gone, with the report.
             self._print_above(above)
-            self._print_answer(question, options, picked)
-            self.print_empty_line()
         return picked
-
-    def _print_answer(self, question, options, picked):
-        label = next(label for key, label in options if key == picked)
-        self.print_indented(
-            (arrow_menu.QMARK, "cyan"), " ",
-            (f"{question} " if question else "", "bold"),
-            (_plain(_bulleted(label)), arrow_menu.ANSWER_COLOUR),
-        )
 
     def _print_numbered(self, options):
         listed_items = self.inside()
@@ -204,7 +196,9 @@ class Step:
         print_separator()
 
     def begin_menu(self):
-        """Sets the next menu apart from the answer above it."""
+        """Sets the next menu apart from what is above it, unless it comes up on a screen that leaves nothing behind."""
+        if arrow_menu.runs_on_its_own_screen(1):
+            return
         self.print_empty_line()
         self.print_separator()
 
@@ -219,7 +213,7 @@ def print_unwrapped(renderable, **options):
 def print_separator():
     """Draws the line that sets a new menu apart from what came before."""
     print_unwrapped(
-        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOUR), width=SEPARATOR_WIDTH
+        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR), width=SEPARATOR_WIDTH
     )
 
 

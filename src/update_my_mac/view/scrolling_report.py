@@ -297,7 +297,7 @@ class Scrolling:
     def status_line(self):
         keys = "Up/Down choose  ·  Page Up/Down, Home/End, wheel scroll  ·  drag or Cmd-C copies"
         before = "Scroll up for what ran before  ·  " if self._report.report_starts_at else ""
-        return [(f"fg:{arrow_menu.NOTE_COLOUR}", f" {self._selection.notice or before + keys}")]
+        return [(f"fg:{arrow_menu.NOTE_COLOR}", f" {self._selection.notice or before + keys}")]
 
     def key_bindings(self, menu_bindings):
         bindings = KeyBindings()

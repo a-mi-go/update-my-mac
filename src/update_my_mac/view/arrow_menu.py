@@ -3,19 +3,21 @@ prints numbered options and reads a typed number instead.
 """
 
 import importlib.util
+import shutil
 import sys
 
 from update_my_mac.view import output
 
 POINTER = "❯"
 QMARK = "፧፧"
+TICKED, UNTICKED = "[x]", "[ ]"
 SEPARATOR = "─" * 24
-SEPARATOR_COLOUR = "#666666"
+SEPARATOR_COLOR = "#666666"
 # The note under a question, lighter than the separator and darker than the text.
-NOTE_COLOUR = "#999999"
+NOTE_COLOR = "#999999"
 # Where the labels start, so the note lines up with the rows below it.
 NOTE_INDENT = "   "
-ANSWER_COLOUR = "#f2a900"
+ANSWER_COLOR = "#f2a900"
 # The question, the blank line and the Ctrl-C warning, besides the options.
 MENU_ROWS = 3
 MIN_REPORT_ROWS = 6
@@ -32,8 +34,10 @@ def unusable_message(failure):
 
 
 def can_be_drawn():
-    if importlib.util.find_spec("questionary") is None:
-        return False
+    return importlib.util.find_spec("questionary") is not None and _is_a_terminal()
+
+
+def _is_a_terminal():
     try:
         return bool(sys.stdin.isatty() and sys.stdout.isatty())
     except (AttributeError, ValueError):
@@ -71,12 +75,13 @@ def _style(for_note=False):
     return Style([
         ("qmark", "noinherit fg:ansicyan"),
         # The hint questionary writes itself stays plain; only a note is lighter.
-        ("instruction", f"noinherit fg:{NOTE_COLOUR}" if for_note else "noinherit"),
-        ("answer", f"noinherit fg:{ANSWER_COLOUR}"),
+        ("instruction", f"noinherit fg:{NOTE_COLOR}" if for_note else "noinherit"),
+        ("answer", f"noinherit fg:{ANSWER_COLOR}"),
         ("pointer", "noinherit fg:ansicyan"),
         ("highlighted", "noinherit fg:ansicyan"),
         ("selected", "noinherit"),
-        ("separator", f"noinherit fg:{SEPARATOR_COLOUR}"),
+        ("tick", "noinherit fg:ansiyellow"),
+        ("separator", f"noinherit fg:{SEPARATOR_COLOR}"),
     ])
 
 
@@ -124,13 +129,62 @@ def beside_the_question(note):
 
 
 def pick_one(question, entries, note=""):
-    return _answer_to(
-        _select(question, entries, note), warn_in_menu=True, blank_line=bool(question or note)
-    )
+    prompt = _select(question, entries, note)
+    app = prompt.application
+    if runs_on_its_own_screen(len(entries)):
+        # Changed in place, because the Ctrl-C handling hangs on this Application.
+        app.full_screen = app.renderer.full_screen = True
+    else:
+        _redraw_on_resize(app)
+    return _answer_to(prompt, warn_in_menu=True, blank_line=bool(question or note))
+
+
+def runs_on_its_own_screen(option_count):
+    """Returns whether a menu with this many options is drawn on a screen of its own, which a resize redraws whole."""
+    return _is_a_terminal() and not output.in_full_screen() and can_fill_the_screen(option_count)
+
+
+def _redraw_on_resize(app):
+    """Redraws a menu after a resize, which the terminal answers by wrapping the lines already drawn."""
+    def on_resize():
+        if output.in_full_screen():
+            output.clear_and_replay()
+        else:
+            _erase_the_wrapped_menu(app)
+        app.renderer.reset(leave_alternate_screen=False)
+        app._request_absolute_cursor_position()
+        app._redraw()
+
+    app._on_resize = on_resize
+
+
+def _erase_the_wrapped_menu(app):
+    """Erases from the first menu row, counting the rows each line takes at the new width."""
+    renderer, out = app.renderer, app.output
+    width = max(1, out.get_size().columns)
+    cursor = renderer._cursor_pos
+    screen = renderer._last_screen
+    above = cursor.x // width
+    if screen is not None:
+        above += sum(_rows_taken(screen.data_buffer[y], width) for y in range(cursor.y))
+    out.write("\r")
+    out.cursor_up(above)
+    out.erase_down()
+    out.reset_attributes()
+    out.enable_autowrap()
+    out.flush()
+
+
+def _rows_taken(row, width):
+    """Returns how many terminal rows a drawn line takes at this width."""
+    ends = max((x + 1 for x, char in row.items() if char.char != " "), default=0)
+    drawn = sum(char.width for x, char in row.items() if x < ends)
+    return max(1, -(-drawn // width))
 
 
 def _select(question, entries, note):
     import questionary
+    from questionary.prompts.common import InquirerControl
 
     prompt = questionary.select(
         question,
@@ -143,6 +197,7 @@ def _select(question, entries, note):
         qmark=QMARK if question else "",
     )
     _highlight_styled_rows(prompt)
+    _wrap_long_rows(prompt, len(POINTER) + 2)
     return prompt
 
 
@@ -173,6 +228,63 @@ def _menu_window(prompt):
     )
 
 
+def _wrap_long_rows(prompt, label_column):
+    """Lets a row longer than the terminal continue on the next line, at a space, under its label."""
+    from prompt_toolkit.filters import Always
+
+    window = _menu_window(prompt)
+    # Only a word longer than the whole line is still cut by the window.
+    window.wrap_lines = Always()
+    window.get_line_prefix = lambda line_number, wrap_count: " " * label_column if wrap_count else ""
+    rows, drawn = window.content, window.content.text
+    rows.text = lambda: _wrapped_at_spaces(drawn(), shutil.get_terminal_size().columns, label_column)
+
+
+def _wrapped_at_spaces(tokens, width, indent):
+    """Returns the tokens with every row wider than `width` continued on a new line at a space."""
+    shown, row = [], []
+    for token in tokens:
+        row.append(token)
+        if token[1] == "\n":
+            shown += _row_wrapped(row, width, indent)
+            row = []
+    return shown + _row_wrapped(row, width, indent)
+
+
+def _row_wrapped(row, width, indent):
+    words, word = [], []
+    for style, text, *rest in row:
+        for character in text or [""]:
+            word.append((style, character, *rest))
+            if character == " ":
+                words.append(word)
+                word = []
+    words.append(word)
+
+    wrapped, column = [], 0
+    for word in words:
+        length = sum(len(token[1]) for token in word)
+        spaced = length - (1 if word and word[-1][1] == " " else 0)
+        if column > indent and column + spaced > width:
+            wrapped.append(("", "\n" + " " * indent))
+            column = indent
+        wrapped += word
+        column += length
+    return _joined(wrapped)
+
+
+def _joined(tokens):
+    """Returns the tokens with neighbours of the same style made one, the line breaks left alone."""
+    joined = []
+    for token in tokens:
+        last = joined[-1] if joined else None
+        if last and last[0] == token[0] and last[2:] == token[2:] and "\n" not in last[1] + token[1]:
+            joined[-1] = (last[0], last[1] + token[1], *last[2:])
+        else:
+            joined.append(token)
+    return joined
+
+
 class _InTheScreenAlreadyEntered:
     """An output that leaves entering and leaving the alternate screen to whoever entered it."""
 
@@ -191,8 +303,6 @@ class _InTheScreenAlreadyEntered:
 
 def can_fill_the_screen(option_count):
     """Returns whether the terminal is tall enough for a report above a menu with this many options."""
-    import shutil
-
     return shutil.get_terminal_size().lines >= option_count + MENU_ROWS + MIN_REPORT_ROWS
 
 
@@ -300,7 +410,7 @@ def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), star
     import questionary
     from questionary.prompts import common
 
-    common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED = "[X]", "[ ]"
+    common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED = TICKED, UNTICKED
     prompt = questionary.checkbox(
         question,
         choices=_choices(entries, checked),
@@ -311,6 +421,7 @@ def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), star
         initial_choice=start_at,
     )
     _shape_checkbox(prompt, ends_menu, confirm)
+    _wrap_long_rows(prompt, len(POINTER) + 2 + len(TICKED) + 1)
     return _answer_to(prompt, warn_in_menu=True, blank_line=True)
 
 
@@ -419,9 +530,9 @@ def _shape_checkbox(prompt, ends_menu, confirm):
         for token in drawn():
             row.append(token)
             if token[1] == "\n":
-                shown += _cyan_only_under_the_pointer(_without_box(row, labels, boxes))
+                shown += _yellow_tick(_cyan_only_under_the_pointer(_without_box(row, labels, boxes)))
                 row = []
-        return shown + _cyan_only_under_the_pointer(_without_box(row, labels, boxes))
+        return shown + _yellow_tick(_cyan_only_under_the_pointer(_without_box(row, labels, boxes)))
 
     rows.text = tokens
 
@@ -463,6 +574,17 @@ def _cyan_only_under_the_pointer(row):
         return [("class:text", token[1]) if token[0] == "class:selected" else token for token in row]
     marked = ("class:selected", "class:text", "class:highlighted")
     return [("class:highlighted", token[1]) if token[0] in marked else token for token in row]
+
+
+def _yellow_tick(row):
+    """Returns the row with the x of a ticked box in its own style."""
+    shown = []
+    for token in row:
+        if token[1] == TICKED + " ":
+            shown += [(token[0], "["), ("class:tick", "x"), (token[0], "] ")]
+        else:
+            shown.append(token)
+    return shown
 
 
 def _without_box(row, labels, boxes):

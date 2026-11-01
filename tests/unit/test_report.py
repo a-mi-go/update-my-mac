@@ -393,7 +393,7 @@ def test_every_mark_is_as_wide_for_rich_as_for_the_screen_it_is_scrolled_on():
     from prompt_toolkit.utils import get_cwidth
     from rich.cells import cell_len
 
-    for mark in report.MARK.values():
+    for mark in report.SECTION_ICON.values():
         assert cell_len(mark) == sum(get_cwidth(character) for character in mark), mark
 
 

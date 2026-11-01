@@ -29,18 +29,22 @@ def build_menu(reports):
     for report in reports:
         if not report.outdated_packages:
             continue
-        count = len(report.outdated_packages)
-        counted_as = managers.by_key(report.manager).counted_as
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
+                f"{report.label} ({len(report.outdated_packages)} {counted_as(report)})",
                 [report.manager],
                 outdated=list(report.outdated_packages),
             )
         )
 
     return entries
+
+
+def counted_as(report):
+    """Returns what the report's outdated lines are, as in "packages", or "package" for one."""
+    plural = managers.by_key(report.manager).counted_as
+    return plural if len(report.outdated_packages) != 1 else plural[:-1]
 
 
 def parse_menu_answer(answer, entries):
@@ -89,7 +93,7 @@ def pick_what_to_update(entries):
     """Returns the entries that are ticked when Enter is pressed, or CANCEL."""
     choices = [(entry, entry.label) for entry in entries] + [
         arrow_menu.BLANK_LINE,
-        (UPDATE, "⬆ UPDATE (lets do it!)"),
+        (UPDATE, "⬆ update"),
         None,
         (CANCEL, f"{prompting.WAY_OUT}exit without updating"),
     ]
@@ -143,14 +147,17 @@ def upgrade_managers(manager_keys):
     )
 
 
-def ask_what_to_update(reports):
+def ask_what_to_update(reports, already_chosen=False):
+    """Asks which managers to update and updates them. Returns the ones that failed, or None when nothing was updated."""
     console = output.console
     entries = build_menu(reports)
     if not entries:
-        return []
+        return None
 
     console.print()
     prompting.print_separator()
+    if already_chosen and len(entries) == 1:
+        return run_chosen(entries)
 
     if arrow_menu.can_be_drawn():
         while True:
@@ -163,7 +170,7 @@ def ask_what_to_update(reports):
                 console.print(arrow_menu.unusable_message(failure))
                 break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
-            return [] if chosen == CANCEL else run_chosen(chosen)
+            return None if chosen == CANCEL else run_chosen(chosen)
 
     while True:
         print_menu(entries)
@@ -173,14 +180,14 @@ def ask_what_to_update(reports):
             # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
             prompting.answered()
-            return []
+            return None
 
         chosen = parse_menu_answer(answer, entries)
         if chosen is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
         prompting.answered()
-        return [] if chosen == CANCEL else run_chosen(chosen)
+        return None if chosen == CANCEL else run_chosen(chosen)
 
 
 def print_what_changed(entries):

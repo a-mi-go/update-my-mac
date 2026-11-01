@@ -43,6 +43,26 @@ def run(shell, *replies, reports=REPORTS):
     return apply_updates.ask_what_to_update(reports)
 
 
+def test_the_one_manager_already_chosen_is_updated_without_asking():
+    shell = RecordingShell()
+    answer_with(raising(AssertionError("asked")))
+    use_shell(shell)
+
+    reports = [ManagerReport("brew", "Homebrew", ["git  1 → 2"])]
+    assert apply_updates.ask_what_to_update(reports, already_chosen=True) == []
+    assert len(shell.streamed) == 1
+
+
+def test_already_chosen_still_asks_which_of_several_managers():
+    shell = RecordingShell()
+    answer_with(answers("3"))
+    use_shell(shell)
+
+    apply_updates.ask_what_to_update(REPORTS, already_chosen=True)
+
+    assert [args[0].rsplit("/", 1)[-1] for args in shell.streamed] == ["npm"]
+
+
 def test_only_managers_with_something_outdated_get_an_entry():
     entries = apply_updates.build_menu(REPORTS)
 
@@ -114,7 +134,7 @@ def test_nonsense_is_not_understood():
 def test_cancelling_updates_nothing():
     shell = RecordingShell()
 
-    assert run(shell, "4") == []
+    assert run(shell, "4") is None
     assert shell.streamed == []
 
 
@@ -150,7 +170,7 @@ def test_nothing_to_do_means_no_prompt():
     failed = update_menu(
         [ManagerReport("brew", "Homebrew", [])], shell, record
     )
-    assert failed == []
+    assert failed is None
     assert asked == []
 
 
@@ -159,7 +179,7 @@ def test_no_terminal_cancels_instead_of_crashing():
     shell = RecordingShell()
     failed = update_menu(REPORTS, shell, raising(EOFError()))
 
-    assert failed == []
+    assert failed is None
     assert shell.streamed == []
 
 
@@ -196,8 +216,8 @@ def test_ctrl_c_during_an_upgrade_ends_the_run():
     assert shell.streamed == [["/fake/brew", "upgrade"]]
 
 
-def test_only_the_menu_numbers_are_coloured():
-    # Left to rich's highlighter, the brackets in "npm (global)" got coloured too.
+def test_only_the_menu_numbers_are_colored():
+    # Left to rich's highlighter, the brackets in "npm (global)" got colored too.
     menu = printed_by(
         lambda: apply_updates.print_menu(apply_updates.build_menu(REPORTS)),
         Console(force_terminal=True, color_system="standard", width=200),
@@ -352,7 +372,7 @@ def test_the_multi_select_lists_the_entries_then_update_and_exit_apart():
     assert question == "What should be updated?"
     assert [choice[1] for choice in choices[:2]] == ["Homebrew (1 package)", "Mac App Store (1 app)"]
     assert choices[2] is apply_updates.arrow_menu.BLANK_LINE
-    assert choices[3][1] == "⬆ UPDATE (lets do it!)"
+    assert choices[3][1] == "⬆ update"
     assert choices[4] is None
     assert choices[5][1] == f"{apply_updates.prompting.WAY_OUT}exit without updating"
 

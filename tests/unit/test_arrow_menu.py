@@ -140,7 +140,7 @@ def resolved(part):
 
 
 def test_the_question_stays_bold_and_plain():
-    # A question looks like a question; the colour belongs to what the
+    # A question looks like a question; the color belongs to what the
     # cursor is on.
     attrs = resolved("question")
 
@@ -148,7 +148,7 @@ def test_the_question_stays_bold_and_plain():
     assert attrs.bold
 
 
-def test_the_cursor_is_what_wears_the_colour():
+def test_the_cursor_is_what_wears_the_color():
     # The terminal's own cyan, as in the report, and not bold.
     for part in ("qmark", "pointer", "highlighted"):
         assert resolved(part).color == "ansicyan", part
@@ -444,7 +444,7 @@ def test_toggling_every_row_and_inverting_do_nothing():
 
 
 def test_a_row_that_acts_is_drawn_without_a_box():
-    boxes = ("[X] ", "[ ] ")
+    boxes = ("[x] ", "[ ] ")
     button = [
         ("class:text", "   "),
         ("class:text", "[ ] "),
@@ -502,20 +502,20 @@ def test_the_multi_select_starts_ticked_on_the_row_it_was_told_to_and_draws_plai
 
     assert seen["initial_choice"] == "go"
     assert seen["instruction"] == "(Use arrow keys to move, <space> to select)"
-    assert (common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED) == ("[X]", "[ ]")
+    assert (common.INDICATOR_SELECTED, common.INDICATOR_UNSELECTED) == ("[x]", "[ ]")
 
 
 def test_a_ticked_row_is_plain_where_the_pointer_is_not():
     row = [
         ("class:text", "   "),
-        ("class:selected", "[X] "),
+        ("class:selected", "[x] "),
         ("class:selected", "one"),
         ("", "\n"),
     ]
 
     assert arrow_menu._cyan_only_under_the_pointer(row) == [
         ("class:text", "   "),
-        ("class:text", "[X] "),
+        ("class:text", "[x] "),
         ("class:text", "one"),
         ("", "\n"),
     ]
@@ -525,7 +525,7 @@ def test_the_row_under_the_pointer_is_highlighted_ticked_or_not():
     ticked = [
         ("class:pointer", " ❯ "),
         ("[SetCursorPosition]", ""),
-        ("class:selected", "[X] "),
+        ("class:selected", "[x] "),
         ("class:selected", "one"),
         ("", "\n"),
     ]
@@ -547,7 +547,21 @@ def test_the_row_under_the_pointer_is_highlighted_ticked_or_not():
         assert shown[4] == ("", "\n")
 
 
-def test_a_ticked_row_has_no_colour_of_its_own():
+def test_the_x_of_a_ticked_box_is_yellow_and_the_rest_of_the_row_is_not():
+    row = [("class:text", "   "), ("class:text", "[x] "), ("class:text", "one"), ("", "\n")]
+
+    assert arrow_menu._yellow_tick(row) == [
+        ("class:text", "   "),
+        ("class:text", "["),
+        ("class:tick", "x"),
+        ("class:text", "] "),
+        ("class:text", "one"),
+        ("", "\n"),
+    ]
+    assert resolved("tick").color == "ansiyellow"
+
+
+def test_a_ticked_row_has_no_color_of_its_own():
     attrs = resolved("selected")
 
     assert attrs.color == ""
@@ -857,3 +871,115 @@ def test_pointed_row_with_styled_pieces_is_highlighted_and_others_are_not():
 
     control.pointed_at = 0
     assert ("bold", "styled") in control.text()
+
+
+def test_a_row_longer_than_the_terminal_continues_under_its_label(monkeypatch):
+    import questionary
+    from questionary.prompts.common import InquirerControl
+
+    label = "reinstall with Homebrew's installer (replace 2026.1.1.70276 with 14.0.8.69494)"
+    prompt = FakePrompt()
+    prompt.application = REAL_SELECT("q", choices=[label]).application
+    monkeypatch.setattr(questionary, "select", lambda *args, **kwargs: prompt)
+    arrow_menu.pick_one("Which one?", [("a", label)])
+
+    window = next(w for w in prompt.application.layout.find_all_windows() if isinstance(w.content, InquirerControl))
+    assert window.preferred_height(40, 20).preferred > 1
+    assert window.get_line_prefix(0, 0) == ""
+    assert window.get_line_prefix(0, 1) == "   "
+
+
+def test_a_long_row_is_continued_at_a_space_never_inside_a_word():
+    label = "let Homebrew take over (replace 2026.1.1.70276 with 14.0.8.69494, the versions can't be compared)"
+    tokens = [("class:pointer", " ❯ "), ("class:text", label), ("", "\n")]
+
+    shown = "".join(text for _, text, *_ in arrow_menu._wrapped_at_spaces(tokens, 50, 3))
+    lines = shown.rstrip("\n").split("\n")
+
+    assert len(lines) > 1
+    assert all(len(line) <= 50 for line in lines)
+    assert all(line.startswith("   ") for line in lines[1:])
+    assert " ".join(line.strip() for line in lines).replace("❯ ", "") == label
+
+
+def test_a_resize_on_the_screen_of_its_own_prints_everything_again_before_the_menu(monkeypatch):
+    prompt = FakePrompt()
+    app = prompt.application
+    calls = []
+    monkeypatch.setattr(output, "in_full_screen", lambda: True)
+    monkeypatch.setattr(output, "clear_and_replay", lambda: calls.append("replay"))
+    monkeypatch.setattr(app.renderer, "reset", lambda **kwargs: calls.append("reset"))
+    monkeypatch.setattr(app, "_request_absolute_cursor_position", lambda: calls.append("position"))
+    monkeypatch.setattr(app, "_redraw", lambda: calls.append("draw"))
+    monkeypatch.setattr(questionary, "select", lambda *args, **kwargs: prompt)
+
+    arrow_menu.pick_one("Which one?", [("a", "yes")])
+    app._on_resize()
+
+    assert calls == ["replay", "reset", "position", "draw"]
+
+
+def screen_with_lines(*lines):
+    from prompt_toolkit.layout.screen import Char, Screen
+
+    screen = Screen()
+    for y, line in enumerate(lines):
+        for x, character in enumerate(line):
+            screen.data_buffer[y][x] = Char(character)
+    return screen
+
+
+def test_a_line_wider_than_the_terminal_takes_the_rows_it_wraps_to():
+    screen = screen_with_lines("a" * 100, "b" * 10, "")
+
+    assert [arrow_menu._rows_taken(screen.data_buffer[y], 40) for y in range(3)] == [3, 1, 1]
+
+
+def test_a_resize_outside_the_screen_of_its_own_erases_from_where_the_wrapped_menu_starts(monkeypatch):
+    from types import SimpleNamespace
+
+    from prompt_toolkit.data_structures import Point, Size
+
+    moves = []
+
+    class Out:
+        def get_size(self):
+            return Size(rows=30, columns=40)
+
+        def __getattr__(self, name):
+            return lambda *args: moves.append((name, *args))
+
+    renderer = SimpleNamespace(_cursor_pos=Point(x=45, y=2), _last_screen=screen_with_lines("a" * 100, "b" * 10, "c"))
+    monkeypatch.setattr(output, "in_full_screen", lambda: False)
+
+    arrow_menu._erase_the_wrapped_menu(SimpleNamespace(renderer=renderer, output=Out()))
+
+    # 3 rows for the first line, 1 for the second, 1 more for the cursor 45 columns into its own.
+    assert ("cursor_up", 5) in moves
+    assert [name for name, *_ in moves][-1] == "flush"
+
+
+def test_a_menu_is_on_a_screen_of_its_own_only_in_a_terminal_that_is_not_already_in_one(monkeypatch):
+    monkeypatch.setattr(arrow_menu, "_is_a_terminal", lambda: True)
+    monkeypatch.setattr(arrow_menu, "can_fill_the_screen", lambda option_count: True)
+    monkeypatch.setattr(output, "in_full_screen", lambda: False)
+    assert arrow_menu.runs_on_its_own_screen(3)
+
+    monkeypatch.setattr(output, "in_full_screen", lambda: True)
+    assert not arrow_menu.runs_on_its_own_screen(3)
+
+    monkeypatch.setattr(output, "in_full_screen", lambda: False)
+    monkeypatch.setattr(arrow_menu, "can_fill_the_screen", lambda option_count: False)
+    assert not arrow_menu.runs_on_its_own_screen(3)
+
+
+def test_a_menu_that_runs_on_a_screen_of_its_own_is_made_full_screen(monkeypatch):
+    prompt = FakePrompt()
+    monkeypatch.setattr(questionary, "select", lambda *args, **kwargs: prompt)
+    monkeypatch.setattr(arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+
+    arrow_menu.pick_one("Which one?", [("a", "yes")])
+
+    assert prompt.application.full_screen
+    assert prompt.application.renderer.full_screen
+    assert "_on_resize" not in vars(prompt.application)

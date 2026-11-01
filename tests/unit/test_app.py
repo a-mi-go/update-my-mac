@@ -199,6 +199,21 @@ def test_interactive_mode_offers_the_restart_after_the_updates(monkeypatch):
     assert order == ["updates", "restart"]
 
 
+def test_with_nothing_updated_or_fixed_the_restart_is_not_offered(monkeypatch):
+    a_self_update_that(monkeypatch, found=[])
+    order = []
+    monkeypatch.setattr(
+        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or None
+    )
+    monkeypatch.setattr(
+        app, "_offer_to_restart_what_the_updates_replaced", lambda *a: order.append("restart")
+    )
+
+    app.run_interactive_mode()
+
+    assert order == ["updates"]
+
+
 def test_updates_only_offers_the_restart_after_the_updates(monkeypatch):
     a_self_update_that(monkeypatch, found=[])
     order = []
@@ -504,6 +519,7 @@ def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatc
     assert problem.label == "⎷ go through untracked apps (1, 2 can be added to Homebrew)"
 
 
+
 def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):
     from pathlib import Path
     from update_my_mac.checks import Findings, app_updaters
@@ -570,3 +586,13 @@ def test_what_is_outdated_is_asked_again_only_after_something_changed(monkeypatc
     assert updates.count() == 2
     assert updates.count() == 2
     assert asked == [True]
+
+
+def test_only_one_manager_with_updates_is_named_with_what_it_counts():
+    brew = app.managers.ManagerReport("brew", "Homebrew", ["git  1 → 2", "jq  1 → 2"])
+    mas = app.managers.ManagerReport("mas", "Mac App Store", ["Pages  1 → 2"])
+    empty = app.managers.ManagerReport("npm", "npm (global)", [])
+
+    assert app._Updates([brew, empty]).named() == "Homebrew packages"
+    assert app._Updates([mas]).named() == "Mac App Store app"
+    assert app._Updates([brew, mas]).named() is None
