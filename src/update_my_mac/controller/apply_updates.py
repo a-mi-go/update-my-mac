@@ -32,7 +32,7 @@ def build_menu(reports):
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{report.label} ({len(report.outdated_packages)} {counted_as(report)})",
+                f"{report.label} ({len(report.outdated_packages)} {noun_for_outdated(report)})",
                 [report.manager],
                 outdated=list(report.outdated_packages),
             )
@@ -41,8 +41,8 @@ def build_menu(reports):
     return entries
 
 
-def counted_as(report):
-    """Returns what the report's outdated lines are, as in "packages", or "package" for one."""
+def noun_for_outdated(report):
+    """Returns the word for the report's outdated lines, singular for one: "package" or "packages"."""
     plural = managers.by_key(report.manager).counted_as
     return plural if len(report.outdated_packages) != 1 else plural[:-1]
 

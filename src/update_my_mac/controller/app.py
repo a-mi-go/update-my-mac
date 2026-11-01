@@ -219,7 +219,7 @@ class _Updates:
         outdated = [one for one in self.reports() if one.outdated_packages]
         if len(outdated) != 1:
             return None
-        return f"{outdated[0].label} {apply_updates.counted_as(outdated[0])}"
+        return f"{outdated[0].label} {apply_updates.noun_for_outdated(outdated[0])}"
 
 
 def _issues(findings, decisions):
