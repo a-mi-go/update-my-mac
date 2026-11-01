@@ -7,11 +7,14 @@ from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.checks import versions
 from update_my_mac.managers.homebrew import adopting
+from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import flagged
 
 # The flags a command can put right; Homebrew's other doubts are only worth knowing.
-FIXABLE_FLAGS = (flagged.DIFFERS, flagged.DISABLED)
+FIXABLE_FLAGS = (flagged.GONE, flagged.DIFFERS, flagged.DISABLED)
 CANNOT_CHECK = "can't check for updates"
+# An app replaced this recently was just installed or updated, so it is taken as current.
+RECENTLY_CHANGED_SECONDS = 30 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,8 @@ def concern_about(app, findings):
     if standing in (adopting.SAME, adopting.OLDER) or updater.looks_after_itself:
         return None
     changed = last_changed(app)
+    if changed and time.time() - changed < RECENTLY_CHANGED_SECONDS:
+        return None
     since = f"unchanged since {time.strftime('%Y-%m', time.localtime(changed))}" if changed else ""
     return Concern(CANNOT_CHECK, since)
 
@@ -83,13 +88,15 @@ def untracked_to_sort_out(findings):
 
 def blocking_brew_upgrade(findings):
     """Returns what `brew upgrade` skips or gets wrong until it is fixed, worst first."""
-    behind = [item for item in findings.apps_behind if not _by_macos(item)]
+    behind = [item for item in findings.apps_behind if not behind_the_recipe.kept_current_by_macos(item)]
+    app_gone = _flagged_as(findings, flagged.GONE)
     recorded_at_a_false_version = [item for item in behind if item.false_version_recorded]
     held_at_another_version = _flagged_as(findings, flagged.DIFFERS)
     disabled = _flagged_as(findings, flagged.DISABLED)
     installer_still_mounted = findings.mounted
     replaced_outside_homebrew = [item for item in behind if not item.false_version_recorded]
     return [
+        *app_gone,
         *recorded_at_a_false_version,
         *held_at_another_version,
         *disabled,
@@ -100,11 +107,6 @@ def blocking_brew_upgrade(findings):
 
 def _flagged_as(findings, kind):
     return [item for item in findings.flagged if item.kind == kind]
-
-
-def _by_macos(item):
-    """Returns whether macOS keeps this app current, whatever a Homebrew recipe says."""
-    return item.app.updater.kind == app_updaters.HOST_APP or item.app.bundle_id.startswith("com.apple.")
 
 
 def only_worth_knowing(findings):

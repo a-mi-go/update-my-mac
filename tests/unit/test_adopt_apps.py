@@ -114,7 +114,7 @@ def test_two_version_schemes_are_not_called_newer_or_older(tmp_path):
     assert adopting.compare_to_app(app, cask) == adopting.UNCLEAR
     assert adopting.handover_label(app, cask) == (
         "let Homebrew take over (replace 2026.1.1.70276 with 14.0.8.69494, "
-        "no telling which is newer)"
+        "the versions can't be compared, this may be a downgrade)"
     )
     # Offered all the same, because refusing leaves the app untracked forever.
     assert adopting.can_take_over(app, cask)
@@ -248,13 +248,34 @@ PACKAGE = Cask("google-drive", "https://www.google.com/drive/", "131.0.2",
                installs_a_package=True)
 
 
-def test_an_app_homebrew_installs_from_a_package_is_not_offered_a_handover(tmp_path):
-    # --adopt only ever takes over an app bundle Homebrew would have put
-    # there itself, and a pkg cask never puts one anywhere it can see.
+def test_an_app_homebrew_installs_from_a_package_is_offered_a_reinstall(tmp_path):
     app = bundle(tmp_path, "Google Drive", "131.0")
 
-    assert not adopting.can_take_over(app, PACKAGE)
-    assert adopting.handover_label(app, PACKAGE) == ""
+    assert adopting.can_take_over(app, PACKAGE)
+    assert adopting.handover_label(app, PACKAGE) == (
+        "reinstall with Homebrew's installer (google-drive 131.0.2)"
+    )
+
+
+def test_a_package_reinstall_that_goes_back_a_version_says_so(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "132.0")
+
+    assert "downgrade 132.0 → 131.0.2" in adopting.handover_label(app, PACKAGE)
+
+
+def test_a_package_reinstall_across_version_schemes_warns_of_a_downgrade(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "2026.1.1")
+
+    assert (
+        "replace 2026.1.1 with 131.0.2, the versions can't be compared, this may be a downgrade"
+        in adopting.handover_label(app, PACKAGE)
+    )
+
+
+def test_a_package_cask_is_left_out_of_the_bulk_step(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "131.0")
+
+    assert not adopting.fits_the_bulk_step(app, PACKAGE)
 
 
 def test_a_package_cask_still_says_what_version_exists(tmp_path):
@@ -263,16 +284,15 @@ def test_a_package_cask_still_says_what_version_exists(tmp_path):
     note = adopting.homebrew_note(app, PACKAGE)
 
     assert "google-drive 131.0.2" in note
-    assert "installs it from a package" in note
+    assert "reinstall it to take over" in note
 
 
-def test_handing_over_a_package_cask_is_refused_before_anything_runs(tmp_path):
-    app = bundle(tmp_path, "Google Drive", "131.0")
-    shell = BrewShell("")
+def test_handing_over_a_package_cask_runs_its_installer_again_even_at_the_same_version(tmp_path):
+    app = bundle(tmp_path, "Google Drive", "131.0.2")
+    shell = BrewShell("131.0.2")
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, PACKAGE)
+    taken, _ = adopting.hand_to_homebrew(app, PACKAGE)
 
-    assert not taken
-    assert "installs a package" in message
-    assert shell.streamed == []
+    assert taken
+    assert shell.streamed == [["/fake/brew", "install", "--cask", "google-drive", "--force"]]

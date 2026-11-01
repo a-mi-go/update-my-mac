@@ -19,7 +19,7 @@ from update_my_mac.managers.homebrew import mounted_downloads
 #   or a check that could not run.
 # Warning: needs a decision, or updates are waiting.
 # Info: nothing to do, only worth knowing.
-CRITICAL, WARNING, INFO = "critical", "warning", "info"
+CRITICAL, WARNING, INFO, OK = "critical", "warning", "info", "ok"
 LOUDEST_FIRST = (CRITICAL, WARNING, INFO)
 
 # The three parts of the report, in the order it shows them.
@@ -108,6 +108,8 @@ def count_findings(sections):
 
 def doubt_about(item):
     """Returns what Homebrew holds against a package it flagged."""
+    if item.kind == flagged.GONE:
+        return "the app was deleted, but Homebrew still lists it"
     return "versions cannot be compared" if item.kind == flagged.DIFFERS else item.reason
 
 
@@ -231,7 +233,7 @@ def _blocking_brew_upgrade(findings):
 def _is_wrong(item):
     """Returns whether Homebrew holds something it should not, not only something old."""
     if isinstance(item, flagged.Flagged):
-        return item.kind == flagged.DIFFERS
+        return item.kind in (flagged.DIFFERS, flagged.GONE)
     if isinstance(item, mounted_downloads.MountedImage):
         return False
     return item.false_version_recorded
@@ -254,6 +256,8 @@ def _row_for_homebrew_trouble(item):
 def _what_homebrew_holds_against(item):
     if item.kind == flagged.DIFFERS:
         return "differs from the recipe"
+    if item.kind == flagged.GONE:
+        return "app deleted, still recorded"
     return f"disabled, {item.reason}" if item.reason else "disabled"
 
 

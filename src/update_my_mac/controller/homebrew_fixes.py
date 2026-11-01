@@ -46,6 +46,13 @@ def fix_for_flagged(item):
             Option("", ("brew", "reinstall", item.name), "reinstalled"),
             (Option("", ("brew", "uninstall", item.name), "uninstalled"),),
         )
+    if item.kind == flagged.GONE:
+        return Fix(
+            label, doubt_about(item),
+            # Without --force Homebrew stops at the app it cannot find.
+            Option("", ("brew", "uninstall", "--cask", "--force", item.name), "no longer tracked by Homebrew"),
+            (Option("", ("brew", "install", "--cask", "--force", item.name), "installed again"),),
+        )
     if item.kind == flagged.DISABLED:
         cask = ("--cask",) if item.is_cask else ()
         return Fix(

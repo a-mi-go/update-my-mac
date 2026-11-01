@@ -5,7 +5,9 @@ import time
 from pathlib import Path
 from types import MappingProxyType
 
+from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.managers.homebrew import casks
 from update_my_mac.managers.manager import (
     ManagerUpdate,
     PackageManager,
@@ -40,6 +42,28 @@ class Homebrew(PackageManager):
     })
     self_upgrade_args = ("update",)
     cleanup_args = ("cleanup",)
+
+    def __init__(self):
+        self._greedy = []
+
+    def outdated(self):
+        """Returns Homebrew's outdated list, with the apps only a greedy upgrade reaches added."""
+        report = super().outdated()
+        self._greedy = []
+        if report is None or report.error_message:
+            return report
+        named = {line.split()[0] for line in report.outdated_packages}
+        self._greedy = apps_only_a_greedy_upgrade_reaches(named)
+        report.outdated_packages += [f"{item.cask.token}  {item.version_change()}" for item in self._greedy]
+        return report
+
+    def upgrade(self, status=None):
+        exit_code = super().upgrade(status)
+        if not self._greedy:
+            return exit_code
+        tokens = [item.cask.token for item in self._greedy]
+        greedy = self._stream(("upgrade", "--cask", "--greedy", *tokens), status)
+        return exit_code or greedy
 
     def parse_outdated(self, stdout):
         """Returns what `brew outdated --verbose` names, formulae and casks alike."""
@@ -117,3 +141,8 @@ def _without_builds(line, change, width):
     size = b"  " + change["size"].strip() if change["size"] else b""
     ending = b"\r" if line.endswith(b"\r") else b""
     return change["name"] + change["old"].ljust(width) + b" -> " + change["new"] + size + ending
+
+
+def apps_only_a_greedy_upgrade_reaches(already_reported):
+    behind = behind_the_recipe.find_installed(casks.load(), already_reported)
+    return [item for item in behind if item.needs_greedy]

@@ -1,12 +1,15 @@
 """Going through the apps no package manager tracks, and revisiting that later."""
 
 
+from rich.markup import escape
+
 from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import app_updaters
 from update_my_mac.checks import appcast
 from update_my_mac.controller import walkthrough
 from update_my_mac.system import shell
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.view import arrow_menu
 from update_my_mac.view import prompting
 from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
@@ -42,21 +45,16 @@ def known_to_homebrew(found):
 
 
 def ready_for_homebrew(found):
-    """Returns how many Homebrew could take over without putting an older one back."""
-    return sum(
-        1 for app, cask in found
-        if adopting.can_take_over(app, cask) and not adopting.would_downgrade(app, cask)
-    )
+    """Returns how many the bulk step would hand over to Homebrew."""
+    return sum(1 for app, cask in found if adopting.fits_the_bulk_step(app, cask))
 
 
 def adopt_all(found, step):
-    """Hands every app Homebrew has a recipe for over to it. Returns the ones it took."""
+    """Hands over to Homebrew every app that fits the bulk step. Returns the ones it took."""
     per_item = step.inside()
     adopted = []
     for app, cask in found:
-        # A downgrade is never done in bulk. It is a deliberate answer about
-        # one app, not something to sweep up with the rest.
-        if not adopting.can_take_over(app, cask) or adopting.would_downgrade(app, cask):
+        if not adopting.fits_the_bulk_step(app, cask):
             continue
         per_item.print_empty_line()
         per_item.print_indented(app.display_name, style="bold")
@@ -141,14 +139,13 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
             f"{app.display_name} {app.version}",
             note=_what_is_known(app, cask, answer),
         )
-        # Only a handover settles anything. Looking at a website or starting
-        # the app leaves it exactly as undecided as it was.
         if chosen == WEBSITE:
             results.print_indented(vendor_site)
             if not shell.open_in_browser(vendor_site):
                 results.print_indented("Could not open that in a browser.", style="yellow")
         elif chosen == LAUNCH:
-            _ask_the_app_itself(app, results)
+            if _ask_the_app_itself(app, results):
+                return chosen
         elif chosen == TRASH:
             if _move_to_the_trash(app, step, results):
                 return chosen
@@ -158,7 +155,7 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
 
 def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     choices = []
-    handover = adopting.handover_label(app, cask)
+    handover = _handover_choice(app, cask)
     if handover:
         choices.append((ADOPT, handover))
     if can_ask_the_app:
@@ -169,6 +166,14 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     choices.append((IGNORE, "keep it untracked (don't ask again)"))
     choices.append((LATER, "next ⇥"))
     return walkthrough.options_for_single_item(choices, is_walkthrough)
+
+
+def _handover_choice(app, cask):
+    """Returns the handover as a menu label with what it costs in grey, or "" without a recipe."""
+    offer, detail = adopting.handover_parts(app, cask)
+    if not detail:
+        return offer
+    return prompting.Markup(f"{escape(offer)} [{arrow_menu.NOTE_COLOUR}]({escape(detail)})[/]")
 
 
 def _what_is_known(app, cask, answer):
@@ -188,15 +193,16 @@ def _what_is_known(app, cask, answer):
 
 
 def _ask_the_app_itself(app, step):
-    """Start the app, which is when an updater like Sparkle looks for a new version."""
+    """Returns whether the app started."""
     if not shell.open_application(app.path):
         step.print_indented("That app would not start.", style="yellow")
-        return
+        return False
     step.print_indented(
         "Started it. It looks for its update on startup, and anything it "
         "does not offer there is under its own menu.",
         style="green",
     )
+    return True
 
 
 def _move_to_the_trash(app, step, results):

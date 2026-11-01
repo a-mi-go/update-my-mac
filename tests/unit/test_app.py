@@ -504,7 +504,6 @@ def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatc
     assert problem.label == "⎷ go through untracked apps (1, 2 can be added to Homebrew)"
 
 
-
 def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):
     from pathlib import Path
     from update_my_mac.checks import Findings, app_updaters
@@ -571,3 +570,17 @@ def test_what_is_outdated_is_asked_again_only_after_something_changed(monkeypatc
     assert updates.count() == 2
     assert updates.count() == 2
     assert asked == [True]
+
+
+def test_a_cask_whose_app_is_gone_is_left_out_of_the_updates_also_when_asked_again(monkeypatch):
+    brew = app.managers.ManagerReport("brew", "Homebrew", ["charles  5.2.1 → 5.2.2", "git  1 → 2"])
+    npm = app.managers.ManagerReport("npm", "npm", ["charles  1 → 2"])
+    monkeypatch.setattr(app.managers, "check_what_is_outdated", lambda: [brew, npm])
+
+    updates = app._Updates(app._without_gone_casks([brew, npm], {"charles"}), {"charles"})
+    assert [report.outdated_packages for report in updates.reports()] == [["git  1 → 2"], ["charles  1 → 2"]]
+
+    updates.something_changed()
+    assert [report.outdated_packages for report in updates.reports()] == [["git  1 → 2"], ["charles  1 → 2"]]
+
+

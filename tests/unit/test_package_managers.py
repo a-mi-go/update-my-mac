@@ -505,6 +505,71 @@ def behind_its_recipe(token, app_version, cask_version, recorded=None):
     return behind_the_recipe.Behind(app, Cask(token, "https://x.test/", cask_version), recorded or app_version)
 
 
+def test_homebrew_lists_the_apps_only_a_greedy_upgrade_reaches_with_its_own():
+    from update_my_mac.managers import homebrew
+
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", [])
+    asked = []
+    swap(homebrew, "apps_only_a_greedy_upgrade_reaches",
+         lambda named: asked.append(named) or [behind_its_recipe("cursor", "3.25.6", "3.27.14,69b724")])
+    use_shell(FakeShell(installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")))
+
+    report = brew.outdated()
+
+    assert report.outdated_packages == ["git  2.48.1 → 2.49.0", "cursor  3.25.6 → 3.27.14"]
+    assert asked == [{"git"}]
+
+
+def test_homebrew_adds_nothing_to_a_check_that_failed():
+    from update_my_mac.managers import homebrew
+
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", [])
+    swap(homebrew, "apps_only_a_greedy_upgrade_reaches", lambda named: [behind_its_recipe("cursor", "3", "4")])
+    use_shell(FakeShell(installed=("brew",), result=CommandResult(False, "", "boom")))
+
+    assert brew.outdated().outdated_packages == []
+
+
+def test_the_homebrew_upgrade_runs_greedy_for_exactly_those_apps_after_the_plain_one():
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", [behind_its_recipe("cursor", "3", "4"), behind_its_recipe("firefox", "1", "2")])
+    shell = use_shell(StreamingShell([0, 0]))
+
+    assert brew.upgrade() == 0
+    assert shell.streamed == [["upgrade"], ["upgrade", "--cask", "--greedy", "cursor", "firefox"]]
+
+
+def test_a_failure_in_either_homebrew_upgrade_is_reported():
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", [behind_its_recipe("cursor", "3", "4")])
+
+    use_shell(StreamingShell([1, 0]))
+    assert brew.upgrade() == 1
+    use_shell(StreamingShell([0, 1]))
+    assert brew.upgrade() == 1
+
+
+def test_without_such_apps_the_homebrew_upgrade_is_the_plain_one():
+    brew = managers.by_key("brew")
+    swap(brew, "_greedy", [])
+    shell = use_shell(StreamingShell([0]))
+
+    brew.upgrade()
+    assert shell.streamed == [["upgrade"]]
+
+
+def test_a_greedy_upgrade_is_not_enough_where_homebrew_recorded_the_recipes_version_or_macos_updates_the_app():
+    from update_my_mac.checks import app_updaters
+
+    assert behind_its_recipe("cursor", "3", "4").needs_greedy
+    assert not behind_its_recipe("cursor", "3", "4", recorded="4").needs_greedy
+    by_macos = behind_its_recipe("safari", "18", "19")
+    by_macos.app.updater = app_updaters.UpdaterStatus(app_updaters.HOST_APP)
+    assert not by_macos.needs_greedy
+
+
 def test_the_app_store_notice_about_progress_is_dropped_from_what_upgrade_shows():
     written = b"Update progress cannot be displayed\nInstalling CotEditor\n"
 

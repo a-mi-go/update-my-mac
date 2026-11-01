@@ -20,8 +20,7 @@ class Cask:
     token: str
     homepage: str
     version: str
-    # --adopt takes over nothing but an app Homebrew would have installed
-    # itself, so a cask like this is never offered as a handover.
+    # --adopt cannot take it over, only running its installer again can.
     installs_a_package: bool = False
 
 

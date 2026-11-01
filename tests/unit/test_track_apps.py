@@ -147,6 +147,8 @@ def test_apps_already_left_alone_are_not_asked_about_again(tmp_path):
     assert terminal.text == ""
 
 
+
+
 def test_revisiting_says_so_when_there_is_nothing_to_revisit(tmp_path):
     terminal = Terminal()
 
@@ -179,6 +181,8 @@ def test_answering_nothing_leaves_the_list_as_it_is(tmp_path):
 
     assert brought_back == 0
     assert decisions_in(tmp_path).ignored_names() == ["Alpha"]
+
+
 
 
 def test_no_more_input_stops_instead_of_crashing(tmp_path):
@@ -400,17 +404,20 @@ def sparkle_app(name="Dockish", version="1.1", feed="https://appish.app/appcast.
     )
 
 
-def test_an_app_with_an_updater_can_be_asked_to_update_itself(tmp_path):
+def test_an_app_that_was_started_to_update_itself_moves_on_to_the_next_app(tmp_path):
     started = []
-    terminal = Terminal(START_IT, LATER_AFTER_START)
+    terminal = Terminal(START_IT, LATER)
 
     swap(track_apps.shell, "open_application", lambda path: started.append(path) or True)
-    track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
+    dealt_with = track_apps.ask_what_to_do(
+        [sparkle_app(), app("Evoto")], decisions_in(tmp_path), terminal.step
+    )
 
     assert f"1) {BULLET}open Dockish and check for updates there" in terminal.text
     assert started == [Path("/Applications/Dockish.app")]
-    # Starting it settles nothing, so the same app is asked about again.
-    assert f"2) {BULLET}download and install manually" in terminal.text
+    assert terminal.text.count("Dockish 1.1") == 1
+    assert "Evoto 1.0" in terminal.text
+    assert dealt_with == []
 
 
 def test_an_app_that_will_not_start_says_so(tmp_path):
@@ -517,6 +524,7 @@ def test_an_app_that_could_not_be_moved_says_so_and_is_asked_about_again(tmp_pat
     assert dealt_with == []
 
 
+
 def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping():
     seen = []
 
@@ -535,3 +543,22 @@ def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping(
     assert signal.getsignal(signal.SIGINT) is before
 
 
+def test_what_the_handover_costs_is_drawn_apart_from_the_offer():
+    from update_my_mac.view import arrow_menu
+
+    cask = Cask("foxit-pdf-editor", "https://foxit.com/", "14.0.8.69494")
+
+    label = track_apps._handover_choice(app("Foxit PDF Editor", "2026.1.1.70276"), cask)
+    pieces = arrow_menu.styled(label)
+
+    assert pieces[0] == ("", "let Homebrew take over ")
+    assert pieces[1][0] != ""
+    assert pieces[1][1].startswith("(replace 2026.1.1.70276 with 14.0.8.69494")
+    assert pieces[1][1].endswith("this may be a downgrade)")
+
+
+def test_an_offer_with_nothing_to_add_stays_plain_text():
+    cask = Cask("dockish", "https://example.test/", "6.2.1")
+
+    assert track_apps._handover_choice(app("Dockish", "6.0"), None) == ""
+    assert track_apps._handover_choice(app("Dockish", "6.0"), cask) == "update to dockish 6.2.1 and let Homebrew take over"

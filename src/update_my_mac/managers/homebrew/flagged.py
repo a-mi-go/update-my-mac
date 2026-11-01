@@ -2,15 +2,17 @@
 
 A version scheme that went from build 64 to 3.4.1 reads as newer, so the
 package is never called outdated. A disabled package is skipped by every
-upgrade. Neither shows up anywhere unless Homebrew is asked about each package.
+upgrade. An app thrown away in the Finder stays recorded, and its upgrade
+fails. None of it shows up unless Homebrew is asked about each package.
 """
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from update_my_mac.checks import versions
 
-DIFFERS, DISABLED, DEPRECATED = "differs", "disabled", "deprecated"
+DIFFERS, DISABLED, DEPRECATED, GONE = "differs", "disabled", "deprecated", "gone"
 
 
 @dataclass
@@ -27,7 +29,11 @@ def find(installed, already_reported=()):
     """Returns what Homebrew flagged in its description of the installed packages."""
     found = [_formula(one) for one in installed.get("formulae", []) if _is_installed(one)]
     found += [_cask(one) for one in installed.get("casks", []) if one.get("installed")]
-    return [item for item in found if item and item.name.rsplit("/", 1)[-1] not in already_reported]
+    return [
+        item for item in found
+        # Homebrew calls a gone app outdated too, and that upgrade is the one that fails.
+        if item and (item.kind == GONE or item.name.rsplit("/", 1)[-1] not in already_reported)
+    ]
 
 
 def _formula(formula):
@@ -66,9 +72,20 @@ def _is_installed(formula):
 
 def _cask(cask):
     token = cask.get("token", "")
+    if _app_is_gone(cask):
+        return Flagged(token, GONE, True, cask["installed"])
     if cask.get("disabled"):
         return Flagged(token, DISABLED, True, cask["installed"], reason=_reason(cask, "disable"))
     if cask.get("deprecated"):
         return Flagged(token, DEPRECATED, True, cask["installed"],
                        reason=_reason(cask, "deprecation"))
     return None
+
+
+def _app_is_gone(cask):
+    """Returns whether an app Homebrew put in place for the cask is no longer there."""
+    targets = [
+        artifact["target"] for artifact in cask.get("artifacts", [])
+        if isinstance(artifact, dict) and "app" in artifact and artifact.get("target")
+    ]
+    return any(not Path(target).exists() for target in targets)

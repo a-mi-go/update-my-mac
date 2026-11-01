@@ -1,5 +1,6 @@
 """Sequencing the steps of a run, independent of how the flags were parsed."""
 
+import dataclasses
 import functools
 import getpass
 
@@ -58,7 +59,7 @@ def _run_interactive():
     findings.managers_behind = managers.still_behind(managers_behind, result.updated)
 
     # Resolving issues first, so the update menu below lists what is left.
-    updates = _Updates(findings.reports)
+    updates = _Updates(findings.reports, _gone_casks(findings))
     resolved = resolve_issues.ask_what_to_fix(
         _issues(findings, decisions),
         above=lambda console: report.print_to(console, findings),
@@ -133,6 +134,7 @@ def _check_the_mac(installed, decisions):
 
         now("asking Homebrew what it has doubts about")
         findings.flagged = _flagged_by_homebrew(findings.reports)
+        findings.reports = _without_gone_casks(findings.reports, _gone_casks(findings))
         findings.mounted = mounted_downloads.find()
 
     return findings
@@ -158,15 +160,7 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    recorded = brew.recorded_cask_versions()
-    return behind_the_recipe.find(
-        installed_apps.find_all(),
-        _casks(),
-        recorded,
-        already_reported=_names_homebrew_reported(reports),
-        recorded_at=brew.recorded_cask_times(recorded),
-        would_install=brew.versions_homebrew_would_install(),
-    )
+    return behind_the_recipe.find_installed(_casks(), already_reported=_names_homebrew_reported(reports))
 
 
 def _names_homebrew_reported(reports):
@@ -179,6 +173,19 @@ def _flagged_by_homebrew(reports):
     """Returns what Homebrew flagged that its outdated list does not already name."""
     installed = brew.installed_packages(managers.by_key("brew").environment())
     return flagged.find(installed, _names_homebrew_reported(reports))
+
+
+def _gone_casks(findings):
+    return {item.name for item in findings.flagged if item.kind == flagged.GONE}
+
+
+def _without_gone_casks(reports, gone):
+    return [
+        dataclasses.replace(report, outdated_packages=[
+            line for line in report.outdated_packages if line.split()[0] not in gone
+        ]) if report.manager == "brew" and gone else report
+        for report in reports
+    ]
 
 
 def _exit_code(reports, managers_behind=()):
@@ -198,8 +205,9 @@ def _clean_up(installed):
 class _Updates:
     """What the managers would update, asked again once a step of the first menu put something right."""
 
-    def __init__(self, reports):
+    def __init__(self, reports, gone=()):
         self._reports = reports
+        self._gone = gone
         self._out_of_date = False
 
     def something_changed(self):
@@ -207,8 +215,8 @@ class _Updates:
 
     def reports(self):
         if self._out_of_date:
-            with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
-                self._reports = managers.check_what_is_outdated()
+            with report.waiting("asking what is outdated"):
+                self._reports = _without_gone_casks(managers.check_what_is_outdated(), self._gone)
             self._out_of_date = False
         return self._reports
 
