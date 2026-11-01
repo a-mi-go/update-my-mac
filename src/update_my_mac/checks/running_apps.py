@@ -1,4 +1,4 @@
-"""Apps that are still running the version they were started with.
+"""Running apps an update is about to replace, or has replaced underneath them.
 
 An upgrade replaces the bundle, but a running process keeps the old code in
 memory and goes on offering an update that is already installed.
@@ -50,15 +50,9 @@ class StillRunningOld:
 
 def find():
     """Returns running apps whose bundle was replaced after they were started."""
-    directories = {path.resolve() for path in installed_apps.app_directories()}
-    ours = _our_own_ancestors()
     now = time.time()
-
     found = {}
-    for pid, seconds, command in _processes():
-        bundle = _bundle_of(command)
-        if bundle is None or bundle in ours or bundle.parent not in directories:
-            continue
+    for pid, seconds, bundle in _other_apps_running():
         try:
             written = bundle.stat().st_mtime
         except OSError:
@@ -77,6 +71,54 @@ def find():
                 ),
             )
     return sorted(found.values(), key=lambda app: app.file_stem)
+
+
+@dataclass
+class RunningApp:
+    file_stem: str
+    bundle: Path
+    pid: int
+    version: str = ""
+    display_name: str = ""
+
+    def __post_init__(self):
+        self.display_name = self.display_name or self.file_stem
+
+    def comment(self):
+        return "running"
+
+    def title(self):
+        known = self.version and self.version != installed_apps.UNKNOWN_VERSION
+        return f"{self.display_name}  {self.version}" if known else self.display_name
+
+
+def find_named(file_names):
+    """Returns the running apps whose bundle has one of these file names, such as Todoist.app."""
+    wanted = {name.casefold() for name in file_names}
+    if not wanted:
+        return []
+
+    found = {}
+    for pid, _, bundle in _other_apps_running():
+        if bundle.name.casefold() in wanted:
+            found.setdefault(
+                bundle,
+                RunningApp(
+                    bundle.stem, bundle, pid, installed_apps.read_version(bundle),
+                    installed_apps.read_display_name(bundle.stem, app_updaters.read_bundle_info(bundle)),
+                ),
+            )
+    return sorted(found.values(), key=lambda app: app.file_stem)
+
+
+def _other_apps_running():
+    """Yields (pid, seconds running, bundle) for the apps in the app folders, without the one we run inside."""
+    directories = {path.resolve() for path in installed_apps.app_directories()}
+    ours = _our_own_ancestors()
+    for pid, seconds, command in _processes():
+        bundle = _bundle_of(command)
+        if bundle is not None and bundle not in ours and bundle.parent in directories:
+            yield pid, seconds, bundle
 
 
 def _our_own_ancestors():

@@ -161,3 +161,20 @@ def test_an_app_that_adds_to_its_file_name_is_listed_by_the_longer_name(tmp_path
 
     assert [(item.file_stem, item.display_name) for item in found] == [("iTerm", "iTerm2")]
     assert found[0].describe().startswith("iTerm2  3.5")
+
+
+def test_a_running_app_is_found_by_its_file_name_whatever_the_case(tmp_path):
+    app = bundle(tmp_path, "Todoist", written_ago_seconds=7200, version="9.1")
+    other = bundle(tmp_path, "Other", written_ago_seconds=7200)
+    use_shell(PsShell([running(app, "10:00", pid=7), running(other, "10:00", pid=8)]))
+    use_environment({"UPDATE_MY_MAC_APP_DIRS": str(tmp_path)})
+
+    found = running_apps.find_named({"todoist.app"})
+
+    assert [(item.file_stem, item.pid, item.title()) for item in found] == [("Todoist", 7, "Todoist  9.1")]
+
+
+def test_no_names_ask_nothing_of_ps(tmp_path):
+    use_shell(PsShell([], has_ps=False))
+
+    assert running_apps.find_named(set()) == []

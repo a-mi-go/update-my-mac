@@ -96,6 +96,16 @@ def test_an_app_without_a_bundle_id_is_not_guessed_at(tmp_path):
     assert not shell.asked_to_quit
 
 
+def test_quitting_alone_does_not_start_the_app_again(tmp_path):
+    shell = AppleShell()
+
+    use_shell(shell)
+    done, message = restart_apps.quit_app(app_at(tmp_path))
+    assert done
+    assert shell.asked_to_quit and not shell.opened
+    assert message == "Quit."
+
+
 def test_a_restart_that_does_not_come_back_says_so(tmp_path):
     shell = AppleShell(opens=False)
 
