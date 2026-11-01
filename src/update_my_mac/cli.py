@@ -3,12 +3,10 @@
 import argparse
 import sys
 
-
 from update_my_mac import __version__
 from update_my_mac.controller import app
+from update_my_mac.system import environment, shell
 from update_my_mac.view import output
-from update_my_mac.system import environment
-from update_my_mac.system import shell
 
 
 def build_argument_parser(prog=None):

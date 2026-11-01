@@ -1,10 +1,10 @@
 """Packages Homebrew has doubts about, and the disk images its upgrades leave attached."""
 
 import plistlib
+
 from fake_run import use_shell
 
-from update_my_mac.managers.homebrew import flagged
-from update_my_mac.managers.homebrew import mounted_downloads
+from update_my_mac.managers.homebrew import flagged, mounted_downloads
 from update_my_mac.system.shell import CommandResult
 
 

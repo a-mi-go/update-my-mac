@@ -1,9 +1,10 @@
 """What every manager has in common: the shape of one, and of its answers."""
 
-from abc import ABC
 import json
+from abc import ABC
 from dataclasses import dataclass, field
 from types import MappingProxyType
+
 from update_my_mac.system import shell
 
 

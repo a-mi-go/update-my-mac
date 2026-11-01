@@ -1,13 +1,14 @@
 """Handing an app to Homebrew, and checking that it really took."""
 
 import plistlib
+
 from fake_run import use_shell
 
-from update_my_mac.managers.homebrew import adopting
 from update_my_mac.checks import versions
 from update_my_mac.checks.app_updaters import UpdaterStatus
-from update_my_mac.managers.homebrew.casks import Cask
 from update_my_mac.checks.installed_apps import InstalledApp
+from update_my_mac.managers.homebrew import adopting
+from update_my_mac.managers.homebrew.casks import Cask
 from update_my_mac.system.shell import CommandResult
 
 CASK = Cask("betterdisplay", "https://betterdisplay.pro/", "5.0.6")

@@ -1,10 +1,10 @@
 """Offer package managers updates, before the checks."""
 
 from dataclasses import dataclass, field
+
 from update_my_mac import managers
 from update_my_mac.controller.apply_updates import run_each_manager
-from update_my_mac.view import output
-from update_my_mac.view import prompting
+from update_my_mac.view import output, prompting
 
 
 @dataclass

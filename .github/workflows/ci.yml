@@ -29,6 +29,9 @@ jobs:
             sudo apt-get install -y -qq fish zsh ||
               { sudo apt-get update -qq && sudo apt-get install -y -qq fish zsh; }
           fi
+      - name: Lint with ruff
+        if: runner.os == 'Linux'
+        run: uv run --frozen ruff check .
       - name: Run tests
         run: uv run --frozen pytest -q
       - name: Check the package builds

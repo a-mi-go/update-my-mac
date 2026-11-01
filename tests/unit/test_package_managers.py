@@ -1,9 +1,9 @@
 import pytest
+from fake_run import use_shell
 
 from update_my_mac import managers
 from update_my_mac.managers import CheckFailed
 from update_my_mac.system.shell import CommandResult
-from fake_run import use_shell
 
 NPM_OUTDATED = """{
   "typescript": {"current": "5.4.2", "wanted": "5.4.5", "latest": "5.4.5"},

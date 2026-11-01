@@ -3,11 +3,8 @@
 import time
 from dataclasses import dataclass
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
-from update_my_mac.checks import versions
-from update_my_mac.managers.homebrew import adopting
-from update_my_mac.managers.homebrew import flagged
+from update_my_mac.checks import app_updaters, appcast, versions
+from update_my_mac.managers.homebrew import adopting, flagged
 
 # The flags a command can put right; Homebrew's other doubts are only worth knowing.
 FIXABLE_FLAGS = (flagged.DIFFERS, flagged.DISABLED)

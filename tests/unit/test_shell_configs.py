@@ -2,9 +2,8 @@ import os
 import shutil
 import time
 
-from fake_run import use_environment, swap
-
 import pytest
+from fake_run import swap, use_environment
 
 from update_my_mac import shell_configs
 

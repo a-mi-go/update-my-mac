@@ -6,11 +6,9 @@ from types import SimpleNamespace
 from fake_run import swap, use_shell
 from fake_terminal import Terminal
 
-from update_my_mac.checks import installed_apps
-from update_my_mac.checks import running_apps
+from update_my_mac.checks import installed_apps, running_apps
 from update_my_mac.checks.running_apps import RunningApp
-from update_my_mac.controller import close_apps
-from update_my_mac.controller import restart_apps
+from update_my_mac.controller import close_apps, restart_apps
 
 
 def entry(keys, *outdated):

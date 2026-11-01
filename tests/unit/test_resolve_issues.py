@@ -1,14 +1,12 @@
 """The one question that offers everything the run found to sort out."""
 
-from update_my_mac.view.prompting import BULLET
-
 import pytest
-from rich.rule import Rule
+from fake_terminal import Terminal
 from rich.text import Text
 
 from update_my_mac.controller import resolve_issues
 from update_my_mac.view import prompting
-from fake_terminal import Terminal
+from update_my_mac.view.prompting import BULLET
 
 
 def problem(label, walked=None, fixed=None, count=1):

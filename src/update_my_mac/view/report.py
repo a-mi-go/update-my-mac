@@ -16,9 +16,7 @@ from rich.text import Text
 
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
-from update_my_mac.view import output
-from update_my_mac.view import sections
-
+from update_my_mac.view import output, sections
 
 # The spinner every wait is shown with.
 SPINNER = "dots"
