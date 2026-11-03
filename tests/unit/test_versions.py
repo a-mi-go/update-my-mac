@@ -78,7 +78,7 @@ def test_a_version_with_no_numbers_in_it_is_not_compared():
 
 
 # Every pair below turned up on a real Mac. The verdict matters because it
-# decides whether an app is called outdated, and whether a handover is called
+# decides whether an app is called outdated, and whether a takeover is called
 # an update or a downgrade.
 SEEN_IN_THE_WILD = [
     ("Docker", "4.91.0", "4.92.0,240144", True),

@@ -118,29 +118,38 @@ def recorded_cask_times(recorded):
     return times
 
 
-def adopt_cask(token):
+def adopt_cask(token, status=None):
     """Hands an app that is already installed over to Homebrew, index first."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--adopt"])
+    return shell.stream_command([executable, "install", "--cask", token, "--adopt"], status_while_silent=status)
 
 
-def install_cask_over(token):
+def install_cask_over(token, status=None):
     """Downloads the cask's version and puts it over the app already in place."""
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--force"])
+    return shell.stream_command([executable, "install", "--cask", token, "--force"], status_while_silent=status)
 
 
 def installed_packages(env=None):
     """Returns Homebrew's own description of everything installed, as one parsed answer."""
+    return _brew_info(["--installed"], env)
+
+
+def describe_packages(names, env=None):
+    """Returns Homebrew's own description of these packages, as one parsed answer."""
+    return _brew_info(sorted(names), env) if names else {}
+
+
+def _brew_info(selection, env):
     executable = shell.find_executable("brew")
     if executable is None:
         return {}
 
-    result = shell.run_command([executable, "info", "--json=v2", "--installed"], (0,), env)
+    result = shell.run_command([executable, "info", "--json=v2", *selection], (0,), env)
     if not result.success:
         return {}
 

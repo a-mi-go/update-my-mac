@@ -1,5 +1,9 @@
 """The indenting and the numbering that every walk-through is built out of."""
 
+import os
+import signal
+
+import pytest
 from fake_terminal import Terminal
 
 from update_my_mac.view import prompting
@@ -345,3 +349,39 @@ def test_the_screen_of_its_own_is_left_before_the_report_is_printed(monkeypatch)
 
     text = written.getvalue()
     assert text.index("\x1b[?1049l") < text.index("the report")
+
+
+def press_ctrl_c():
+    os.kill(os.getpid(), signal.SIGINT)
+
+
+def test_while_something_runs_the_first_ctrl_c_only_warns():
+    terminal = Terminal()
+    terminal.step
+
+    with prompting.warning_before_stopping():
+        press_ctrl_c()
+
+    assert "Press Ctrl-C again" in terminal.text
+
+
+def test_while_something_runs_the_second_ctrl_c_in_a_row_ends_the_run():
+    Terminal().step
+
+    with pytest.raises(KeyboardInterrupt):
+        with prompting.warning_before_stopping():
+            press_ctrl_c()
+            press_ctrl_c()
+
+
+def test_once_it_has_run_a_ctrl_c_is_its_own_again():
+    Terminal().step
+    before = signal.getsignal(signal.SIGINT)
+
+    with prompting.warning_before_stopping():
+        press_ctrl_c()
+
+    assert signal.getsignal(signal.SIGINT) is before
+    assert not prompting.arrow_menu.pressed_ctrl_c()
+
+

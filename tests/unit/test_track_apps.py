@@ -1,3 +1,4 @@
+import signal
 from pathlib import Path
 
 import pytest
@@ -95,7 +96,7 @@ def test_keeping_an_app_listed_writes_nothing(tmp_path):
 def test_doing_nothing_asks_about_no_app_at_all(tmp_path):
     terminal = Terminal("3")
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("Other")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert len(dealt_with) == 0
@@ -283,7 +284,7 @@ def test_an_app_can_be_handed_to_homebrew(tmp_path):
     decisions = decisions_in(tmp_path)
     terminal = Terminal(ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True, "Homebrew looks after it now, as betterdisplay."): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "Homebrew looks after it now, as betterdisplay." in terminal.text
@@ -292,21 +293,21 @@ def test_an_app_can_be_handed_to_homebrew(tmp_path):
     assert decisions_in(tmp_path).ignored_names() == []
 
 
-def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
+def test_an_app_with_no_recipe_is_not_offered_the_takeover(tmp_path):
     terminal = Terminal(LATER)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
 
     assert "add to Homebrew" not in terminal.text
 
 
-def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
+def test_a_failed_takeover_leaves_the_app_undecided(tmp_path):
     decisions = decisions_in(tmp_path)
     # Adopting it did not work, so the same app is asked about again.
     terminal = Terminal(ADOPT, IGNORE_AFTER_ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(False, "Homebrew could not take it over."): adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay")], decisions, terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     # The second answer still counted, so nothing was swallowed.
@@ -317,7 +318,7 @@ def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
 def test_the_menu_says_which_cask_would_take_the_app(tmp_path):
     terminal = Terminal(LATER_AFTER_ADOPT)
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("BetterDisplay")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert f"1) {BULLET}add to Homebrew (betterdisplay 1.0)" in terminal.text
@@ -331,7 +332,7 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
         asked.append(app.file_stem)
         return True, "done"
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopt: adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopt: adopt(app))
     dealt_with = track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert asked == ["BetterDisplay"]
@@ -341,7 +342,7 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
 def test_the_menu_counts_how_many_homebrew_could_take(tmp_path):
     terminal = Terminal("3")
 
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     track_apps.ask_what_to_do([app("BetterDisplay"), app("TokenEater")], decisions_in(tmp_path), terminal.step, find_cask=cask_for({"BetterDisplay": cask()}))
 
     assert "add all to Homebrew (1 of 2)" in terminal.text
@@ -398,17 +399,20 @@ def sparkle_app(name="Dockish", version="1.1", feed="https://appish.app/appcast.
     )
 
 
-def test_an_app_with_an_updater_can_be_asked_to_update_itself(tmp_path):
+def test_an_app_that_was_started_to_update_itself_moves_on_to_the_next_app(tmp_path):
     started = []
-    terminal = Terminal(START_IT, LATER_AFTER_START)
+    terminal = Terminal(START_IT, LATER)
 
     swap(track_apps.shell, "open_application", lambda path: started.append(path) or True)
-    track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
+    dealt_with = track_apps.ask_what_to_do(
+        [sparkle_app(), app("Evoto")], decisions_in(tmp_path), terminal.step
+    )
 
     assert f"1) {BULLET}open Dockish and check for updates there" in terminal.text
     assert started == [Path("/Applications/Dockish.app")]
-    # Starting it settles nothing, so the same app is asked about again.
-    assert f"2) {BULLET}download and install manually" in terminal.text
+    assert terminal.text.count("Dockish 1.1") == 1
+    assert "Evoto 1.0" in terminal.text
+    assert dealt_with == []
 
 
 def test_an_app_that_will_not_start_says_so(tmp_path):
@@ -456,7 +460,7 @@ def test_what_the_feed_offers_is_said_before_the_options(tmp_path):
 
 
 def test_one_app_has_no_walk_through_to_cancel(tmp_path):
-    swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, adopt=adopting(True): adopt(app))
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
     ask = lambda apps, terminal: track_apps.ask_what_to_do(apps, decisions_in(tmp_path), terminal.step, find_cask=cask_for({}))
     one, two = Terminal(LATER), Terminal(LATER, LATER, LATER)
 
@@ -514,3 +518,42 @@ def test_an_app_that_could_not_be_moved_says_so_and_is_asked_about_again(tmp_pat
     assert "Could not move Juice to the Trash." in terminal.text
     assert dealt_with == []
 
+
+
+def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping():
+    seen = []
+
+    def hand_over(app, cask, status=None):
+        seen.append((status, signal.getsignal(signal.SIGINT)))
+        return True, "taken"
+
+    swap(track_apps.adopting, "take_over_with_homebrew", hand_over)
+    before = signal.getsignal(signal.SIGINT)
+
+    assert track_apps._take_over_with_homebrew(object(), object(), Terminal().step)
+
+    status, handler = seen[0]
+    assert status is not None
+    assert handler is not before
+    assert signal.getsignal(signal.SIGINT) is before
+
+
+def test_what_the_takeover_costs_is_drawn_apart_from_the_offer():
+    from update_my_mac.view import arrow_menu
+
+    cask = Cask("foxit-pdf-editor", "https://foxit.com/", "14.0.8.69494")
+
+    label = track_apps._takeover_choice(app("Foxit PDF Editor", "2026.1.1.70276"), cask)
+    pieces = arrow_menu.styled(label)
+
+    assert pieces[0] == ("", "let Homebrew take over ")
+    assert pieces[1][0] != ""
+    assert pieces[1][1].startswith("(replace 2026.1.1.70276 with 14.0.8.69494")
+    assert pieces[1][1].endswith("this may be a downgrade)")
+
+
+def test_an_offer_with_nothing_to_add_stays_plain_text():
+    cask = Cask("dockish", "https://example.test/", "6.2.1")
+
+    assert track_apps._takeover_choice(app("Dockish", "6.0"), None) == ""
+    assert track_apps._takeover_choice(app("Dockish", "6.0"), cask) == "update to dockish 6.2.1 and let Homebrew take over"

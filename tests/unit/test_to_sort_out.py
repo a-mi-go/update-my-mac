@@ -91,6 +91,18 @@ def test_an_app_nobody_can_check_is_a_problem_that_says_so_and_since_when(monkey
     assert concern(app("Filestar")) == to_sort_out.Concern(to_sort_out.CANNOT_CHECK, "unchanged since 2024-04")
 
 
+def test_an_app_nobody_can_check_but_that_changed_recently_is_not_a_problem(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: time.time() - 24 * 60 * 60)
+
+    assert concern(app("Filestar")) is None
+
+
+def test_an_app_that_changed_recently_is_still_a_problem_when_its_updater_is_off(monkeypatch):
+    monkeypatch.setattr(to_sort_out, "last_changed", lambda found: time.time() - 24 * 60 * 60)
+
+    assert concern(app(updater=sparkle(automatic=False, feed=""))).reason == "updater off"
+
+
 def test_an_app_nobody_can_check_and_whose_age_is_unknown_still_says_so():
     assert concern(app("Filestar")) == to_sort_out.Concern(to_sort_out.CANNOT_CHECK)
 

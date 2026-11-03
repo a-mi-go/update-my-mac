@@ -30,7 +30,7 @@ class RecordingShell:
     def find_executable(self, command):
         return f"/fake/{command}"
 
-    def stream_command(self, args, env=None, silent_status=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.streamed.append(args)
         return self.exit_code
 

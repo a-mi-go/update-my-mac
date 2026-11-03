@@ -222,7 +222,7 @@ class BrewShell:
     def find_executable(self, command):
         return f"/fake/{command}" if self.installed else None
 
-    def stream_command(self, args, env=None, silent_status=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.calls.append((args, env))
         return 0
 
@@ -509,7 +509,6 @@ def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatc
     problem = app._untracked_problem(findings, AppDecisions(tmp_path / "apps.json"))
 
     assert problem.label == "⎷ go through untracked apps (1, 2 can be added to Homebrew)"
-
 
 
 def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):

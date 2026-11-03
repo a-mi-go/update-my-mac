@@ -4,8 +4,10 @@ The fakes sit alone on PATH, so a manager is "installed" exactly when the test
 says so, and the real brew/npm on this machine are never consulted.
 """
 
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -90,6 +92,8 @@ def test_untracked_apps_show_up_in_the_report(tmp_path, empty_home):
         b'<plist version="1.0"><dict><key>CFBundleShortVersionString</key>'
         b"<string>5.12.2</string></dict></plist>\n"
     )
+    a_while_ago = time.time() - 90 * 24 * 60 * 60
+    os.utime(plist, (a_while_ago, a_while_ago))
 
     result = run_check_against_mocks("clean", empty_home, app_dirs=str(apps))
 

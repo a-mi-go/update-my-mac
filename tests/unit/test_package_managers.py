@@ -1,8 +1,11 @@
+import json
+
 import pytest
-from fake_run import use_shell
+from fake_run import swap, use_shell
 
 from update_my_mac import managers
 from update_my_mac.managers import CheckFailed
+from update_my_mac.system import shell as real_shell
 from update_my_mac.system.shell import CommandResult
 
 NPM_OUTDATED = """{
@@ -182,7 +185,7 @@ def test_only_homebrew_gets_an_environment_override():
 
 def test_a_manager_without_upgrade_arguments_is_not_run():
     shell = FakeShell(installed=("brew",), result=CommandResult(True, "", ""))
-    shell.stream_command = lambda args, env=None, silent_status=None: 0
+    shell.stream_command = lambda args, env=None, status_while_silent=None, rewrite=None: 0
     class WithoutUpgradeArguments(managers.PackageManager):
         key, label, command = "x", "X", "brew"
         outdated_args = ("outdated",)
@@ -415,7 +418,7 @@ class StreamingShell:
     def find_executable(self, command):
         return f"/fake/{command}"
 
-    def stream_command(self, args, env=None, silent_status=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.streamed.append(args[1:])
         return self.codes.pop(0)
 
@@ -436,12 +439,211 @@ def test_a_manager_with_nothing_to_clear_out_runs_nothing():
     assert shell.streamed == []
 
 
-def test_the_app_store_upgrade_shows_no_status_because_sudo_asks_for_a_password():
-    statuses = []
-    shell = StreamingShell([0, 0])
-    shell.stream_command = lambda args, env=None, silent_status=None: statuses.append(silent_status) or 0
+def test_the_app_store_names_the_apps_it_started_no_download_for():
+    mas = managers.by_key("mas")
+    mas.parse_outdated("6469021132  PDFgear  (2.27 -> 2.28)\n585829637  Todoist  (9.30.0 -> 9.31.0)\n")
+    use_shell(StreamingShell([1]))
+    swap(
+        real_shell, "output_of_last_streamed_command",
+        lambda: "Error: No downloads initiated for ADAM ID 6469021132\nError: No downloads initiated for ADAM ID 1\n",
+    )
 
-    use_shell(shell)
-    managers.by_key("mas").upgrade(status="spinner")
-    managers.by_key("npm").upgrade(status="spinner")
-    assert statuses == [None, "spinner"]
+    mas.upgrade()
+
+    assert mas.refused_in_last_upgrade == {"PDFgear"}
+
+
+def test_homebrew_upgrade_output_loses_the_builds_after_a_comma():
+    brew = managers.by_key("brew")
+    written = (
+        b"==> Upgrading 2 outdated packages:\r\n"
+        b"cursor   3.25.6,f0df777c412b670d09e3eaf214967d779e67c088 -> 3.27.14,69b724ebc67e  (190 MB)\r\n"
+        b"charles  5.2.1                                           -> 5.2.2\r\n"
+        b"  3.25.6,f0df777c412b670d09e3eaf214967d779e67c088 -> 3.27.14,69b724ebc67e\r\n"
+        b"Moving App 'Cursor.app' to '/Applications/Cursor.app', 1,2 -> 3\r\n"
+        b"cursor   3.25.6,f0df -> 3.27"
+    )
+
+    assert brew.rewrite_output_chunk(written).split(b"\n") == [
+        b"==> Upgrading 2 outdated packages:\r",
+        b"cursor   3.25.6 -> 3.27.14  (190 MB)\r",
+        b"charles  5.2.1  -> 5.2.2\r",
+        b"  3.25.6 -> 3.27.14\r",
+        b"Moving App 'Cursor.app' to '/Applications/Cursor.app', 1,2 -> 3\r",
+        b"cursor   3.25.6,f0df -> 3.27",
+    ]
+
+
+def test_homebrew_download_progress_loses_the_build_after_a_comma():
+    written = (
+        b"\xe2\x9c\x94\xef\xb8\x8e Cask cursor (3.27.22,b1aa50cb6db84fd3e8c808259cb172ea73425c1f)  Verified\r\n"
+        b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r\n"
+    )
+
+    assert managers.by_key("brew").rewrite_output_chunk(written).split(b"\n") == [
+        b"\xe2\x9c\x94\xef\xb8\x8e Cask cursor (3.27.22)  Verified\r",
+        b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r",
+        b"",
+    ]
+
+
+def test_homebrew_upgrade_output_without_builds_keeps_its_own_layout():
+    written = b"signal  8.31.0       -> 8.32.0\nzoom    7.1.5.84650  -> 7.2.2.88465\n"
+
+    assert managers.by_key("brew").rewrite_output_chunk(written) == written
+
+
+def test_other_managers_show_their_upgrade_output_as_it_is():
+    assert managers.by_key("npm").rewrite_output_chunk(b"a 1,2 -> 3,4\n") == b"a 1,2 -> 3,4\n"
+
+
+def behind_its_recipe(token, app_version, cask_version, recorded=None):
+    from pathlib import Path
+
+    from update_my_mac.checks.installed_apps import InstalledApp
+    from update_my_mac.managers.homebrew import behind_the_recipe
+    from update_my_mac.managers.homebrew.casks import Cask
+
+    app = InstalledApp(token.title(), app_version, Path(f"/Applications/{token.title()}.app"))
+    return behind_the_recipe.Behind(app, Cask(token, "https://x.test/", cask_version), recorded or app_version)
+
+
+class BrewShell:
+    """Answers brew's outdated list and its description of packages apart, and records what is upgraded."""
+
+    def __init__(self, outdated="", described=None, codes=()):
+        self.outdated = outdated
+        self.described = described or {}
+        self.codes = list(codes)
+        self.streamed = []
+
+    def find_executable(self, command):
+        return f"/fake/{command}"
+
+    def run_command(self, args, success_exit_codes=(0,), env=None):
+        return CommandResult(True, json.dumps(self.described) if "info" in args else self.outdated, "")
+
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
+        self.streamed.append(args[1:])
+        return self.codes.pop(0) if self.codes else 0
+
+
+def a_brew_with_greedy_apps(*behind):
+    from update_my_mac.managers import homebrew
+
+    swap(homebrew, "apps_needing_a_greedy_upgrade", lambda named: list(behind))
+    return homebrew.Homebrew()
+
+
+def a_cask_whose_app_is_missing(tmp_path, token):
+    app = tmp_path / f"{token}.app"
+    return {"token": token, "installed": "1", "artifacts": [{"app": [app.name], "target": str(app)}]}
+
+
+def test_homebrew_lists_the_apps_only_a_greedy_upgrade_reaches_with_its_own():
+    from update_my_mac.managers import homebrew
+
+    asked = []
+    swap(homebrew, "apps_needing_a_greedy_upgrade",
+         lambda named: asked.append(named) or [behind_its_recipe("cursor", "3.25.6", "3.27.14,69b724")])
+    use_shell(FakeShell(installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")))
+
+    report = homebrew.Homebrew().outdated()
+
+    assert report.outdated_packages == ["git  2.48.1 → 2.49.0", "cursor  3.25.6 → 3.27.14"]
+    assert asked == [{"git"}]
+
+
+def test_homebrew_adds_nothing_to_a_check_that_failed():
+    brew = a_brew_with_greedy_apps(behind_its_recipe("cursor", "3", "4"))
+    use_shell(FakeShell(installed=("brew",), result=CommandResult(False, "", "boom")))
+
+    assert brew.outdated().outdated_packages == []
+
+
+def test_the_homebrew_upgrade_runs_greedy_for_exactly_those_apps_after_the_plain_one():
+    brew = a_brew_with_greedy_apps(behind_its_recipe("cursor", "3", "4"), behind_its_recipe("firefox", "1", "2"))
+    shell = use_shell(BrewShell(outdated="git (1) < 2"))
+
+    brew.outdated()
+
+    assert brew.upgrade() == 0
+    assert shell.streamed == [["upgrade"], ["upgrade", "--cask", "--greedy", "cursor", "firefox"]]
+
+
+def test_a_failure_in_either_homebrew_upgrade_is_reported():
+    brew = a_brew_with_greedy_apps(behind_its_recipe("cursor", "3", "4"))
+
+    use_shell(BrewShell(outdated="git (1) < 2", codes=[1, 0]))
+    assert brew.upgrade() == 1
+    use_shell(BrewShell(outdated="git (1) < 2", codes=[0, 1]))
+    assert brew.upgrade() == 1
+
+
+def test_an_upgrade_nobody_asked_the_outdated_list_for_first_still_reaches_the_greedy_apps():
+    brew = a_brew_with_greedy_apps(behind_its_recipe("cursor", "3", "4"))
+    shell = use_shell(BrewShell(outdated="git (1) < 2"))
+
+    brew.upgrade()
+
+    assert shell.streamed == [["upgrade"], ["upgrade", "--cask", "--greedy", "cursor"]]
+
+
+def test_without_such_apps_the_homebrew_upgrade_is_the_plain_one():
+    brew = a_brew_with_greedy_apps()
+    shell = use_shell(BrewShell(outdated="git (1) < 2"))
+
+    brew.upgrade()
+    assert shell.streamed == [["upgrade"]]
+
+
+def test_a_cask_whose_app_is_missing_is_left_out_of_what_is_outdated(tmp_path):
+    brew = a_brew_with_greedy_apps()
+    use_shell(BrewShell(
+        outdated="charles (5.2.1) < 5.2.2\ngit (1) < 2",
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
+    ))
+
+    assert brew.outdated().outdated_packages == ["git  1 → 2"]
+
+
+def test_an_upgrade_names_the_packages_when_a_cask_whose_app_is_missing_has_to_stay_out(tmp_path):
+    brew = a_brew_with_greedy_apps()
+    shell = use_shell(BrewShell(
+        outdated="charles (5.2.1) < 5.2.2\ngit (1) < 2",
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
+    ))
+
+    brew.outdated()
+    brew.upgrade()
+
+    assert shell.streamed == [["upgrade", "git"]]
+
+
+def test_nothing_is_upgraded_when_every_outdated_package_is_a_cask_whose_app_is_missing(tmp_path):
+    brew = a_brew_with_greedy_apps()
+    shell = use_shell(BrewShell(
+        outdated="charles (5.2.1) < 5.2.2",
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
+    ))
+
+    brew.outdated()
+
+    assert brew.upgrade() == 0
+    assert shell.streamed == []
+
+
+def test_a_greedy_upgrade_is_not_enough_where_homebrew_recorded_the_recipes_version_or_macos_updates_the_app():
+    from update_my_mac.checks import app_updaters
+
+    assert behind_its_recipe("cursor", "3", "4").needs_a_greedy_upgrade
+    assert not behind_its_recipe("cursor", "3", "4", recorded="4").needs_a_greedy_upgrade
+    by_macos = behind_its_recipe("safari", "18", "19")
+    by_macos.app.updater = app_updaters.UpdaterStatus(app_updaters.HOST_APP)
+    assert not by_macos.needs_a_greedy_upgrade
+
+
+def test_the_app_store_notice_about_progress_is_dropped_from_what_upgrade_shows():
+    written = b"Update progress cannot be displayed\nInstalling CotEditor\n"
+
+    assert managers.by_key("mas").rewrite_output_chunk(written) == b"Installing CotEditor\n"

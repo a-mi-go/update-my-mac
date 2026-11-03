@@ -1,13 +1,20 @@
 """Deciding to leave an app alone, and bringing it back, through the real CLI."""
 
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).parent
 MOCKS = HERE / "mocks"
 FIXTURES = HERE / "fixtures"
+
+
+def age_the_app(plist):
+    a_while_ago = time.time() - 90 * 24 * 60 * 60
+    os.utime(plist, (a_while_ago, a_while_ago))
 
 
 def make_app(directory, name, version):
@@ -20,6 +27,7 @@ def make_app(directory, name, version):
         + f"<string>{version}</string>".encode()
         + b"</dict></plist>\n"
     )
+    age_the_app(contents / "Info.plist")
 
 
 def run(tmp_path, home, *args, answer=""):

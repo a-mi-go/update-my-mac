@@ -3,6 +3,8 @@
 import functools
 import getpass
 
+from rich.text import Text
+
 from update_my_mac import managers
 from update_my_mac.checks import (
     Findings,
@@ -30,6 +32,7 @@ from update_my_mac.managers.homebrew import (
     flagged,
     mounted_downloads,
 )
+from update_my_mac.managers.manager import package_name
 from update_my_mac.view import output, report, sections
 
 
@@ -83,7 +86,7 @@ def run_updates_only_mode():
     result = self_update.update_managers(managers_behind)
     _clean_up(installed)
 
-    with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+    with report.waiting_spinner("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
     failed = result.failed + apply_updates.ask_what_to_update(reports)
@@ -99,19 +102,16 @@ def run_retry_app_mode():
 
 
 def _check_the_managers(installed):
-    with output.console.status(
-        "[dim]asking the package managers if they need an update themselves[/]",
-        spinner=report.SPINNER,
-    ):
+    with report.waiting_spinner("asking the package managers if they need an update themselves"):
         return managers.check_themselves(installed)
 
 
 def _check_the_mac(installed, decisions):
     findings = Findings(any_manager_installed=bool(installed))
 
-    with output.console.status("", spinner=report.SPINNER) as spinner:
+    with report.waiting_spinner() as spinner:
         def now(what):
-            spinner.update(f"[dim]{what}[/]")
+            spinner.update(Text(what, style="dim"))
 
         now("asking each manager what is outdated")
         findings.reports = managers.check_what_is_outdated()
@@ -163,21 +163,13 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    recorded = brew.recorded_cask_versions()
-    return behind_the_recipe.find(
-        installed_apps.find_all(),
-        _casks(),
-        recorded,
-        already_reported=_names_homebrew_reported(reports),
-        recorded_at=brew.recorded_cask_times(recorded),
-        would_install=brew.versions_homebrew_would_install(),
-    )
+    return behind_the_recipe.find_on_this_mac(_casks(), already_reported=_names_homebrew_reported(reports))
 
 
 def _names_homebrew_reported(reports):
     """Returns the names on Homebrew's own outdated list."""
     brew_report = next((r for r in reports if r.manager == "brew"), None)
-    return {line.split()[0] for line in (brew_report.outdated_packages if brew_report else [])}
+    return {package_name(line) for line in (brew_report.outdated_packages if brew_report else [])}
 
 
 def _flagged_by_homebrew(reports):
@@ -212,7 +204,7 @@ class _Updates:
 
     def reports(self):
         if self._out_of_date:
-            with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+            with report.waiting_spinner("asking what is outdated"):
                 self._reports = managers.check_what_is_outdated()
             self._out_of_date = False
         return self._reports
@@ -264,7 +256,7 @@ def _untracked_problem(findings, decisions):
     cask_for = findings.find_cask
 
     # Counted by what Homebrew has a recipe for, not by what the bulk step can
-    # take: a handover that would be a downgrade is still one you can choose.
+    # take: a takeover that would be a downgrade is still one you can choose.
     def label(left):
         known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in left])
         homebrew = f", {known} can be added to Homebrew" if known else ""
@@ -358,5 +350,6 @@ def _restart_every_app(apps, step):
 
 def _offer_to_restart_what_the_updates_replaced(already_offered=()):
     offered = {app.bundle for app in already_offered}
-    replaced = [app for app in running_apps.find() if app.bundle not in offered]
+    with report.waiting_spinner("looking for running apps the updates replaced"):
+        replaced = [app for app in running_apps.find() if app.bundle not in offered]
     restart_apps.ask_after_the_update(replaced)

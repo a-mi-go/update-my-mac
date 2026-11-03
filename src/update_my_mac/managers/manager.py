@@ -47,6 +47,7 @@ class PackageManager(ABC):
     cleanup_args = ()
     asks_for_password = False
     failure_hint = ""
+    refused_in_last_upgrade = frozenset()
 
     def parse_outdated(self, stdout):
         return nonblank_lines(stdout)
@@ -54,6 +55,10 @@ class PackageManager(ABC):
     def ignored_sources(self, result):
         """Returns what this manager left out of its answer without saying so."""
         return []
+
+    def rewrite_output_chunk(self, chunk):
+        """Returns a piece of what an upgrade writes as it should be shown."""
+        return chunk
 
     def environment(self):
         return dict(shell.current_environment(), **self.extra_env) if self.extra_env else None
@@ -129,11 +134,14 @@ class PackageManager(ABC):
         executable = shell.find_executable(self.command)
         if executable is None:
             return None
-        # sudo asks on the real terminal, not through the pty, so a status
-        # running over it would hide the question.
-        if self.asks_for_password:
-            status = None
-        return shell.stream_command([executable, *args], self.environment(), silent_status=status)
+        return shell.stream_command(
+            [executable, *args], self.environment(), status_while_silent=status, rewrite=self.rewrite_output_chunk,
+        )
+
+
+def package_name(line):
+    """Returns the package a line of an outdated list is about."""
+    return line.split()[0]
 
 
 def nonblank_lines(output):
