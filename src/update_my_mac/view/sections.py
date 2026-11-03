@@ -19,7 +19,7 @@ from update_my_mac.managers.homebrew import mounted_downloads
 #   or a check that could not run.
 # Warning: needs a decision, or updates are waiting.
 # Info: nothing to do, only worth knowing.
-CRITICAL, WARNING, INFO, OK = "critical", "warning", "info", "ok"
+CRITICAL, WARNING, INFO = "critical", "warning", "info"
 LOUDEST_FIRST = (CRITICAL, WARNING, INFO)
 
 # The three parts of the report, in the order it shows them.

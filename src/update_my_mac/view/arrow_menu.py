@@ -224,7 +224,9 @@ def _words_of(row):
     """Returns the row's tokens cut into words, a word ending after its space."""
     words, word = [], []
     for style, text, *rest in row:
-        for character in text or [""]:
+        if not text:
+            word.append((style, "", *rest))
+        for character in text:
             word.append((style, character, *rest))
             if character == " ":
                 words.append(word)

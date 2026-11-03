@@ -32,19 +32,23 @@ def redraw_on_resize(app):
 
 def erase_the_wrapped_menu(app):
     """Erases from the first menu row, counting the rows each line takes at the new width."""
-    renderer, out = app.renderer, app.output
-    width = max(1, out.get_size().columns)
+    out = app.output
+    out.write("\r")
+    out.cursor_up(rows_above_the_cursor(app.renderer, max(1, out.get_size().columns)))
+    out.erase_down()
+    out.reset_attributes()
+    out.enable_autowrap()
+    out.flush()
+
+
+def rows_above_the_cursor(renderer, width):
+    """Returns how many terminal rows lie between the first drawn row and the cursor at this width."""
     cursor = renderer._cursor_pos
     screen = renderer._last_screen
     above = cursor.x // width
     if screen is not None:
         above += sum(rows_taken(screen.data_buffer[y], width) for y in range(cursor.y))
-    out.write("\r")
-    out.cursor_up(above)
-    out.erase_down()
-    out.reset_attributes()
-    out.enable_autowrap()
-    out.flush()
+    return above
 
 
 def rows_taken(row, width):

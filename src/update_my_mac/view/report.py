@@ -20,7 +20,7 @@ from update_my_mac.checks import versions
 from update_my_mac.view import output
 from update_my_mac.view import prompting
 from update_my_mac.view import sections
-from update_my_mac.view.sections import CRITICAL, WARNING, INFO, OK
+from update_my_mac.view.sections import CRITICAL, WARNING, INFO
 
 
 # The spinner every wait is shown with.
@@ -50,13 +50,12 @@ SECTION_ICON = {
     CRITICAL: "🚨",
     WARNING: "🟡",
     INFO: "🔵",
-    OK: "✅",
 }
+UP_TO_DATE_ICON = "✅"
 SECTION_COLOR = {
     CRITICAL: "red",
     WARNING: "yellow",
     INFO: "green",
-    OK: "green",
 }
 
 
@@ -344,7 +343,7 @@ def _footer(findings, found, framed):
     clean = sections.clean_managers(findings)
     if clean:
         lines.append(Text.assemble(
-            (f"{SECTION_ICON[OK]} ", ""), (f"{', '.join(clean)} : everything up to date", "green"),
+            (f"{UP_TO_DATE_ICON} ", ""), (f"{', '.join(clean)} : everything up to date", "green"),
         ))
     if findings.left_alone:
         lines.append(Text(
