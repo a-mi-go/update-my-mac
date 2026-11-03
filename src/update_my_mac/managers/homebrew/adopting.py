@@ -23,14 +23,14 @@ SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 MAY_BE_A_DOWNGRADE = "the versions can't be compared, this may be a downgrade"
 
 
-class Handover(NamedTuple):
-    """What a handover offers and, apart from it, what it costs or touches."""
+class HomebrewTakeover(NamedTuple):
+    """What Homebrew's takeover of an app offers, and what it replaces."""
 
     offer: str
     detail: str
 
 
-NO_HANDOVER = Handover("", "")
+NO_TAKEOVER = HomebrewTakeover("", "")
 
 
 def compare_to_app(app, cask):
@@ -59,30 +59,30 @@ def has_a_recipe(cask):
     return cask is not None
 
 
-def fits_the_bulk_step(app, cask):
-    """Returns whether the handover needs no answer about this app alone: no downgrade, no installer to run."""
+def can_join_the_bulk_takeover(app, cask):
+    """Returns whether Homebrew can take the app over without asking about it alone: no downgrade, no installer."""
     return has_a_recipe(cask) and not would_downgrade(app, cask) and not cask.installs_a_package
 
 
-def handover_parts(app, cask):
-    """Returns the handover to offer, which is NO_HANDOVER without a recipe."""
+def homebrew_takeover_of(app, cask):
+    """Returns the takeover to offer, which is NO_TAKEOVER without a recipe."""
     if not has_a_recipe(cask):
-        return NO_HANDOVER
+        return NO_TAKEOVER
     standing = compare_to_app(app, cask)
-    cost = _cost_of_replacing(app, cask, standing)
+    downgrade_warning = _downgrade_warning(app, cask, standing)
     if cask.installs_a_package:
-        return Handover("reinstall with Homebrew's installer", cost or f"{cask.token} {_shown(cask.version)}")
-    if cost:
-        return Handover("let Homebrew take over", cost)
+        return HomebrewTakeover("reinstall with Homebrew's installer", downgrade_warning or f"{cask.token} {_shown(cask.version)}")
+    if downgrade_warning:
+        return HomebrewTakeover("let Homebrew take over", downgrade_warning)
     if standing == SAME:
-        return Handover("add to Homebrew", f"{cask.token} {_shown(cask.version)}")
+        return HomebrewTakeover("add to Homebrew", f"{cask.token} {_shown(cask.version)}")
     if standing == NEWER:
-        return Handover(f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", "")
-    return NO_HANDOVER
+        return HomebrewTakeover(f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", "")
+    return NO_TAKEOVER
 
 
-def _cost_of_replacing(app, cask, standing):
-    """Returns what putting the recipe's version in place costs, or "" when it costs nothing."""
+def _downgrade_warning(app, cask, standing):
+    """Returns the warning that the recipe's version is or may be older, or "" when it is not."""
     if standing == OLDER:
         return f"downgrade {_shown(app.version)} → {_shown(cask.version)}"
     if standing == UNCLEAR:

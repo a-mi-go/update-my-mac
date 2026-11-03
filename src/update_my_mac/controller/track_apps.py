@@ -43,7 +43,7 @@ def known_to_homebrew(found):
 
 def ready_for_homebrew(found):
     """Returns how many the bulk step would hand over to Homebrew."""
-    return sum(1 for app, cask in found if adopting.fits_the_bulk_step(app, cask))
+    return sum(1 for app, cask in found if adopting.can_join_the_bulk_takeover(app, cask))
 
 
 def adopt_all(found, step):
@@ -51,7 +51,7 @@ def adopt_all(found, step):
     per_item = step.inside()
     adopted = []
     for app, cask in found:
-        if not adopting.fits_the_bulk_step(app, cask):
+        if not adopting.can_join_the_bulk_takeover(app, cask):
             continue
         per_item.print_empty_line()
         per_item.print_indented(app.display_name, style="bold")
@@ -142,7 +142,7 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
                 results.print_indented("Could not open that in a browser.", style="yellow")
         elif chosen == LAUNCH:
             if shell.open_application(app.path):
-                _say_it_started(results)
+                _print_that_it_started(results)
                 return chosen
             results.print_indented("That app would not start.", style="yellow")
         elif chosen == TRASH:
@@ -154,9 +154,9 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
 
 def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     choices = []
-    handover = _handover_choice(app, cask)
-    if handover:
-        choices.append((ADOPT, handover))
+    takeover = _takeover_choice(app, cask)
+    if takeover:
+        choices.append((ADOPT, takeover))
     if can_ask_the_app:
         choices.append((LAUNCH, f"open {app.display_name} and check for updates there"))
     if vendor_site:
@@ -167,9 +167,9 @@ def _app_choices(app, cask, vendor_site, can_ask_the_app, is_walkthrough=True):
     return walkthrough.options_for_single_item(choices, is_walkthrough)
 
 
-def _handover_choice(app, cask):
-    """Returns the handover as a menu label with what it costs in grey, or "" without a recipe."""
-    offer, detail = adopting.handover_parts(app, cask)
+def _takeover_choice(app, cask):
+    """Returns the takeover as a menu label with its detail in grey, or "" without a recipe."""
+    offer, detail = adopting.homebrew_takeover_of(app, cask)
     return prompting.label_with_note(offer, detail)
 
 
@@ -189,7 +189,7 @@ def _what_is_known(app, cask, answer):
     return ' '.join(known)
 
 
-def _say_it_started(step):
+def _print_that_it_started(step):
     step.print_indented(
         "Started it. It looks for its update on startup, and anything it "
         "does not offer there is under its own menu.",

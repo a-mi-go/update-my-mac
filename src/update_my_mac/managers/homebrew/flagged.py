@@ -12,7 +12,7 @@ from pathlib import Path
 
 from update_my_mac.checks import versions
 
-DIFFERS, DISABLED, DEPRECATED, GONE = "differs", "disabled", "deprecated", "gone"
+DIFFERS, DISABLED, DEPRECATED, APP_MISSING = "differs", "disabled", "deprecated", "app missing"
 
 
 @dataclass
@@ -32,11 +32,11 @@ def find(installed, already_reported=()):
     return [item for item in found if item and item.name.rsplit("/", 1)[-1] not in already_reported]
 
 
-def gone_casks(described):
+def casks_missing_their_app(described):
     """Returns the tokens of the installed casks in Homebrew's description whose app is no longer there."""
     return {
         cask.get("token", "") for cask in described.get("casks", [])
-        if cask.get("installed") and _app_is_gone(cask)
+        if cask.get("installed") and _app_is_missing(cask)
     }
 
 
@@ -76,8 +76,8 @@ def _is_installed(formula):
 
 def _cask(cask):
     token = cask.get("token", "")
-    if _app_is_gone(cask):
-        return Flagged(token, GONE, True, cask["installed"])
+    if _app_is_missing(cask):
+        return Flagged(token, APP_MISSING, True, cask["installed"])
     if cask.get("disabled"):
         return Flagged(token, DISABLED, True, cask["installed"], reason=_reason(cask, "disable"))
     if cask.get("deprecated"):
@@ -86,7 +86,7 @@ def _cask(cask):
     return None
 
 
-def _app_is_gone(cask):
+def _app_is_missing(cask):
     """Returns whether an app Homebrew put in place for the cask is no longer there."""
     targets = [
         artifact["target"] for artifact in cask.get("artifacts", [])

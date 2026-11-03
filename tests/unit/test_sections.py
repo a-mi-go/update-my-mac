@@ -225,7 +225,7 @@ def test_what_homebrew_holds_wrongly_is_put_right_with_the_rest_and_its_doubts_a
             flagged.Flagged("google-trends", flagged.DISABLED, True, "1.0",
                             reason="fails gatekeeper check since 2026-10-12"),
             flagged.Flagged("old", flagged.DEPRECATED, installed="1"),
-            flagged.Flagged("charles", flagged.GONE, True, "5.2.1"),
+            flagged.Flagged("charles", flagged.APP_MISSING, True, "5.2.1"),
         ],
         mounted=[mounted_downloads.MountedImage(Path("/c/downloads/ab--charles.dmg"), "/dev/disk8")],
     ))

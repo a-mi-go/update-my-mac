@@ -530,11 +530,11 @@ class BrewShell:
 def a_brew_with_greedy_apps(*behind):
     from update_my_mac.managers import homebrew
 
-    swap(homebrew, "apps_only_a_greedy_upgrade_reaches", lambda named: list(behind))
+    swap(homebrew, "apps_needing_a_greedy_upgrade", lambda named: list(behind))
     return homebrew.Homebrew()
 
 
-def a_cask_whose_app_is_gone(tmp_path, token):
+def a_cask_whose_app_is_missing(tmp_path, token):
     app = tmp_path / f"{token}.app"
     return {"token": token, "installed": "1", "artifacts": [{"app": [app.name], "target": str(app)}]}
 
@@ -543,7 +543,7 @@ def test_homebrew_lists_the_apps_only_a_greedy_upgrade_reaches_with_its_own():
     from update_my_mac.managers import homebrew
 
     asked = []
-    swap(homebrew, "apps_only_a_greedy_upgrade_reaches",
+    swap(homebrew, "apps_needing_a_greedy_upgrade",
          lambda named: asked.append(named) or [behind_its_recipe("cursor", "3.25.6", "3.27.14,69b724")])
     use_shell(FakeShell(installed=("brew",), result=CommandResult(True, "git (2.48.1) < 2.49.0", "")))
 
@@ -596,21 +596,21 @@ def test_without_such_apps_the_homebrew_upgrade_is_the_plain_one():
     assert shell.streamed == [["upgrade"]]
 
 
-def test_a_cask_whose_app_is_gone_is_left_out_of_what_is_outdated(tmp_path):
+def test_a_cask_whose_app_is_missing_is_left_out_of_what_is_outdated(tmp_path):
     brew = a_brew_with_greedy_apps()
     use_shell(BrewShell(
         outdated="charles (5.2.1) < 5.2.2\ngit (1) < 2",
-        described={"casks": [a_cask_whose_app_is_gone(tmp_path, "charles")]},
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
     ))
 
     assert brew.outdated().outdated_packages == ["git  1 → 2"]
 
 
-def test_an_upgrade_names_the_packages_when_a_cask_whose_app_is_gone_has_to_stay_out(tmp_path):
+def test_an_upgrade_names_the_packages_when_a_cask_whose_app_is_missing_has_to_stay_out(tmp_path):
     brew = a_brew_with_greedy_apps()
     shell = use_shell(BrewShell(
         outdated="charles (5.2.1) < 5.2.2\ngit (1) < 2",
-        described={"casks": [a_cask_whose_app_is_gone(tmp_path, "charles")]},
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
     ))
 
     brew.outdated()
@@ -619,11 +619,11 @@ def test_an_upgrade_names_the_packages_when_a_cask_whose_app_is_gone_has_to_stay
     assert shell.streamed == [["upgrade", "git"]]
 
 
-def test_nothing_is_upgraded_when_every_outdated_package_is_a_cask_whose_app_is_gone(tmp_path):
+def test_nothing_is_upgraded_when_every_outdated_package_is_a_cask_whose_app_is_missing(tmp_path):
     brew = a_brew_with_greedy_apps()
     shell = use_shell(BrewShell(
         outdated="charles (5.2.1) < 5.2.2",
-        described={"casks": [a_cask_whose_app_is_gone(tmp_path, "charles")]},
+        described={"casks": [a_cask_whose_app_is_missing(tmp_path, "charles")]},
     ))
 
     brew.outdated()

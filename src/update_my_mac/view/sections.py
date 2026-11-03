@@ -108,7 +108,7 @@ def count_findings(sections):
 
 DOUBTS = {
     flagged.DIFFERS: "versions cannot be compared",
-    flagged.GONE: "the app was deleted, but Homebrew still lists it",
+    flagged.APP_MISSING: "the app was deleted, but Homebrew still lists it",
 }
 
 
@@ -237,7 +237,7 @@ def _blocking_brew_upgrade(findings):
 def _is_wrong(item):
     """Returns whether Homebrew holds something it should not, not only something old."""
     if isinstance(item, flagged.Flagged):
-        return item.kind in (flagged.DIFFERS, flagged.GONE)
+        return item.kind in (flagged.DIFFERS, flagged.APP_MISSING)
     if isinstance(item, mounted_downloads.MountedImage):
         return False
     return item.false_version_recorded
@@ -259,7 +259,7 @@ def _row_for_homebrew_trouble(item):
 
 HELD_AGAINST = {
     flagged.DIFFERS: "differs from the recipe",
-    flagged.GONE: "app deleted, still recorded",
+    flagged.APP_MISSING: "app deleted, still recorded",
 }
 
 

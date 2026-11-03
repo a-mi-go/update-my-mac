@@ -11,7 +11,7 @@ from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import flagged
 
 # The flags a command can put right; Homebrew's other doubts are only worth knowing.
-FIXABLE_FLAGS = (flagged.GONE, flagged.DIFFERS, flagged.DISABLED)
+FIXABLE_FLAGS = (flagged.APP_MISSING, flagged.DIFFERS, flagged.DISABLED)
 CANNOT_CHECK = "can't check for updates"
 # An app replaced this recently was just installed or updated, so it is taken as current.
 RECENTLY_CHANGED_SECONDS = 30 * 24 * 60 * 60
@@ -89,7 +89,7 @@ def untracked_to_sort_out(findings):
 def blocking_brew_upgrade(findings):
     """Returns what `brew upgrade` skips or gets wrong until it is fixed, worst first."""
     behind = [item for item in findings.apps_behind if not behind_the_recipe.kept_current_by_macos(item)]
-    app_gone = _flagged_as(findings, flagged.GONE)
+    app_gone = _flagged_as(findings, flagged.APP_MISSING)
     recorded_at_a_false_version = [item for item in behind if item.false_version_recorded]
     held_at_another_version = _flagged_as(findings, flagged.DIFFERS)
     disabled = _flagged_as(findings, flagged.DISABLED)

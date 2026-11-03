@@ -40,10 +40,10 @@ def no_real_bundles():
 @pytest.fixture(autouse=True)
 def no_real_apps_behind_their_recipe():
     """Homebrew's outdated check also reads the apps on this Mac and the cask index."""
-    real = homebrew.apps_only_a_greedy_upgrade_reaches
-    homebrew.apps_only_a_greedy_upgrade_reaches = lambda already_reported: []
+    real = homebrew.apps_needing_a_greedy_upgrade
+    homebrew.apps_needing_a_greedy_upgrade = lambda already_reported: []
     yield
-    homebrew.apps_only_a_greedy_upgrade_reaches = real
+    homebrew.apps_needing_a_greedy_upgrade = real
 
 
 @pytest.fixture(autouse=True)

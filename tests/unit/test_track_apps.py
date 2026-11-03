@@ -298,7 +298,7 @@ def test_an_app_can_be_handed_to_homebrew(tmp_path):
     assert decisions_in(tmp_path).ignored_names() == []
 
 
-def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
+def test_an_app_with_no_recipe_is_not_offered_the_takeover(tmp_path):
     terminal = Terminal(LATER)
 
     swap(track_apps.adopting, "hand_to_homebrew", lambda app, cask, status=None, adopt=adopting(True): adopt(app))
@@ -307,7 +307,7 @@ def test_an_app_with_no_recipe_is_not_offered_the_handover(tmp_path):
     assert "add to Homebrew" not in terminal.text
 
 
-def test_a_failed_handover_leaves_the_app_undecided(tmp_path):
+def test_a_failed_takeover_leaves_the_app_undecided(tmp_path):
     decisions = decisions_in(tmp_path)
     # Adopting it did not work, so the same app is asked about again.
     terminal = Terminal(ADOPT, IGNORE_AFTER_ADOPT)
@@ -543,12 +543,12 @@ def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping(
     assert signal.getsignal(signal.SIGINT) is before
 
 
-def test_what_the_handover_costs_is_drawn_apart_from_the_offer():
+def test_what_the_takeover_costs_is_drawn_apart_from_the_offer():
     from update_my_mac.view import arrow_menu
 
     cask = Cask("foxit-pdf-editor", "https://foxit.com/", "14.0.8.69494")
 
-    label = track_apps._handover_choice(app("Foxit PDF Editor", "2026.1.1.70276"), cask)
+    label = track_apps._takeover_choice(app("Foxit PDF Editor", "2026.1.1.70276"), cask)
     pieces = arrow_menu.styled(label)
 
     assert pieces[0] == ("", "let Homebrew take over ")
@@ -560,5 +560,5 @@ def test_what_the_handover_costs_is_drawn_apart_from_the_offer():
 def test_an_offer_with_nothing_to_add_stays_plain_text():
     cask = Cask("dockish", "https://example.test/", "6.2.1")
 
-    assert track_apps._handover_choice(app("Dockish", "6.0"), None) == ""
-    assert track_apps._handover_choice(app("Dockish", "6.0"), cask) == "update to dockish 6.2.1 and let Homebrew take over"
+    assert track_apps._takeover_choice(app("Dockish", "6.0"), None) == ""
+    assert track_apps._takeover_choice(app("Dockish", "6.0"), cask) == "update to dockish 6.2.1 and let Homebrew take over"

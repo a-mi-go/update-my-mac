@@ -46,7 +46,7 @@ def fix_for_flagged(item):
             Option("", ("brew", "reinstall", item.name), "reinstalled"),
             (Option("", ("brew", "uninstall", item.name), "uninstalled"),),
         )
-    if item.kind == flagged.GONE:
+    if item.kind == flagged.APP_MISSING:
         return Fix(
             label, doubt_about(item),
             # Without --force Homebrew stops at the app it cannot find.

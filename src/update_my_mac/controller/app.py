@@ -159,7 +159,7 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    return behind_the_recipe.find_installed(_casks(), already_reported=_names_homebrew_reported(reports))
+    return behind_the_recipe.find_on_this_mac(_casks(), already_reported=_names_homebrew_reported(reports))
 
 
 def _names_homebrew_reported(reports):
@@ -252,7 +252,7 @@ def _untracked_problem(findings, decisions):
     cask_for = findings.find_cask
 
     # Counted by what Homebrew has a recipe for, not by what the bulk step can
-    # take: a handover that would be a downgrade is still one you can choose.
+    # take: a takeover that would be a downgrade is still one you can choose.
     def label(left):
         known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in left])
         homebrew = f", {known} can be added to Homebrew" if known else ""

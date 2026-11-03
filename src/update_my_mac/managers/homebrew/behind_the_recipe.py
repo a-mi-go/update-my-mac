@@ -5,7 +5,7 @@ marked `auto_updates` not even that, so it never notices.
 
 Only apps it actually installed belong here, and only the ones it is not
 already calling outdated. One it never installed is somebody else's app that
-happens to have a recipe, and the way to bring that one in is the handover,
+happens to have a recipe, and the way to bring that one in is the takeover,
 not an upgrade.
 """
 
@@ -57,7 +57,7 @@ def is_behind(app_version, cask_version):
     return versions.is_newer(cask_version, than=app_version)
 
 
-def find_installed(casks, already_reported=()):
+def find_on_this_mac(casks, already_reported=()):
     """Returns the apps on this Mac behind the version Homebrew would install for them."""
     recorded = brew.recorded_cask_versions()
     return find(
