@@ -6,7 +6,7 @@ from update_my_mac.view import output
 from update_my_mac.view.prompting import WAY_OUT, Markup, Step, Stopped
 
 QUESTION = "Should we sort things out before updating?"
-QUESTION_WITHOUT_UPDATES = "There's nothing to update but we could fix some issues"
+QUESTION_WITHOUT_UPDATES = "Nothing to update, but should we sort some things out?"
 FIX_EVERYTHING = Markup("⎷ [bold]FIX EVERYTHING[/]......... I trust you !!! [red](use at your own risk)[/]")
 NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]")
 NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})"

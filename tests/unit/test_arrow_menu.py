@@ -960,6 +960,30 @@ def test_a_resize_outside_the_screen_of_its_own_erases_from_where_the_wrapped_me
     assert [name for name, *_ in moves][-1] == "flush"
 
 
+def test_a_last_word_that_fills_the_line_exactly_stays_on_it():
+    tokens = [("", " ❯ "), ("", "aaaa bbbbbbbbbb"), ("", "\n")]
+
+    shown = "".join(text for _, text, *_ in arrow_menu._wrapped_at_spaces(tokens, 18, 3))
+
+    assert shown == " ❯ aaaa bbbbbbbbbb\n"
+
+
+def test_a_double_width_character_counts_as_two_columns_when_wrapping():
+    tokens = [("", " ❯ "), ("", "🚨 aaaa bbbb"), ("", "\n")]
+
+    shown = "".join(text for _, text, *_ in arrow_menu._wrapped_at_spaces(tokens, 14, 3))
+
+    assert shown == " ❯ 🚨 aaaa \n   bbbb\n"
+
+
+def test_a_menu_that_cannot_be_drawn_is_not_on_a_screen_of_its_own(monkeypatch):
+    monkeypatch.setattr(arrow_menu, "can_be_drawn", lambda: False)
+    monkeypatch.setattr(arrow_menu, "can_fill_the_screen", lambda option_count: True)
+    monkeypatch.setattr(output, "in_full_screen", lambda: False)
+
+    assert not arrow_menu.runs_on_its_own_screen(3)
+
+
 def test_a_menu_is_on_a_screen_of_its_own_only_in_a_terminal_that_is_not_already_in_one(monkeypatch):
     monkeypatch.setattr(arrow_menu, "_is_a_terminal", lambda: True)
     monkeypatch.setattr(arrow_menu, "can_fill_the_screen", lambda option_count: True)

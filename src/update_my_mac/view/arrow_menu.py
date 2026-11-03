@@ -6,6 +6,8 @@ import importlib.util
 import shutil
 import sys
 
+from rich.cells import cell_len
+
 from update_my_mac.view import output
 from update_my_mac.view import prompt_toolkit_internals
 
@@ -143,7 +145,7 @@ def pick_one(question, entries, note=""):
 
 def runs_on_its_own_screen(option_count):
     """Returns whether a menu with this many options is drawn on a screen of its own, which a resize redraws whole."""
-    return _is_a_terminal() and not output.in_full_screen() and can_fill_the_screen(option_count)
+    return can_be_drawn() and not output.in_full_screen() and can_fill_the_screen(option_count)
 
 
 def _select(question, entries, note):
@@ -238,8 +240,9 @@ def _laid_out(words, width, indent):
     """Returns the words as tokens, a line break at `indent` where the next word would pass `width`."""
     wrapped, column = [], 0
     for word in words:
-        length = sum(len(token[1]) for token in word)
-        spaced = length - (1 if word and word[-1][1] == " " else 0)
+        text = "".join(token[1] for token in word).replace("\n", "")
+        length = cell_len(text)
+        spaced = cell_len(text.rstrip(" "))
         if column > indent and column + spaced > width:
             wrapped.append(("", "\n" + " " * indent))
             column = indent
