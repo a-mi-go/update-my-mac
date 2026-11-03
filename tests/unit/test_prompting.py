@@ -418,6 +418,13 @@ def test_a_menu_whose_wrapped_options_are_too_tall_is_not_shown_below_a_report(m
     assert not step._can_show_below([(number, "a label that has to wrap onto the next rows") for number in range(3)])
 
 
+def test_the_line_before_the_way_out_counts_as_a_row_of_the_menu(monkeypatch):
+    monkeypatch.setattr(prompting.arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((80, 40)))
+
+    assert prompting._rows_of([("a", "one"), ("b", "two")]) == 2
+    assert prompting._rows_of([("a", "one"), ("b", f"{WAY_OUT}exit")]) == 3
+
+
 def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
     terminal = Terminal()
     step = terminal.with_arrows()

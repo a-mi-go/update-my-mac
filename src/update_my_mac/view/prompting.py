@@ -167,11 +167,7 @@ class Step:
             for key, label in options
         ]
         # A line the cursor skips sets the way out apart.
-        way_out = next(
-            (at for at, (_, label) in enumerate(options)
-             if _plain(label).startswith(WAYS_OUT)),
-            None,
-        )
+        way_out = _way_out_at(options)
         if way_out is not None:
             entries.insert(way_out, None)
 
@@ -252,7 +248,19 @@ def read_answer(prompt):
 
 def _rows_of(options):
     """Returns how many terminal rows the options take, as the arrow menu would draw them."""
-    return arrow_menu.rows_of_options([_plain(_bulleted(label)) for _, label in options])
+    texts = [_plain(_bulleted(label)) for _, label in options]
+    way_out = _way_out_at(options)
+    if way_out is not None:
+        texts.insert(way_out, "")
+    return arrow_menu.rows_of_options(texts)
+
+
+def _way_out_at(options):
+    """Returns where the first way out stands among the options, or None without one."""
+    return next(
+        (at for at, (_, label) in enumerate(options) if _plain(label).startswith(WAYS_OUT)),
+        None,
+    )
 
 
 def _bulleted(label):
