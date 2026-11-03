@@ -3,12 +3,11 @@ import subprocess
 import time
 
 import pytest
+from fake_run import swap, use_environment
+from fake_terminal import Terminal
 from rich.text import Text
 
-from update_my_mac import install_command
-from update_my_mac import shell_configs
-from fake_terminal import Terminal
-from fake_run import swap, use_environment
+from update_my_mac import install_command, shell_configs
 
 
 class FakeUv:

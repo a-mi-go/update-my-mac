@@ -1,11 +1,10 @@
 """The flow every group of things to sort out goes through."""
 
-from update_my_mac.view.prompting import BULLET
-
 import pytest
+from fake_terminal import Terminal
 
 from update_my_mac.controller import walkthrough
-from fake_terminal import Terminal
+from update_my_mac.view.prompting import BULLET
 
 ALL, EACH, CANCEL = "1", "2", "3"
 

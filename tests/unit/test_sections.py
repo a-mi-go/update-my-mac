@@ -2,19 +2,20 @@
 
 from pathlib import Path
 
-from update_my_mac.checks import Findings
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
-from update_my_mac.checks import running_apps
-from update_my_mac.managers.homebrew import behind_the_recipe
-from update_my_mac.checks import to_sort_out
-from update_my_mac.managers.homebrew import flagged
-from update_my_mac.view import sections
+from update_my_mac.checks import (
+    Findings,
+    app_updaters,
+    appcast,
+    running_apps,
+    to_sort_out,
+)
 from update_my_mac.checks.app_updaters import UpdaterStatus
-from update_my_mac.managers.homebrew.casks import Cask
 from update_my_mac.checks.duplicate_installations import Copy, Duplicate
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers import ManagerReport, ManagerUpdate
+from update_my_mac.managers.homebrew import behind_the_recipe, flagged
+from update_my_mac.managers.homebrew.casks import Cask
+from update_my_mac.view import sections
 
 
 def app(name="TokenEater", version="1.0", updater=None):

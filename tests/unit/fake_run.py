@@ -8,9 +8,7 @@ from rich.console import Console
 from update_my_mac.managers import ManagerUpdate
 from update_my_mac.system import shell
 from update_my_mac.system.shell import CommandResult
-from update_my_mac.view import output
-from update_my_mac.view import prompting
-
+from update_my_mac.view import output, prompting
 
 MANAGER_UPDATES = [
     ManagerUpdate("brew", "Homebrew", "index is 3 days old"),

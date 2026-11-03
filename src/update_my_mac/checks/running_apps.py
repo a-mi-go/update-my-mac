@@ -10,8 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import installed_apps
+from update_my_mac.checks import app_updaters, installed_apps
 from update_my_mac.shell_configs import parse_elapsed
 from update_my_mac.system import shell
 

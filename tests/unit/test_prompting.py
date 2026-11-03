@@ -4,13 +4,10 @@ import os
 import signal
 
 import pytest
-
-from update_my_mac.view.prompting import BULLET
+from fake_terminal import Terminal
 
 from update_my_mac.view import prompting
-from update_my_mac.view.prompting import STEP, WAY_OUT, Markup, Stopped
-
-from fake_terminal import Terminal
+from update_my_mac.view.prompting import BULLET, STEP, WAY_OUT, Markup, Stopped
 
 
 def test_a_step_prints_at_its_own_margin():

@@ -1,13 +1,11 @@
 """Applying updates: the only module that changes the system."""
 
 from dataclasses import dataclass, field
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
+
 from update_my_mac import managers
 from update_my_mac.controller import close_apps
 from update_my_mac.system.shell import describe_exit
-from update_my_mac.view import prompting
-from update_my_mac.view import report
+from update_my_mac.view import arrow_menu, output, prompting, report
 
 CANCEL = "cancel"
 UPDATE = "update"
@@ -26,25 +24,25 @@ class MenuEntry:
 
 def build_menu(reports):
     entries = []
-    for report in reports:
-        if not report.outdated_packages:
+    for manager_report in reports:
+        if not manager_report.outdated_packages:
             continue
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{report.label} ({len(report.outdated_packages)} {noun_for_outdated(report)})",
-                [report.manager],
-                outdated=list(report.outdated_packages),
+                f"{manager_report.label} ({len(manager_report.outdated_packages)} {noun_for_outdated(manager_report)})",
+                [manager_report.manager],
+                outdated=list(manager_report.outdated_packages),
             )
         )
 
     return entries
 
 
-def noun_for_outdated(report):
+def noun_for_outdated(manager_report):
     """Returns the word for the report's outdated lines, singular for one: "package" or "packages"."""
-    plural = managers.by_key(report.manager).counted_as
-    return plural if len(report.outdated_packages) != 1 else plural[:-1]
+    plural = managers.by_key(manager_report.manager).counted_as
+    return plural if len(manager_report.outdated_packages) != 1 else plural[:-1]
 
 
 def parse_menu_answer(answer, entries):

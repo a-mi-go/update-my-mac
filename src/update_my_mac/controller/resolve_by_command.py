@@ -1,13 +1,13 @@
 """Putting things right with one command each, all at once or one by one."""
 
 from dataclasses import dataclass
+
 from update_my_mac import managers
-from update_my_mac.system import shell
-from update_my_mac.system.shell import describe_exit
 from update_my_mac.controller import walkthrough
 from update_my_mac.controller.walkthrough import CANCEL
-from update_my_mac.view import prompting
-from update_my_mac.view import report
+from update_my_mac.system import shell
+from update_my_mac.system.shell import describe_exit
+from update_my_mac.view import prompting, report
 from update_my_mac.view.prompting import Step, Stopped
 
 LATER = "later"

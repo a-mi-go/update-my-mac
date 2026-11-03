@@ -2,16 +2,13 @@
 a test. Cleared before each one, or a test that presses Ctrl-C once would
 make the next test's first press count as the second."""
 
-import pytest
-
 import fake_run
+import pytest
 
 from update_my_mac.checks import to_sort_out
 from update_my_mac.managers import homebrew
 from update_my_mac.system import shell
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
-from update_my_mac.view import prompting
+from update_my_mac.view import arrow_menu, output, prompting
 
 
 @pytest.fixture(autouse=True)

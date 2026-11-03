@@ -7,12 +7,8 @@ how loud it is says what happens if you do nothing.
 
 from dataclasses import dataclass
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
-from update_my_mac.checks import to_sort_out
-from update_my_mac.checks import versions
-from update_my_mac.managers.homebrew import flagged
-from update_my_mac.managers.homebrew import mounted_downloads
+from update_my_mac.checks import app_updaters, appcast, to_sort_out, versions
+from update_my_mac.managers.homebrew import flagged, mounted_downloads
 
 # Critical: a crooked state that should be taken care of, such as Homebrew
 #   holding a version it never installed, a feed that has stopped answering,

@@ -1,13 +1,11 @@
 """Closing the running apps an update replaces, and offering to start them again afterwards."""
 
-from update_my_mac.checks import installed_apps
-from update_my_mac.checks import running_apps
-from update_my_mac.controller import restart_apps
-from update_my_mac.controller import walkthrough
+from update_my_mac.checks import installed_apps, running_apps
+from update_my_mac.controller import restart_apps, walkthrough
 from update_my_mac.controller.walkthrough import CANCEL
+from update_my_mac.system import shell
 from update_my_mac.view import report
 from update_my_mac.view.prompting import Step, Stopped
-from update_my_mac.system import shell
 
 RUNNING_AND_UPDATING = "Running, and about to be updated"
 CLOSE_THIS_ONE, LEAVE_RUNNING = "close", "leave it running"

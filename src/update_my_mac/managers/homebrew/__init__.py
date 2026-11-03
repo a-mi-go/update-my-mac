@@ -6,15 +6,12 @@ import time
 from pathlib import Path
 from types import MappingProxyType
 
-from update_my_mac.managers.homebrew import behind_the_recipe
-from update_my_mac.managers.homebrew import brew
-from update_my_mac.managers.homebrew import casks
-from update_my_mac.managers.homebrew import flagged
+from update_my_mac.managers.homebrew import behind_the_recipe, brew, casks, flagged
 from update_my_mac.managers.manager import (
     ManagerUpdate,
     PackageManager,
-    package_name,
     nonblank_lines,
+    package_name,
 )
 from update_my_mac.system import shell
 

@@ -11,12 +11,10 @@ So the version is compared before, and checked again afterwards.
 
 from typing import NamedTuple
 
-from update_my_mac.checks import installed_apps
+from update_my_mac.checks import installed_apps, versions
 from update_my_mac.managers.homebrew import brew
-from update_my_mac.system.shell import describe_exit
-from update_my_mac.checks import versions
 from update_my_mac.system import shell
-
+from update_my_mac.system.shell import describe_exit
 
 SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 

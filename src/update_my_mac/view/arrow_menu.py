@@ -8,8 +8,7 @@ import sys
 
 from rich.cells import cell_len
 
-from update_my_mac.view import output
-from update_my_mac.view import prompt_toolkit_internals
+from update_my_mac.view import output, prompt_toolkit_internals
 
 POINTER = "❯"
 QMARK = "፧፧"
@@ -150,7 +149,6 @@ def runs_on_its_own_screen(option_count):
 
 def _select(question, entries, note):
     import questionary
-    from questionary.prompts.common import InquirerControl
 
     prompt = questionary.select(
         question,

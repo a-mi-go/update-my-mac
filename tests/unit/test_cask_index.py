@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from fake_run import use_environment, swap
+from fake_run import swap, use_environment
 
 from update_my_mac.managers.homebrew import casks
 

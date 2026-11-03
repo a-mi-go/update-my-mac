@@ -16,8 +16,7 @@ from prompt_toolkit.mouse_events import MouseEventType
 from rich.console import Console
 
 from update_my_mac.system import shell
-from update_my_mac.view import arrow_menu
-from update_my_mac.view import output
+from update_my_mac.view import arrow_menu, output
 
 WHEEL_ROWS = 3
 DOUBLE_CLICK_SECONDS = 0.4

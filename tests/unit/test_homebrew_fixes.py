@@ -2,12 +2,11 @@
 
 from pathlib import Path
 
+from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.controller import homebrew_fixes
-from update_my_mac.managers.homebrew import behind_the_recipe
-from update_my_mac.managers.homebrew import flagged
+from update_my_mac.managers.homebrew import behind_the_recipe, flagged
 from update_my_mac.managers.homebrew.casks import Cask
 from update_my_mac.managers.homebrew.mounted_downloads import MountedImage
-from update_my_mac.checks.installed_apps import InstalledApp
 
 
 def item(name="BetterDisplay", app_version="5.0.5", cask_version="5.0.6", recorded="5.0.6",

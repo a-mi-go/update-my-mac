@@ -7,10 +7,9 @@ those: packages Homebrew flagged, and downloads an upgrade left attached.
 """
 
 import re
-
 from pathlib import Path
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import installed_apps
+
+from update_my_mac.checks import app_updaters, installed_apps
 from update_my_mac.controller.resolve_by_command import Fix, Option
 from update_my_mac.managers.homebrew import flagged
 from update_my_mac.view.sections import STILL_ATTACHED, doubt_about, download_name

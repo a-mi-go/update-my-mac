@@ -1,6 +1,7 @@
 """Finding a command that two managers have each installed."""
 
 import os
+
 from fake_run import use_environment, use_shell
 
 from update_my_mac.checks import duplicate_installations
