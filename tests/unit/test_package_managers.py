@@ -1,12 +1,12 @@
 import json
 
 import pytest
+from fake_run import swap, use_shell
 
 from update_my_mac import managers
 from update_my_mac.managers import CheckFailed
 from update_my_mac.system import shell as real_shell
 from update_my_mac.system.shell import CommandResult
-from fake_run import swap, use_shell
 
 NPM_OUTDATED = """{
   "typescript": {"current": "5.4.2", "wanted": "5.4.5", "latest": "5.4.5"},
@@ -499,6 +499,7 @@ def test_other_managers_show_their_upgrade_output_as_it_is():
 
 def behind_its_recipe(token, app_version, cask_version, recorded=None):
     from pathlib import Path
+
     from update_my_mac.checks.installed_apps import InstalledApp
     from update_my_mac.managers.homebrew import behind_the_recipe
     from update_my_mac.managers.homebrew.casks import Cask

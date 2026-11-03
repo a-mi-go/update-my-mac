@@ -3,6 +3,7 @@
 import os
 import plistlib
 import time
+
 from fake_run import use_environment, use_shell
 
 from update_my_mac.checks import running_apps

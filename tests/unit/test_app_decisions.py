@@ -1,8 +1,8 @@
 import json
 
-from update_my_mac.checks import app_decisions
+from fake_run import swap, use_environment
 
-from fake_run import use_environment, swap
+from update_my_mac.checks import app_decisions
 
 
 def decisions_in(tmp_path):

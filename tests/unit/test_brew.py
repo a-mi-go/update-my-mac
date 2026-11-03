@@ -2,10 +2,10 @@
 
 import json
 
+from fake_run import use_shell
+
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.system.shell import CommandResult
-
-from fake_run import use_shell
 
 
 class Homebrew:

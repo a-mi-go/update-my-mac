@@ -6,7 +6,12 @@ from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 
 from update_my_mac.system import shell
 from update_my_mac.view import scrolling_report
-from update_my_mac.view.scrolling_report import Scrolling, ScrollingReport, Selectable, Selection
+from update_my_mac.view.scrolling_report import (
+    Scrolling,
+    ScrollingReport,
+    Selectable,
+    Selection,
+)
 
 
 def numbered(count):

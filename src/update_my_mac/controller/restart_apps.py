@@ -2,13 +2,12 @@
 
 import time
 
-
 from update_my_mac.checks import app_updaters
 from update_my_mac.controller import walkthrough
+from update_my_mac.system import shell
 from update_my_mac.view import report
 from update_my_mac.view.prompting import Step
 from update_my_mac.view.sections import NOT_RESTARTED
-from update_my_mac.system import shell
 
 WAIT_SECONDS = 20
 LOOK_AGAIN_EVERY = 0.5

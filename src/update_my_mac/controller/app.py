@@ -5,31 +5,35 @@ import getpass
 
 from rich.text import Text
 
-from update_my_mac.managers.homebrew import brew
-from update_my_mac.managers.manager import package_name
-from update_my_mac.checks import Findings
-from update_my_mac.checks import app_decisions
-from update_my_mac.checks import appcast
-from update_my_mac.checks import to_sort_out
-from update_my_mac.controller import apply_updates
-from update_my_mac.controller import self_update
-from update_my_mac.managers.homebrew import behind_the_recipe
-from update_my_mac.managers.homebrew import casks
-from update_my_mac.managers.homebrew import flagged
-from update_my_mac.managers.homebrew import mounted_downloads
-from update_my_mac.controller import homebrew_fixes
-from update_my_mac.checks import duplicate_installations
-from update_my_mac.checks import installed_apps
 from update_my_mac import managers
-from update_my_mac.view import output
-from update_my_mac.view import report
-from update_my_mac.view import sections
-from update_my_mac.controller import resolve_duplicates
-from update_my_mac.controller import resolve_by_command
-from update_my_mac.controller import resolve_issues
-from update_my_mac.controller import restart_apps
-from update_my_mac.checks import running_apps
-from update_my_mac.controller import track_apps
+from update_my_mac.checks import (
+    Findings,
+    app_decisions,
+    appcast,
+    duplicate_installations,
+    installed_apps,
+    running_apps,
+    to_sort_out,
+)
+from update_my_mac.controller import (
+    apply_updates,
+    homebrew_fixes,
+    resolve_by_command,
+    resolve_duplicates,
+    resolve_issues,
+    restart_apps,
+    self_update,
+    track_apps,
+)
+from update_my_mac.managers.homebrew import (
+    behind_the_recipe,
+    brew,
+    casks,
+    flagged,
+    mounted_downloads,
+)
+from update_my_mac.managers.manager import package_name
+from update_my_mac.view import output, report, sections
 
 
 def run_check_mode():

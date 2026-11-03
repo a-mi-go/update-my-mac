@@ -4,10 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from update_my_mac.checks import Findings
-from update_my_mac.checks import app_updaters
-from update_my_mac.checks import appcast
-from update_my_mac.checks import to_sort_out
+from update_my_mac.checks import Findings, app_updaters, appcast, to_sort_out
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers.homebrew import behind_the_recipe

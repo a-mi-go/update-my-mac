@@ -22,7 +22,7 @@ END = "<!-- planned-sources:end -->"
 
 
 def table_from(text):
-    found = re.search(f"{re.escape(START)}\n(.*?){re.escape(END)}", text, re.S)
+    found = re.search(f"{re.escape(START)}\n(.*?){re.escape(END)}", text, re.DOTALL)
     if found is None:
         raise SystemExit(f"no {START} block found in the roadmap")
     return found.group(1)
@@ -58,7 +58,7 @@ def readme_with(block):
         f"{re.escape(START)}\n.*?{re.escape(END)}",
         f"{START}\n{block}{END}",
         README.read_text(),
-        flags=re.S,
+        flags=re.DOTALL,
     )
 
 

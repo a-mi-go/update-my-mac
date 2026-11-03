@@ -2,17 +2,15 @@
 
 import os
 import plistlib
-
-import pytest
 from pathlib import Path
 
-from update_my_mac.checks import app_updaters
-from update_my_mac.managers.homebrew import behind_the_recipe
-from update_my_mac.managers.homebrew import brew
-from update_my_mac.managers.homebrew.casks import Cask, CaskIndex
-from update_my_mac.checks.installed_apps import InstalledApp
-
+import pytest
 from fake_run import use_shell
+
+from update_my_mac.checks import app_updaters
+from update_my_mac.checks.installed_apps import InstalledApp
+from update_my_mac.managers.homebrew import behind_the_recipe, brew
+from update_my_mac.managers.homebrew.casks import Cask, CaskIndex
 
 
 def app(name, version):

@@ -134,6 +134,10 @@ uv run pytest
 ```
 
 ```bash
+uv run ruff check
+```
+
+```bash
 tests/integration/playground.sh
 ```
 

@@ -1,15 +1,20 @@
 """The package managers renewing themselves, and the question before it."""
 
-import pytest
+
+from fake_run import (
+    MANAGER_UPDATES,
+    RecordingShell,
+    answer_with,
+    answers,
+    printed_by,
+    raising,
+    use_shell,
+)
 
 from update_my_mac.controller import self_update
 from update_my_mac.managers import ManagerUpdate
-
 from update_my_mac.view import arrow_menu
 from update_my_mac.view.prompting import BULLET
-
-from fake_run import use_shell, MANAGER_UPDATES, RecordingShell, answer_with, answers, printed_by, raising
-
 
 UPDATE, NOT_NOW = "1", "2"
 

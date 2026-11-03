@@ -1,13 +1,20 @@
 import pytest
+from fake_run import (
+    RecordingShell,
+    answer_with,
+    answers,
+    printed_by,
+    printing_to,
+    raising,
+    swap,
+    use_shell,
+)
 from rich.console import Console
 
 from update_my_mac import managers
-from update_my_mac.controller import apply_updates
-from update_my_mac.controller import close_apps
-
-from fake_run import swap, use_shell, MANAGER_UPDATES, RecordingShell, answer_with, answers, printed_by, printing_to, raising
+from update_my_mac.controller import apply_updates, close_apps
 from update_my_mac.controller.apply_updates import CANCEL
-from update_my_mac.managers import ManagerReport, ManagerUpdate
+from update_my_mac.managers import ManagerReport
 from update_my_mac.system import shell as real_shell
 from update_my_mac.system.shell import CommandResult
 

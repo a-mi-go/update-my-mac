@@ -17,6 +17,7 @@ update = "update_my_mac.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.17.3",
 ]
 
 [build-system]
@@ -30,6 +31,12 @@ packages = ["src/update_my_mac"]
 # setup.sh installs whatever uv Homebrew currently ships; this is the floor it
 # has to clear (uv tool install --editable, automatic Python downloads).
 required-version = ">=0.5.0"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E731"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
+from fake_run import RecordingShell, printed_by, use_shell
+
 from update_my_mac import managers
 from update_my_mac.controller import app
-
-from fake_run import use_shell, RecordingShell, printed_by
 from update_my_mac.managers import ManagerReport, ManagerUpdate
 
 
@@ -264,10 +264,15 @@ def test_a_missing_program_is_not_given_an_exit_code(monkeypatch):
 def test_everything_a_command_can_put_right_is_one_entry_in_the_menu(monkeypatch, tmp_path):
     monkeypatch.setattr(app.brew, "caskroom", lambda: None)
     from pathlib import Path
+
     from update_my_mac.checks import Findings
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.installed_apps import InstalledApp
-    from update_my_mac.managers.homebrew import behind_the_recipe, flagged, mounted_downloads
+    from update_my_mac.managers.homebrew import (
+        behind_the_recipe,
+        flagged,
+        mounted_downloads,
+    )
     from update_my_mac.managers.homebrew.casks import Cask
 
     findings = Findings(
@@ -287,11 +292,11 @@ def test_everything_a_command_can_put_right_is_one_entry_in_the_menu(monkeypatch
 
 
 def test_what_a_fix_settled_is_no_longer_counted(monkeypatch, tmp_path):
+    from fake_terminal import Terminal
+
     from update_my_mac.checks import Findings
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.managers.homebrew import flagged
-    from fake_terminal import Terminal
-
     from update_my_mac.system.shell import CommandResult
 
     brew = BrewShell()
@@ -315,12 +320,11 @@ def test_what_a_fix_settled_is_no_longer_counted(monkeypatch, tmp_path):
 
 
 def test_an_unused_copy_that_was_uninstalled_is_no_longer_offered(monkeypatch, tmp_path):
+    from fake_terminal import Terminal
+
     from update_my_mac.checks import Findings
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.duplicate_installations import Copy, Duplicate
-    from update_my_mac.view.prompting import Step
-    from fake_terminal import Terminal
-
     from update_my_mac.system.shell import CommandResult
 
     brew = BrewShell()
@@ -340,11 +344,12 @@ def test_an_unused_copy_that_was_uninstalled_is_no_longer_offered(monkeypatch, t
 
 
 def test_the_restart_entry_with_one_app_offers_no_cancel(monkeypatch, tmp_path):
+    from fake_terminal import Terminal
+
     from update_my_mac.checks import Findings
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.running_apps import StillRunningOld
     from update_my_mac.system.shell import CommandResult
-    from fake_terminal import Terminal
 
     brew = BrewShell()
     brew.run_command = lambda *a, **k: CommandResult(True, "", "")
@@ -360,13 +365,14 @@ def test_the_restart_entry_with_one_app_offers_no_cancel(monkeypatch, tmp_path):
 
 
 def test_an_app_opened_to_update_by_hand_stays_in_the_menu(monkeypatch, tmp_path):
+    from fake_terminal import Terminal
+
     from update_my_mac.checks import Findings, app_updaters
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.installed_apps import InstalledApp
     from update_my_mac.managers.homebrew import behind_the_recipe
     from update_my_mac.managers.homebrew.casks import Cask
     from update_my_mac.system.shell import CommandResult
-    from fake_terminal import Terminal
 
     brew = BrewShell()
     brew.run_command = lambda *a, **k: CommandResult(True, "", "")
@@ -397,10 +403,11 @@ def test_homebrews_folder_is_only_asked_for_when_an_app_is_behind(monkeypatch, t
 
 
 def test_the_menu_leaves_the_runs_findings_as_they_were(monkeypatch, tmp_path):
+    from fake_terminal import Terminal
+
     from update_my_mac.checks import Findings
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.running_apps import StillRunningOld
-    from fake_terminal import Terminal
 
     monkeypatch.setattr(app.restart_apps, "restart", lambda found: (True, "restarted"))
     findings = Findings(stale=[StillRunningOld("Thing", tmp_path / "Thing.app", 42, 1.0, 2.0)])
@@ -463,6 +470,7 @@ def test_the_interactive_run_starts_on_a_screen_of_its_own(monkeypatch):
 
 def untracked_app(name, updater):
     from pathlib import Path
+
     from update_my_mac.checks.installed_apps import InstalledApp
 
     found = InstalledApp(name, "1.0", Path(f"/Applications/{name}.app"))
@@ -471,7 +479,6 @@ def untracked_app(name, updater):
 
 
 def test_the_question_about_untracked_apps_leaves_out_the_ones_the_report_does_not_list(tmp_path):
-    from pathlib import Path
     from update_my_mac.checks import Findings, app_updaters
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.managers.homebrew.casks import Cask
@@ -506,12 +513,17 @@ def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatc
 
 def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):
     from pathlib import Path
+
     from update_my_mac.checks import Findings, app_updaters
     from update_my_mac.checks.app_decisions import AppDecisions
     from update_my_mac.checks.duplicate_installations import Copy, Duplicate
     from update_my_mac.checks.installed_apps import InstalledApp
     from update_my_mac.checks.running_apps import StillRunningOld
-    from update_my_mac.managers.homebrew import behind_the_recipe, flagged, mounted_downloads
+    from update_my_mac.managers.homebrew import (
+        behind_the_recipe,
+        flagged,
+        mounted_downloads,
+    )
     from update_my_mac.managers.homebrew.casks import Cask
     from update_my_mac.view import sections
 

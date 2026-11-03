@@ -1,8 +1,8 @@
 import json
 import plistlib
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 from fake_run import use_environment, use_shell
 
 from update_my_mac.checks import installed_apps
@@ -278,7 +278,7 @@ def test_an_app_belonging_to_another_user_is_flagged(tmp_path, monkeypatch):
     assert found == [app]
 
 
-def test_a_directory_that_is_not_there_is_skipped(monkeypatch):
+def test_a_missing_directory_is_skipped_when_looking_for_apps_owned_by_someone_else(monkeypatch):
     monkeypatch.setattr(installed_apps.os, "getuid", lambda: 999999)
 
     use_environment({"UPDATE_MY_MAC_APP_DIRS": "/nowhere"})

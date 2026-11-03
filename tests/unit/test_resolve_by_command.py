@@ -1,12 +1,11 @@
 """Running one command per thing that needs putting right."""
 
 import pytest
-
 from fake_run import swap
+from fake_terminal import Terminal
 
 from update_my_mac.controller import resolve_by_command
 from update_my_mac.controller.resolve_by_command import Fix, Option
-from fake_terminal import Terminal
 
 FIX_ALL, DECIDE = "1", "2"
 RUN, LATER, CANCEL = "1", "2", "3"

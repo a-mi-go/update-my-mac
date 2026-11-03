@@ -1,20 +1,16 @@
 """Restarting an app that is running a version no longer on disk."""
 
-from update_my_mac.view.prompting import BULLET
-from fake_run import swap, use_shell
-
 import plistlib
 
 import pytest
-
-from rich.console import Console
-from rich.rule import Rule
-from rich.text import Text
-
-from update_my_mac.view import prompting
-from update_my_mac.controller import restart_apps
-from update_my_mac.checks.running_apps import StillRunningOld
+from fake_run import swap, use_shell
 from fake_terminal import Terminal
+from rich.console import Console
+
+from update_my_mac.checks.running_apps import StillRunningOld
+from update_my_mac.controller import restart_apps
+from update_my_mac.view import prompting
+from update_my_mac.view.prompting import BULLET
 
 WIDTH = 60
 
