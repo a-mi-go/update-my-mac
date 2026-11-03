@@ -106,9 +106,15 @@ def count_findings(sections):
     return tuple(sum(s.count for s in sections if s.part == part) for part in PARTS)
 
 
+DOUBTS = {
+    flagged.DIFFERS: "versions cannot be compared",
+    flagged.APP_MISSING: "the app was deleted, but Homebrew still lists it",
+}
+
+
 def doubt_about(item):
     """Returns what Homebrew holds against a package it flagged."""
-    return "versions cannot be compared" if item.kind == flagged.DIFFERS else item.reason
+    return DOUBTS.get(item.kind, item.reason)
 
 
 def download_name(image):
@@ -231,7 +237,7 @@ def _blocking_brew_upgrade(findings):
 def _is_wrong(item):
     """Returns whether Homebrew holds something it should not, not only something old."""
     if isinstance(item, flagged.Flagged):
-        return item.kind == flagged.DIFFERS
+        return item.kind in (flagged.DIFFERS, flagged.APP_MISSING)
     if isinstance(item, mounted_downloads.MountedImage):
         return False
     return item.false_version_recorded
@@ -251,9 +257,15 @@ def _row_for_homebrew_trouble(item):
                "version recorded wrongly" + (f" · {own}" if own else ""))
 
 
+HELD_AGAINST = {
+    flagged.DIFFERS: "differs from the recipe",
+    flagged.APP_MISSING: "app deleted, still recorded",
+}
+
+
 def _what_homebrew_holds_against(item):
-    if item.kind == flagged.DIFFERS:
-        return "differs from the recipe"
+    if item.kind in HELD_AGAINST:
+        return HELD_AGAINST[item.kind]
     return f"disabled, {item.reason}" if item.reason else "disabled"
 
 

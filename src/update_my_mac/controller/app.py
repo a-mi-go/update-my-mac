@@ -6,6 +6,7 @@ import getpass
 from rich.text import Text
 
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.managers.manager import package_name
 from update_my_mac.checks import Findings
 from update_my_mac.checks import app_decisions
 from update_my_mac.checks import appcast
@@ -158,21 +159,13 @@ def _casks():
 
 def _behind_the_recipe(reports):
     """Returns the apps older than their cask."""
-    recorded = brew.recorded_cask_versions()
-    return behind_the_recipe.find(
-        installed_apps.find_all(),
-        _casks(),
-        recorded,
-        already_reported=_names_homebrew_reported(reports),
-        recorded_at=brew.recorded_cask_times(recorded),
-        would_install=brew.versions_homebrew_would_install(),
-    )
+    return behind_the_recipe.find_on_this_mac(_casks(), already_reported=_names_homebrew_reported(reports))
 
 
 def _names_homebrew_reported(reports):
     """Returns the names on Homebrew's own outdated list."""
     brew_report = next((r for r in reports if r.manager == "brew"), None)
-    return {line.split()[0] for line in (brew_report.outdated_packages if brew_report else [])}
+    return {package_name(line) for line in (brew_report.outdated_packages if brew_report else [])}
 
 
 def _flagged_by_homebrew(reports):
@@ -207,7 +200,7 @@ class _Updates:
 
     def reports(self):
         if self._out_of_date:
-            with output.console.status("[dim]asking what is outdated[/]", spinner=report.SPINNER):
+            with report.waiting("asking what is outdated"):
                 self._reports = managers.check_what_is_outdated()
             self._out_of_date = False
         return self._reports
@@ -259,7 +252,7 @@ def _untracked_problem(findings, decisions):
     cask_for = findings.find_cask
 
     # Counted by what Homebrew has a recipe for, not by what the bulk step can
-    # take: a handover that would be a downgrade is still one you can choose.
+    # take: a takeover that would be a downgrade is still one you can choose.
     def label(left):
         known = track_apps.known_to_homebrew([(app, cask_for(app)) for app in left])
         homebrew = f", {known} can be added to Homebrew" if known else ""

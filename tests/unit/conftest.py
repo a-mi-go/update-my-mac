@@ -7,6 +7,7 @@ import pytest
 import fake_run
 
 from update_my_mac.checks import to_sort_out
+from update_my_mac.managers import homebrew
 from update_my_mac.system import shell
 from update_my_mac.view import arrow_menu
 from update_my_mac.view import output
@@ -34,6 +35,15 @@ def no_real_bundles():
     to_sort_out.last_changed = lambda app: None
     yield
     to_sort_out.last_changed = real
+
+
+@pytest.fixture(autouse=True)
+def no_real_apps_behind_their_recipe():
+    """Homebrew's outdated check also reads the apps on this Mac and the cask index."""
+    real = homebrew.apps_needing_a_greedy_upgrade
+    homebrew.apps_needing_a_greedy_upgrade = lambda already_reported: []
+    yield
+    homebrew.apps_needing_a_greedy_upgrade = real
 
 
 @pytest.fixture(autouse=True)

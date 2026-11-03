@@ -504,7 +504,6 @@ def test_the_question_says_how_many_of_them_homebrew_has_a_recipe_for(monkeypatc
     assert problem.label == "⎷ go through untracked apps (1, 2 can be added to Homebrew)"
 
 
-
 def test_every_option_of_the_first_menu_counts_what_its_group_in_the_report_lists(monkeypatch, tmp_path):
     from pathlib import Path
     from update_my_mac.checks import Findings, app_updaters

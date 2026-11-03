@@ -138,6 +138,11 @@ class PackageManager(ABC):
         )
 
 
+def package_name(line):
+    """Returns the package a line of an outdated list is about."""
+    return line.split()[0]
+
+
 def nonblank_lines(output):
     return [line for line in output.splitlines() if line.strip()]
 

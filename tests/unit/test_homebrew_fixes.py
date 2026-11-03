@@ -136,6 +136,15 @@ def test_a_disabled_cask_is_uninstalled_and_says_why():
     assert fix.others == ()
 
 
+def test_a_cask_whose_app_is_missing_is_let_go_or_installed_again():
+    fix = homebrew_fixes.fix_for_flagged(flagged.Flagged("charles", flagged.APP_MISSING, True, "5.2.1"))
+
+    assert fix.label == "charles"
+    assert fix.note == "the app was deleted, but Homebrew still lists it"
+    assert fix.main.command == ("brew", "uninstall", "--cask", "--force", "charles")
+    assert commands_of(fix) == [("brew", "install", "--cask", "--force", "charles")]
+
+
 def test_nothing_is_run_for_a_deprecated_package():
     assert homebrew_fixes.fix_for_flagged(flagged.Flagged("old", flagged.DEPRECATED)) is None
 

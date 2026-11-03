@@ -5,7 +5,7 @@ marked `auto_updates` not even that, so it never notices.
 
 Only apps it actually installed belong here, and only the ones it is not
 already calling outdated. One it never installed is somebody else's app that
-happens to have a recipe, and the way to bring that one in is the handover,
+happens to have a recipe, and the way to bring that one in is the takeover,
 not an upgrade.
 """
 
@@ -13,7 +13,9 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from update_my_mac.checks import app_updaters
+from update_my_mac.checks import installed_apps
 from update_my_mac.checks import versions
+from update_my_mac.managers.homebrew import brew
 
 SAME_INSTALL_SECONDS = 60
 
@@ -39,10 +41,33 @@ class Behind:
         """Returns whether Homebrew's note matches the recipe while the app is older."""
         return versions.same_release(self.recorded, self.cask.version)
 
+    @property
+    def needs_a_greedy_upgrade(self):
+        """Returns whether `brew upgrade --cask --greedy` is all it takes to bring it level."""
+        return not self.false_version_recorded and not kept_current_by_macos(self)
+
+
+def kept_current_by_macos(behind):
+    """Returns whether macOS keeps this app current, whatever a Homebrew recipe says."""
+    return behind.app.updater.kind == app_updaters.HOST_APP or behind.app.bundle_id.startswith("com.apple.")
+
 
 def is_behind(app_version, cask_version):
     """Returns whether the recipe knows a newer version than the app on disk."""
     return versions.is_newer(cask_version, than=app_version)
+
+
+def find_on_this_mac(casks, already_reported=()):
+    """Returns the apps on this Mac behind the version Homebrew would install for them."""
+    recorded = brew.recorded_cask_versions()
+    return find(
+        installed_apps.find_all(),
+        casks,
+        recorded,
+        already_reported=already_reported,
+        recorded_at=brew.recorded_cask_times(recorded),
+        would_install=brew.versions_homebrew_would_install(),
+    )
 
 
 def find(apps, casks, recorded=None, already_reported=(), recorded_at=None, would_install=None):

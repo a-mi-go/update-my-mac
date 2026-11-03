@@ -78,6 +78,29 @@ def test_a_deprecated_package_is_named_with_why():
     assert found.reason == "unmaintained"
 
 
+def cask_missing_its_app(target, **more):
+    return {"token": "charles", "installed": "5.2.1", "outdated": True,
+            "artifacts": [{"uninstall": []}, {"app": ["Charles.app"], "target": str(target)}], **more}
+
+
+def test_a_cask_whose_app_was_thrown_away_is_flagged(tmp_path):
+    (found,) = flagged.find({"casks": [cask_missing_its_app(tmp_path / "Charles.app")]})
+
+    assert (found.name, found.kind, found.is_cask, found.installed) == ("charles", flagged.APP_MISSING, True, "5.2.1")
+
+
+def test_a_cask_whose_app_is_in_place_is_not_flagged(tmp_path):
+    (tmp_path / "Charles.app").mkdir()
+
+    assert flagged.find({"casks": [cask_missing_its_app(tmp_path / "Charles.app")]}) == []
+
+
+def test_a_cask_without_an_app_is_not_flagged():
+    cask = {"token": "font-x", "installed": "1", "artifacts": [{"font": ["X.ttf"], "target": "/nowhere/X.ttf"}]}
+
+    assert flagged.find({"casks": [cask]}) == []
+
+
 def test_a_cask_that_is_not_installed_is_not_flagged():
     assert flagged.find({"casks": [{"token": "x", "installed": None, "disabled": True}]}) == []
 
@@ -125,3 +148,13 @@ def test_an_unreadable_answer_means_nothing_is_found():
     use_shell(Garbled([]))
     assert mounted_downloads.find() == []
 
+
+
+def test_the_casks_among_the_described_packages_whose_app_is_missing_are_named_by_token(tmp_path):
+    (tmp_path / "Here.app").mkdir()
+    here = cask_missing_its_app(tmp_path / "Here.app", token="here")
+
+    described = {"casks": [cask_missing_its_app(tmp_path / "Charles.app"), here], "formulae": [{"name": "git"}]}
+    missing = flagged.casks_missing_their_app(described)
+
+    assert missing == {"charles"}

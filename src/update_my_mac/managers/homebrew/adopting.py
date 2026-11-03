@@ -9,6 +9,8 @@ Homebrew reports the app as current and nobody ever calls it outdated again.
 So the version is compared before, and checked again afterwards.
 """
 
+from typing import NamedTuple
+
 from update_my_mac.checks import installed_apps
 from update_my_mac.managers.homebrew import brew
 from update_my_mac.system.shell import describe_exit
@@ -18,10 +20,22 @@ from update_my_mac.system import shell
 
 SAME, NEWER, OLDER, UNCLEAR = "same", "newer", "older", "unclear"
 
+MAY_BE_A_DOWNGRADE = "the versions can't be compared, this may be a downgrade"
+
+
+class HomebrewTakeover(NamedTuple):
+    """What Homebrew's takeover of an app offers, and what it replaces."""
+
+    offer: str
+    detail: str
+
+
+NO_TAKEOVER = HomebrewTakeover("", "")
+
 
 def compare_to_app(app, cask):
     """Returns how the recipe's version stands to the installed one."""
-    if cask is None:
+    if not has_a_recipe(cask):
         return ""
     if versions.any_version_matches(app.versions_named(), cask.version):
         return SAME
@@ -32,7 +46,7 @@ def compare_to_app(app, cask):
 
 def can_adopt(app, cask):
     """Returns whether Homebrew can register the app that is already there, as it is."""
-    return compare_to_app(app, cask) == SAME
+    return has_a_recipe(cask) and not cask.installs_a_package and compare_to_app(app, cask) == SAME
 
 
 def would_downgrade(app, cask):
@@ -40,31 +54,39 @@ def would_downgrade(app, cask):
     return compare_to_app(app, cask) == OLDER
 
 
-def can_take_over(app, cask):
-    """Returns whether the handover can be offered, which rules out installer casks."""
-    return cask is not None and not cask.installs_a_package
+def has_a_recipe(cask):
+    """Returns whether Homebrew has a recipe to take the app over with."""
+    return cask is not None
 
 
-def handover_label(app, cask):
-    """Returns the menu wording for what the handover would do to this app."""
-    if not can_take_over(app, cask):
-        return ""
+def can_join_the_bulk_takeover(app, cask):
+    """Returns whether Homebrew can take the app over without asking about it alone: no downgrade, no installer."""
+    return has_a_recipe(cask) and not would_downgrade(app, cask) and not cask.installs_a_package
+
+
+def homebrew_takeover_of(app, cask):
+    """Returns the takeover to offer, which is NO_TAKEOVER without a recipe."""
+    if not has_a_recipe(cask):
+        return NO_TAKEOVER
     standing = compare_to_app(app, cask)
+    downgrade_warning = _downgrade_warning(app, cask, standing)
+    if cask.installs_a_package:
+        return HomebrewTakeover("reinstall with Homebrew's installer", downgrade_warning or f"{cask.token} {_shown(cask.version)}")
+    if downgrade_warning:
+        return HomebrewTakeover("let Homebrew take over", downgrade_warning)
     if standing == SAME:
-        return f"add to Homebrew ({cask.token} {_shown(cask.version)})"
+        return HomebrewTakeover("add to Homebrew", f"{cask.token} {_shown(cask.version)}")
     if standing == NEWER:
-        return f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over"
-    # What it costs goes in brackets after the offer, because the cost is what
-    # makes this a different answer from the one above it.
+        return HomebrewTakeover(f"update to {cask.token} {_shown(cask.version)} and let Homebrew take over", "")
+    return NO_TAKEOVER
+
+
+def _downgrade_warning(app, cask, standing):
+    """Returns the warning that the recipe's version is or may be older, or "" when it is not."""
     if standing == OLDER:
-        return (
-            f"let Homebrew take over (downgrade {_shown(app.version)} → {_shown(cask.version)})"
-        )
+        return f"downgrade {_shown(app.version)} → {_shown(cask.version)}"
     if standing == UNCLEAR:
-        return (
-            f"let Homebrew take over (replace {_shown(app.version)} with {_shown(cask.version)}, "
-            f"no telling which is newer)"
-        )
+        return f"replace {_shown(app.version)} with {_shown(cask.version)}, {MAY_BE_A_DOWNGRADE}"
     return ""
 
 
@@ -75,8 +97,8 @@ def homebrew_note(app, cask):
         return "Homebrew has no recipe for this app."
     if cask.installs_a_package:
         return (
-            f"Homebrew knows it as {cask.token} {_shown(cask.version)}, but installs it from a "
-            f"package, which it cannot take an app over from."
+            f"Homebrew knows it as {cask.token} {_shown(cask.version)}, but would have to reinstall it to take over. "
+            f"App settings should stay untouched."
         )
     if standing == OLDER:
         return (
@@ -94,18 +116,15 @@ def homebrew_note(app, cask):
 
 def hand_to_homebrew(app, cask, status=None):
     """Hands the app over. Returns whether it is now looked after, and why."""
-    if cask is None:
+    if not has_a_recipe(cask):
         return False, "Homebrew has no recipe for this app."
-    if cask.installs_a_package:
-        return False, f"{cask.token} installs a package, so there is no app to take over."
     if shell.find_executable("brew") is None:
         return False, "Homebrew is not installed."
 
     if can_adopt(app, cask):
         exit_code = brew.adopt_cask(cask.token, status)
     else:
-        # Any other version, ahead or behind, has to be downloaded and put in
-        # place, because --adopt takes nothing but an identical copy.
+        # --adopt takes nothing but an identical app bundle.
         exit_code = brew.install_cask_over(cask.token, status)
     if exit_code != 0:
         how = describe_exit(exit_code)

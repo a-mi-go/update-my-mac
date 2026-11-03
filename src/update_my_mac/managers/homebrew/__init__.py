@@ -1,14 +1,19 @@
 """Homebrew, which answers differently from the other three."""
 
+import dataclasses
 import re
 import time
 from pathlib import Path
 from types import MappingProxyType
 
+from update_my_mac.managers.homebrew import behind_the_recipe
 from update_my_mac.managers.homebrew import brew
+from update_my_mac.managers.homebrew import casks
+from update_my_mac.managers.homebrew import flagged
 from update_my_mac.managers.manager import (
     ManagerUpdate,
     PackageManager,
+    package_name,
     nonblank_lines,
 )
 from update_my_mac.system import shell
@@ -20,6 +25,14 @@ VERSION_CHANGE = re.compile(
 )
 # "✔︎ Cask cursor (3.27.22,b1aa50cb6db8)  Verified", as the downloads report themselves.
 CASK_DOWNLOAD = re.compile(rb"(Cask \S+ \([^\s,()]+),[^\s()]*\)")
+
+
+@dataclasses.dataclass
+class _UpgradePlan:
+    """What the next upgrade runs."""
+
+    regular_args: tuple | None
+    greedy: list
 
 
 class Homebrew(PackageManager):
@@ -40,6 +53,44 @@ class Homebrew(PackageManager):
     })
     self_upgrade_args = ("update",)
     cleanup_args = ("cleanup",)
+
+    def __init__(self):
+        self._plan = None
+
+    def outdated(self):
+        """Returns the outdated list without casks whose app is gone, plus the apps only a greedy upgrade reaches."""
+        report, self._plan = self._plan_upgrade()
+        return report
+
+    def upgrade(self, status=None):
+        plan = self._plan or self._plan_upgrade()[1]
+        regular = 0 if plan.regular_args is None else self._stream(plan.regular_args, status)
+        if not plan.greedy:
+            return regular
+        tokens = [item.cask.token for item in plan.greedy]
+        greedy = self._stream(("upgrade", "--cask", "--greedy", *tokens), status)
+        return regular or greedy
+
+    def _plan_upgrade(self):
+        """Returns the outdated report and what an upgrade has to do about it."""
+        report = super().outdated()
+        if report is None or report.error_message:
+            return report, _UpgradePlan(self.upgrade_args, [])
+        names = {package_name(line) for line in report.outdated_packages}
+        missing = flagged.casks_missing_their_app(brew.describe_packages(names, self.environment()))
+        greedy = apps_needing_a_greedy_upgrade(names)
+        kept = [line for line in report.outdated_packages if package_name(line) not in missing]
+        lines = [f"{item.cask.token}  {item.version_change()}" for item in greedy]
+        shown = dataclasses.replace(report, outdated_packages=[*kept, *lines])
+        return shown, _UpgradePlan(self._regular_upgrade_args(kept, missing), greedy)
+
+    def _regular_upgrade_args(self, kept, missing):
+        """Returns the regular upgrade's arguments, naming the packages when a cask with a missing app must stay out, or None."""
+        if not missing:
+            return self.upgrade_args
+        if not kept:
+            return None
+        return (*self.upgrade_args, *(package_name(line) for line in kept))
 
     def parse_outdated(self, stdout):
         """Returns what `brew outdated --verbose` names, formulae and casks alike."""
@@ -117,3 +168,9 @@ def _without_builds(line, change, width):
     size = b"  " + change["size"].strip() if change["size"] else b""
     ending = b"\r" if line.endswith(b"\r") else b""
     return change["name"] + change["old"].ljust(width) + b" -> " + change["new"] + size + ending
+
+
+def apps_needing_a_greedy_upgrade(already_reported):
+    """Returns the apps behind their recipe that only `brew upgrade --greedy` brings level."""
+    behind = behind_the_recipe.find_on_this_mac(casks.load(), already_reported)
+    return [item for item in behind if item.needs_a_greedy_upgrade]

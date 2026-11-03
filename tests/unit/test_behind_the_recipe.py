@@ -37,7 +37,7 @@ def test_an_app_older_than_its_recipe_is_found():
 
 
 def test_an_app_homebrew_never_installed_is_not_one_of_these():
-    # It has a recipe but is somebody else's app. The way in is the handover,
+    # It has a recipe but is somebody else's app. The way in is the takeover,
     # and an upgrade has nothing to work with.
     found = behind_the_recipe.find(
         [app("BetterDisplay", "5.0.5")], index(BetterDisplay=("betterdisplay", "5.0.6")), {}
