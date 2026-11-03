@@ -127,22 +127,27 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
     results = step.inside()
     answer = appcast.answer_for(app, offered)
     vendor_site = app_updaters.vendor_site(app.updater.feed_url)
+    # Repeated in the next menu, which may come up on a screen that covers what was printed.
+    warning = ""
 
     while True:
         chosen = step.choose(
             _app_choices(app, cask, vendor_site, not answer.error, is_walkthrough),
             f"{app.display_name} {app.version}",
-            note=_what_is_known(app, cask, answer),
+            note=prompting.note_after_warning(warning, _what_is_known(app, cask, answer)),
         )
+        warning = ""
         if chosen == WEBSITE:
             results.print_indented(vendor_site)
             if not shell.open_in_browser(vendor_site):
-                results.print_indented("Could not open that in a browser.", style="yellow")
+                warning = "Could not open that in a browser."
+                results.print_indented(warning, style="yellow")
         elif chosen == LAUNCH:
             if shell.open_application(app.path):
                 _print_that_it_started(results)
                 return chosen
-            results.print_indented("That app would not start.", style="yellow")
+            warning = "That app would not start."
+            results.print_indented(warning, style="yellow")
         elif chosen == TRASH:
             if _move_to_the_trash(app, step, results):
                 return chosen

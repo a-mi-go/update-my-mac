@@ -741,6 +741,17 @@ def test_the_screen_is_the_whole_terminal_while_the_menu_below_a_report_asks():
     assert seen == [True]
 
 
+def test_the_menu_below_a_report_has_the_whole_width_of_the_terminal_for_its_rows(monkeypatch):
+    from prompt_toolkit.layout import ScrollablePane
+
+    seen = []
+    monkeypatch.setattr(arrow_menu, "_run", lambda prompt: seen.append(prompt.application.layout) or "a")
+    arrow_menu.pick_one_below(lambda console: None, "Which one?", [("a", "one")])
+
+    panes = [box for box in seen[0].walk() if isinstance(box, ScrollablePane)]
+    assert panes and not panes[0].show_scrollbar()
+
+
 def test_a_menu_below_a_report_leaves_the_screen_to_whoever_entered_it(monkeypatch):
     monkeypatch.setattr(output, "_in_full_screen", True)
     seen = []
@@ -983,7 +994,21 @@ def test_a_double_width_character_counts_as_two_columns_when_wrapping():
 
     shown = "".join(text for _, text, *_ in arrow_menu._wrapped_at_spaces(tokens, 14, 3))
 
-    assert shown == " ❯ 🚨 aaaa \n   bbbb\n"
+    assert shown == " ❯ 🚨 aaaa\n   bbbb\n"
+
+
+def test_a_word_that_ends_in_the_last_column_leaves_its_space_out_of_the_row():
+    tokens = [("", " ❯ "), ("", "aaaa bbbb cc"), ("", "\n")]
+
+    shown = "".join(text for _, text, *_ in arrow_menu._wrapped_at_spaces(tokens, 7, 3))
+
+    assert shown == " ❯ aaaa\n   bbbb\n   cc\n"
+
+
+def test_an_option_whose_word_ends_in_the_last_column_takes_no_extra_row(monkeypatch):
+    monkeypatch.setattr(arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((7, 40)))
+
+    assert arrow_menu.rows_of_options(["aaaa bbbb cc"]) == 3
 
 
 def test_a_menu_that_cannot_be_drawn_is_not_on_a_screen_of_its_own(monkeypatch):
@@ -1018,3 +1043,49 @@ def test_a_menu_that_runs_on_a_screen_of_its_own_is_made_full_screen(monkeypatch
     assert prompt.application.full_screen
     assert prompt.application.renderer.full_screen
     assert "_on_resize" not in vars(prompt.application)
+
+
+def test_a_warning_that_leads_the_note_is_drawn_in_the_warning_style(monkeypatch):
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    seen = {}
+    monkeypatch.setattr(prompt_toolkit_internals, "recolor_question_line", lambda app, recolor: seen.update(recolor=recolor))
+    with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
+        arrow_menu._select("Alpha", [("a", "one")], prompting.note_after_warning("It would not start.", "Known."))
+
+    drawn = seen["recolor"]([("class:question", " Alpha "), ("class:instruction", " It would not start.\n   Known.")])
+
+    assert drawn == [
+        ("class:question", " Alpha "),
+        ("class:warning", " It would not start."),
+        ("class:instruction", "\n   Known."),
+    ]
+
+
+def test_the_warning_style_is_yellow_like_the_printed_warnings():
+    from prompt_toolkit.styles import merge_styles
+    from questionary.constants import DEFAULT_STYLE
+
+    attrs = merge_styles([DEFAULT_STYLE, arrow_menu._style(for_note=True)]).get_attrs_for_style_str("class:warning")
+
+    assert attrs.color == "ansiyellow"
+
+
+def test_the_question_line_is_drawn_as_recolored():
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    with create_pipe_input() as typed, create_app_session(input=typed, output=DummyOutput()):
+        prompt = questionary.select("Which one?", choices=["a"], instruction=" a note")
+        prompt_toolkit_internals.recolor_question_line(prompt.application, lambda tokens: [*tokens, ("class:warning", "!")])
+        session = prompt_toolkit_internals.question_session(prompt.application)
+
+    assert session.message()[-1] == ("class:warning", "!")
+
+
+def test_a_note_without_a_warning_stays_as_it_is():
+    assert prompting.note_after_warning("", "Known.") == "Known."
+    assert not isinstance(prompting.note_after_warning("", "Known."), arrow_menu.WarningNote)

@@ -35,6 +35,16 @@ class Markup(str):
     """A menu label that carries rich markup, drawn styled instead of escaped."""
 
 
+def note_after_warning(warning, note):
+    """Returns the note with the warning as its first line, or the note alone without a warning."""
+    return arrow_menu.WarningNote(warning, note) if warning else note
+
+
+def _note_color(row, warning_rows):
+    """Returns yellow for a row of the warning a note starts with, grey for the rest."""
+    return "yellow" if row < warning_rows else arrow_menu.NOTE_COLOR
+
+
 def label_with_note(label, note):
     """Returns the menu label with the note after it in grey, or just the label without a note."""
     if not note:
@@ -142,14 +152,15 @@ class Step:
     def _ask_by_typed_number(self, options, question, note):
         # An empty question still takes its line, as it does with the arrow keys.
         first, *rest = note.splitlines() or [""]
+        warning_rows = len(note.warning.splitlines()) if isinstance(note, arrow_menu.WarningNote) else 0
         if first:
-            self.print_indented((question, "bold"), "  ", (first, arrow_menu.NOTE_COLOR))
+            self.print_indented((question, "bold"), "  ", (first, _note_color(0, warning_rows)))
         elif question:
             self.print_indented(question, style="bold")
         else:
             self.print_empty_line()
-        for line in rest:
-            self.inside().print_indented(line, style=arrow_menu.NOTE_COLOR)
+        for row, line in enumerate(rest, start=1):
+            self.inside().print_indented(line, style=_note_color(row, warning_rows))
         if question or note:
             self.print_empty_line()
         self._print_numbered(options)

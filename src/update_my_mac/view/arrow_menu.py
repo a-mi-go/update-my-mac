@@ -32,6 +32,15 @@ class Unusable(Exception):
     """The menu could not be drawn, whatever the reason."""
 
 
+class WarningNote(str):
+    """A note that starts with a warning, the warning drawn in yellow."""
+
+    def __new__(cls, warning, note=""):
+        text = super().__new__(cls, f"{warning}\n{note}" if note else warning)
+        text.warning = warning
+        return text
+
+
 def unusable_message(failure):
     from rich.text import Text
 
@@ -86,6 +95,7 @@ def _style(for_note=False):
         ("highlighted", "noinherit fg:ansicyan"),
         ("selected", "noinherit"),
         ("tick", "noinherit fg:ansiyellow"),
+        ("warning", "noinherit fg:ansiyellow"),
         ("separator", f"noinherit fg:{SEPARATOR_COLOR}"),
     ])
 
@@ -196,7 +206,25 @@ def _select(question, entries, note):
     )
     _highlight_styled_rows(prompt)
     _wrap_long_rows(prompt, LABEL_COLUMN)
+    if isinstance(note, WarningNote):
+        _color_the_warning(prompt, note.warning)
     return prompt
+
+
+def _color_the_warning(prompt, warning):
+    """Draws the warning the note starts with in the warning style."""
+    lead = beside_the_question(warning)
+
+    def colored(tokens):
+        shown = []
+        for style, text, *rest in tokens:
+            if style == "class:instruction" and text.startswith(lead):
+                shown += [("class:warning", lead), (style, text[len(lead):])]
+            else:
+                shown.append((style, text, *rest))
+        return shown
+
+    prompt_toolkit_internals.recolor_question_line(prompt.application, colored)
 
 
 def _highlight_styled_rows(prompt):
@@ -279,11 +307,19 @@ def _laid_out(words, width, indent):
         length = cell_len(text)
         spaced = cell_len(text.rstrip(" "))
         if column > indent and column + spaced > width:
-            wrapped.append(("", "\n" + " " * indent))
+            wrapped = _without_trailing_spaces(wrapped) + [("", "\n" + " " * indent)]
             column = indent
         wrapped += word
         column += length
     return wrapped
+
+
+def _without_trailing_spaces(tokens):
+    """Returns the tokens without the spaces at their end, which past the last column would wrap onto a row of their own."""
+    end = len(tokens)
+    while end and tokens[end - 1][1] == " ":
+        end -= 1
+    return tokens[:end]
 
 
 def _joined(tokens):
@@ -339,6 +375,8 @@ def pick_one_below(print_report, question, entries, note=""):
         HSplit([Window(report, dont_extend_height=True), Window(height=1), app.layout.container, Window(height=1)]),
         keep_cursor_visible=False,
         keep_focused_window_visible=False,
+        # A scrollbar takes a column the rows were wrapped and counted for.
+        show_scrollbar=False,
         display_arrows=False,
     )
     selection = scrolling_report.Selection()

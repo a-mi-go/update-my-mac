@@ -5,6 +5,7 @@ import math
 PRIVATE_NAMES = {
     "application": ("_on_resize", "_redraw", "_request_absolute_cursor_position"),
     "renderer": ("_cursor_pos", "_last_screen"),
+    "prompt_session": ("_get_arg_text", "_get_prompt"),
 }
 
 
@@ -23,6 +24,27 @@ def wrap_rows(window, label_column, wrap_tokens):
     window.get_line_prefix = lambda line_number, wrap_count: [("", " " * label_column)] if wrap_count else []
     rows, drawn = window.content, window.content.text
     rows.text = lambda: wrap_tokens(drawn())
+
+
+def recolor_question_line(app, recolor):
+    """Has the question line drawn as what `recolor` makes of its tokens."""
+    session = question_session(app)
+    drawn = session.message
+    session.message = lambda: recolor(drawn())
+
+
+def question_session(app):
+    """Returns the PromptSession that draws the menu's question line."""
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from prompt_toolkit.shortcuts import PromptSession
+
+    # questionary keeps the session to itself, and only the window drawn by its `_get_arg_text` leads back to it.
+    return next(
+        window.content.text.__self__
+        for window in app.layout.find_all_windows()
+        if isinstance(window.content, FormattedTextControl)
+        and isinstance(getattr(window.content.text, "__self__", None), PromptSession)
+    )
 
 
 def redraw_on_resize(app, replay_own_screen):
