@@ -403,10 +403,19 @@ def test_no_line_sets_a_menu_apart_when_it_comes_up_on_a_screen_of_its_own(monke
     monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
     monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
 
-    step.begin_menu()
+    step.set_next_menu_apart()
     step.choose([("a", "one")])
 
     assert terminal.lines == []
+
+
+def test_a_menu_whose_wrapped_options_are_too_tall_is_not_shown_below_a_report(monkeypatch):
+    monkeypatch.setattr(prompting.arrow_menu, "can_be_drawn", lambda: True)
+    monkeypatch.setattr(prompting.arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((30, 13)))
+    step = prompting.Step()
+
+    assert step._can_show_below([("a", "one"), ("b", "two"), ("c", "three")])
+    assert not step._can_show_below([(number, "a label that has to wrap onto the next rows") for number in range(3)])
 
 
 def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
@@ -415,7 +424,7 @@ def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
     monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: False)
     monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
 
-    step.begin_menu()
+    step.set_next_menu_apart()
     step.choose([("a", "one")])
 
     assert len(terminal.lines) == 2
@@ -427,7 +436,7 @@ def test_whether_a_menu_is_set_apart_follows_the_options_it_really_has(monkeypat
     monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: option_count < 5)
     monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: 0)
 
-    step.begin_menu()
+    step.set_next_menu_apart()
     step.choose([(number, str(number)) for number in range(8)])
 
     assert len(terminal.lines) == 2

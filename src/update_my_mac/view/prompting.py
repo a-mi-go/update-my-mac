@@ -48,7 +48,7 @@ class Step:
     def __init__(self, depth=0):
         self.depth = depth
         self.margin = STEP * depth
-        self._set_next_menu_apart = False
+        self._next_menu_is_apart = False
 
     def inside(self):
         return Step(self.depth + 1)
@@ -131,7 +131,7 @@ class Step:
         return self._ask_by_typed_number(options, question, note)
 
     def _can_show_below(self, options):
-        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(len(options))
+        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(_rows_of(options))
 
     def _print_above(self, above):
         if output.is_already_printed(above):
@@ -197,15 +197,15 @@ class Step:
     def print_separator(self):
         print_separator()
 
-    def begin_menu(self):
+    def set_next_menu_apart(self):
         """Has the next menu set apart from what is above it, unless it comes up on a screen that leaves nothing behind."""
-        self._set_next_menu_apart = True
+        self._next_menu_is_apart = True
 
     def _set_apart_if_asked(self, options):
-        if not self._set_next_menu_apart:
+        if not self._next_menu_is_apart:
             return
-        self._set_next_menu_apart = False
-        if not arrow_menu.runs_on_its_own_screen(len(options)):
+        self._next_menu_is_apart = False
+        if not arrow_menu.runs_on_its_own_screen(_rows_of(options)):
             self.print_empty_line()
             self.print_separator()
 
@@ -248,6 +248,11 @@ def warning_before_stopping():
 
 def read_answer(prompt):
     return input(prompt)
+
+
+def _rows_of(options):
+    """Returns how many terminal rows the options take, as the arrow menu would draw them."""
+    return arrow_menu.rows_of_options([_plain(_bulleted(label)) for _, label in options])
 
 
 def _bulleted(label):

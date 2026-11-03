@@ -38,25 +38,21 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
             problems = [one for one in problems if one.refresh is None or one.refresh(one)]
             if not problems:
                 break
-            options = [(problem, problem.label) for problem in problems]
-            if len(problems) > 1:
-                options.append((FIX_EVERYTHING, FIX_EVERYTHING))
             nothing_to_update = updates is not None and updates.count() == 0
-            options.append((NOT_NOW, EXIT if nothing_to_update else _not_now(updates)))
+            options = _options(problems, updates, nothing_to_update)
 
             # The first time it follows the report, which is divider enough.
             if asked_before:
-                step.begin_menu()
+                step.set_next_menu_apart()
             elif above is None:
                 step.print_empty_line()
             asked_before = True
             chosen = step.choose(options, QUESTION_WITHOUT_UPDATES if nothing_to_update else QUESTION, above=above)
-            if above is not None:
-                above = above if output.is_already_printed(above) else output.AlreadyPrinted(above)
+            above = output.already_printed(above)
 
             if chosen == NOT_NOW:
-                if updates is not None:
-                    updates.choose_to_update()
+                if updates is not None and not nothing_to_update:
+                    updates.skip_to_updating()
                 break
             before = dealt_with
             if chosen == FIX_EVERYTHING:
@@ -75,11 +71,19 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
     return dealt_with
 
 
+def _options(problems, updates, nothing_to_update):
+    options = [(problem, problem.label) for problem in problems]
+    if len(problems) > 1:
+        options.append((FIX_EVERYTHING, FIX_EVERYTHING))
+    options.append((NOT_NOW, EXIT if nothing_to_update else _not_now(updates)))
+    return options
+
+
 def _not_now(updates):
     if updates is None:
         return NOT_NOW
     what = updates.what_the_only_manager_updates()
-    if what:
+    if what is not None:
         return Markup(NOT_NOW_NAMED.format(what, updates.count()))
     return Markup(NOT_NOW_COUNTED.format(updates.count()))
 

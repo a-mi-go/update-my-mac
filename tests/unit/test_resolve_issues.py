@@ -237,10 +237,10 @@ def test_the_report_is_printed_even_when_there_is_nothing_to_ask():
 
 
 class Updates:
-    def __init__(self, *counts, named=""):
+    def __init__(self, *counts, named=None):
         self.counts = list(counts)
         self.changed = 0
-        self.chosen_to_update = False
+        self.skipped_to_updating = False
         self.what = named
 
     def count(self):
@@ -249,8 +249,8 @@ class Updates:
     def what_the_only_manager_updates(self):
         return self.what
 
-    def choose_to_update(self):
-        self.chosen_to_update = True
+    def skip_to_updating(self):
+        self.skipped_to_updating = True
 
     def something_changed(self):
         self.changed += 1
@@ -286,7 +286,7 @@ def test_the_way_out_names_the_one_manager_with_updates():
 
     way_out = [line for line in terminal.lines if "take care of that later" in line]
     assert way_out[0].endswith("I'll take care of that later, update Homebrew packages (11)")
-    assert updates.chosen_to_update
+    assert updates.skipped_to_updating
 
 
 def test_fixing_everything_is_not_a_choice_to_update():
@@ -295,7 +295,7 @@ def test_fixing_everything_is_not_a_choice_to_update():
 
     resolve_issues.ask_what_to_fix([problem("apps"), problem("copies")], terminal.step, updates=updates)
 
-    assert not updates.chosen_to_update
+    assert not updates.skipped_to_updating
 
 
 def test_with_nothing_to_update_the_way_out_is_an_exit_and_the_question_says_so():

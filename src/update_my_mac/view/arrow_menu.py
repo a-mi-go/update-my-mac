@@ -3,6 +3,7 @@ prints numbered options and reads a typed number instead.
 """
 
 import importlib.util
+import math
 import shutil
 import sys
 
@@ -135,16 +136,49 @@ def beside_the_question(note):
 def pick_one(question, entries, note=""):
     prompt = _select(question, entries, note)
     app = prompt.application
-    if runs_on_its_own_screen(len(entries)):
+    if runs_on_its_own_screen(rows_of_options(_label_texts(entries))):
         prompt_toolkit_internals.make_full_screen(app)
     else:
-        prompt_toolkit_internals.redraw_on_resize(app)
+        prompt_toolkit_internals.redraw_on_resize(app, _replay_own_screen)
     return _answer_to(prompt, warn_in_menu=True, blank_line=bool(question or note))
 
 
-def runs_on_its_own_screen(option_count):
-    """Returns whether a menu with this many options is drawn on a screen of its own, which a resize redraws whole."""
-    return can_be_drawn() and not output.in_full_screen() and can_fill_the_screen(option_count)
+def runs_on_its_own_screen(option_rows):
+    """Returns whether a menu with this many rows of options is drawn on a screen of its own, which a resize redraws whole."""
+    return can_be_drawn() and not output.in_full_screen() and can_fill_the_screen(option_rows)
+
+
+def _replay_own_screen():
+    """Prints again what ran on the screen of its own, wrapped to the new width. Returns whether there was one."""
+    if not output.in_full_screen():
+        return False
+    output.clear_and_replay()
+    return True
+
+
+def _label_texts(entries):
+    """Returns the text each row of the menu shows, a line of dashes or a blank line included."""
+    texts = []
+    for entry in entries:
+        if entry is None or entry is BLANK_LINE:
+            texts.append("")
+            continue
+        label = entry[1]
+        texts.append(label if isinstance(label, str) else "".join(text for _, text, *_ in label))
+    return texts
+
+
+def rows_of_options(labels):
+    """Returns how many terminal rows the options take at the width of the terminal, a long one wrapped."""
+    width = max(1, shutil.get_terminal_size().columns)
+    return sum(_rows_of_option(label, width) for label in labels)
+
+
+def _rows_of_option(label, width):
+    laid_out = "".join(
+        text for _, text, *_ in _wrapped_at_spaces([("", " " * LABEL_COLUMN + label), ("", "\n")], width, LABEL_COLUMN)
+    )
+    return sum(max(1, math.ceil(cell_len(line) / width)) for line in laid_out.rstrip("\n").split("\n"))
 
 
 def _select(question, entries, note):
@@ -194,25 +228,28 @@ def _menu_window(prompt):
 
 def _wrap_long_rows(prompt, label_column):
     """Lets a row longer than the terminal continue on the next line, at a space, under its label."""
-    from prompt_toolkit.filters import Always
-
-    window = _menu_window(prompt)
-    # Only a word longer than the whole line is still cut by the window.
-    window.wrap_lines = Always()
-    window.get_line_prefix = lambda line_number, wrap_count: " " * label_column if wrap_count else ""
-    rows, drawn = window.content, window.content.text
-    rows.text = lambda: _wrapped_at_spaces(drawn(), shutil.get_terminal_size().columns, label_column)
+    output_of_the_menu = prompt.application.output
+    prompt_toolkit_internals.wrap_rows(
+        _menu_window(prompt),
+        label_column,
+        lambda tokens: _wrapped_at_spaces(tokens, output_of_the_menu.get_size().columns, label_column),
+    )
 
 
-def _wrapped_at_spaces(tokens, width, indent):
-    """Returns the tokens with every row wider than `width` continued on a new line at a space."""
+def _per_row(tokens, transform):
+    """Returns the tokens with every row, its line break included, replaced by what `transform` makes of it."""
     shown, row = [], []
     for token in tokens:
         row.append(token)
         if token[1] == "\n":
-            shown += _row_wrapped(row, width, indent)
+            shown += transform(row)
             row = []
-    return shown + _row_wrapped(row, width, indent)
+    return shown + transform(row)
+
+
+def _wrapped_at_spaces(tokens, width, indent):
+    """Returns the tokens with every row wider than `width` continued on a new line at a space."""
+    return _per_row(tokens, lambda row: _row_wrapped(row, width, indent))
 
 
 def _row_wrapped(row, width, indent):
@@ -277,9 +314,9 @@ class _InTheScreenAlreadyEntered:
         pass
 
 
-def can_fill_the_screen(option_count):
-    """Returns whether the terminal is tall enough for a report above a menu with this many options."""
-    return shutil.get_terminal_size().lines >= option_count + MENU_ROWS + MIN_REPORT_ROWS
+def can_fill_the_screen(option_rows):
+    """Returns whether the terminal is tall enough for a report above a menu with this many rows of options."""
+    return shutil.get_terminal_size().lines >= option_rows + MENU_ROWS + MIN_REPORT_ROWS
 
 
 def pick_one_below(print_report, question, entries, note=""):
@@ -501,13 +538,9 @@ def _shape_checkbox(prompt, ends_menu, confirm):
     drawn = rows.text
 
     def tokens():
-        shown, row = [], []
-        for token in drawn():
-            row.append(token)
-            if token[1] == "\n":
-                shown += _yellow_tick(_cyan_only_under_the_pointer(_without_box(row, labels, boxes)))
-                row = []
-        return shown + _yellow_tick(_cyan_only_under_the_pointer(_without_box(row, labels, boxes)))
+        return _per_row(
+            drawn(), lambda row: _yellow_tick(_cyan_only_under_the_pointer(_without_box(row, labels, boxes)))
+        )
 
     rows.text = tokens
 
@@ -556,7 +589,8 @@ def _yellow_tick(row):
     shown = []
     for token in row:
         if token[1] == TICKED + " ":
-            shown += [(token[0], "["), ("class:tick", "x"), (token[0], "] ")]
+            left, mark, right = TICKED
+            shown += [(token[0], left), ("class:tick", mark), (token[0], right + " ")]
         else:
             shown.append(token)
     return shown

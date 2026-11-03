@@ -2,8 +2,6 @@
 
 import math
 
-from update_my_mac.view import output
-
 PRIVATE_NAMES = {
     "application": ("_on_resize", "_redraw", "_request_absolute_cursor_position"),
     "renderer": ("_cursor_pos", "_last_screen"),
@@ -16,12 +14,21 @@ def make_full_screen(app):
     app.full_screen = app.renderer.full_screen = True
 
 
-def redraw_on_resize(app):
+def wrap_rows(window, label_column, wrap_tokens):
+    """Has the window draw what `wrap_tokens` makes of its rows, a wrapped line indented under the label."""
+    from prompt_toolkit.filters import Always
+
+    # Only a word longer than the whole line is still cut by the window.
+    window.wrap_lines = Always()
+    window.get_line_prefix = lambda line_number, wrap_count: [("", " " * label_column)] if wrap_count else []
+    rows, drawn = window.content, window.content.text
+    rows.text = lambda: wrap_tokens(drawn())
+
+
+def redraw_on_resize(app, replay_own_screen):
     """Redraws a menu after a resize, which the terminal answers by wrapping the lines already drawn."""
     def on_resize():
-        if output.in_full_screen():
-            output.clear_and_replay()
-        else:
+        if not replay_own_screen():
             erase_the_wrapped_menu(app)
         app.renderer.reset(leave_alternate_screen=False)
         app._request_absolute_cursor_position()

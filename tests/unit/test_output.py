@@ -23,6 +23,17 @@ def terminal(rows=40):
     return written
 
 
+def test_a_report_is_marked_as_printed_once_however_often_it_is_marked():
+    def report(console):
+        pass
+
+    marked = output.already_printed(report)
+
+    assert output.is_already_printed(marked)
+    assert output.already_printed(marked) is marked
+    assert output.already_printed(None) is None
+
+
 def test_a_run_on_a_terminal_starts_on_a_screen_of_its_own_and_leaves_it():
     written = terminal()
 

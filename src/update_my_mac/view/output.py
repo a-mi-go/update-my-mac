@@ -94,6 +94,13 @@ def is_already_printed(above):
     return isinstance(above, AlreadyPrinted)
 
 
+def already_printed(above):
+    """Returns `above` marked as already printed, or None for no report. Marking twice changes nothing."""
+    if above is None or is_already_printed(above):
+        return above
+    return AlreadyPrinted(above)
+
+
 def print_above(above):
     """Leaves the screen of its own and prints what ran on it, then what `above` prints, once for each `above`."""
     global _printed_above

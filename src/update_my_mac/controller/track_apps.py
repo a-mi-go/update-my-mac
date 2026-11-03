@@ -106,7 +106,7 @@ def _walk_through(found, decisions, offered, step):
     dealt_with = []
     try:
         for app, cask in found:
-            step.begin_menu()
+            step.set_next_menu_apart()
             chosen = _ask_about(app, cask, offered, step, len(found) > 1)
             if chosen == CANCEL:
                 break

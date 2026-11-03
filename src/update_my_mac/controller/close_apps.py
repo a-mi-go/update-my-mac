@@ -82,7 +82,7 @@ def ask_to_start_again(apps, step=None):
     started = []
     try:
         for app in apps:
-            step.begin_menu()
+            step.set_next_menu_apart()
             chosen = step.choose(
                 walkthrough.options_for_single_item(START_CHOICES, len(apps) > 1),
                 f"Start {app.display_name} again?",

@@ -607,4 +607,4 @@ def test_only_one_manager_with_updates_is_named_with_what_it_counts():
 
     assert app._Updates([brew, empty]).what_the_only_manager_updates() == "Homebrew packages"
     assert app._Updates([mas]).what_the_only_manager_updates() == "Mac App Store app"
-    assert app._Updates([brew, mas]).what_the_only_manager_updates() == ""
+    assert app._Updates([brew, mas]).what_the_only_manager_updates() is None

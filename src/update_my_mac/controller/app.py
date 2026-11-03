@@ -75,7 +75,7 @@ def _run_interactive():
         output.console.print()
         report.print_outdated_summary(reports)
 
-    if updates.is_chosen_to_update() and apply_updates.has_only_one_manager_to_update(reports):
+    if updates.is_skipping_to_updating() and apply_updates.has_only_one_manager_to_update(reports):
         update_run = apply_updates.update_the_only_manager(reports)
     else:
         update_run = apply_updates.ask_what_to_update(reports)
@@ -206,7 +206,7 @@ class _Updates:
     def __init__(self, reports):
         self._reports = reports
         self._out_of_date = False
-        self._chosen_to_update = False
+        self._skipping_to_updating = False
 
     def something_changed(self):
         self._out_of_date = True
@@ -221,17 +221,17 @@ class _Updates:
     def count(self):
         return report.count_outdated_packages(self.reports())
 
-    def choose_to_update(self):
-        self._chosen_to_update = True
+    def skip_to_updating(self):
+        self._skipping_to_updating = True
 
-    def is_chosen_to_update(self):
-        return self._chosen_to_update
+    def is_skipping_to_updating(self):
+        return self._skipping_to_updating
 
     def what_the_only_manager_updates(self):
-        """Returns what to update, as in "Homebrew packages", when only one manager has any, or "" otherwise."""
-        outdated = [one for one in self.reports() if one.outdated_packages]
+        """Returns what to update, as in "Homebrew packages", when only one manager has any, or None otherwise."""
+        outdated = apply_updates.outdated_reports(self.reports())
         if len(outdated) != 1:
-            return ""
+            return None
         return f"{outdated[0].label} {apply_updates.noun_for_outdated(outdated[0])}"
 
 

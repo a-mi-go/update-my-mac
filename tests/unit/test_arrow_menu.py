@@ -1,5 +1,7 @@
 """Answering a menu with the arrow keys, and not doing so anywhere else."""
 
+import os
+
 import pytest
 import questionary
 from fake_terminal import Terminal
@@ -879,8 +881,23 @@ def test_a_row_longer_than_the_terminal_continues_under_its_label(monkeypatch):
 
     window = next(w for w in prompt.application.layout.find_all_windows() if isinstance(w.content, InquirerControl))
     assert window.preferred_height(40, 20).preferred > 1
-    assert window.get_line_prefix(0, 0) == ""
-    assert window.get_line_prefix(0, 1) == "   "
+    assert window.get_line_prefix(0, 0) == []
+    assert window.get_line_prefix(0, 1) == [("", "   ")]
+
+
+def test_options_take_the_rows_they_wrap_to(monkeypatch):
+    monkeypatch.setattr(arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((30, 40)))
+
+    assert arrow_menu.rows_of_options(["short", "also short"]) == 2
+    assert arrow_menu.rows_of_options(["a label that has to wrap onto the next two rows"]) == 2
+
+
+def test_a_menu_whose_long_options_wrap_does_not_fit_where_short_ones_do(monkeypatch):
+    monkeypatch.setattr(arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((30, 13)))
+    long_options = ["a label that has to wrap onto the next two rows"] * 3
+
+    assert arrow_menu.can_fill_the_screen(arrow_menu.rows_of_options(["short"] * 3))
+    assert not arrow_menu.can_fill_the_screen(arrow_menu.rows_of_options(long_options))
 
 
 def test_a_long_row_is_continued_at_a_space_never_inside_a_word():

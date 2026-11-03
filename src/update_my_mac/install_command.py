@@ -151,7 +151,7 @@ def decide_about_shadowing(name, interactive):
         # A function spanning several lines can't be commented out safely, so
         # disabling is only offered when everything found can be.
         stuck = [definition for definition in definitions if not definition.can_disable]
-        # The colour rich gives numbers in the tool's upgrade menu, so both look alike.
+        # The color rich gives numbers in the tool's upgrade menu, so both look alike.
         print_line("  ", ("1)", "cyan"), " keep it, and call the command something else")
         if stuck:
             print_line("  ", ("2)", "cyan"), " stop here, remove it yourself, then run setup again")

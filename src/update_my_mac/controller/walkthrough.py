@@ -33,7 +33,7 @@ def decide_for_each(things, step, choices, act_choice, act):
     dealt_with = []
     try:
         for thing in things:
-            step.begin_menu()
+            step.set_next_menu_apart()
             chosen = step.choose(
                 options_for_single_item(choices, len(things) > 1), thing.title(), note=thing.comment()
             )

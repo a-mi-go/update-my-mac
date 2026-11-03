@@ -22,6 +22,7 @@ from update_my_mac.view.sections import CRITICAL, INFO, WARNING
 
 # The spinner every wait is shown with.
 SPINNER = "dots"
+
 # Beyond this items count a list is printed as a grid for better readability
 PRINT_MAX_LIST_ITEMS = 5
 PRINT_GRID_COLUMNS = 3
@@ -43,6 +44,7 @@ PAIR_GAP = 2
 COLUMN_GAP = 3
 DOTTED_WIDTH = 50
 
+# An icon as well as a color, so the level survives a pipe and a log file.
 SECTION_ICON = {
     CRITICAL: "🚨",
     WARNING: "🟡",

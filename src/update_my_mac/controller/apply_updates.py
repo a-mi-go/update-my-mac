@@ -22,11 +22,14 @@ class MenuEntry:
     left_outdated: frozenset = frozenset()
 
 
+def outdated_reports(reports):
+    """Returns the reports of the managers that have something outdated."""
+    return [one for one in reports if one.outdated_packages]
+
+
 def build_menu(reports):
     entries = []
-    for manager_report in reports:
-        if not manager_report.outdated_packages:
-            continue
+    for manager_report in outdated_reports(reports):
         entries.append(
             MenuEntry(
                 PACKAGES,
@@ -160,12 +163,16 @@ def update_the_only_manager(reports):
     """Updates the one manager with something outdated without asking. Returns how it went."""
     output.console.print()
     prompting.print_separator()
-    return UpdateRun(run_chosen(build_menu(reports)), True)
+    return _run(build_menu(reports))
+
+
+def _run(chosen):
+    return UpdateRun(run_chosen(chosen), True)
 
 
 def has_only_one_manager_to_update(reports):
     """Returns whether exactly one manager has something outdated."""
-    return len(build_menu(reports)) == 1
+    return len(outdated_reports(reports)) == 1
 
 
 def ask_what_to_update(reports):
@@ -189,7 +196,7 @@ def ask_what_to_update(reports):
                 console.print(arrow_menu.unusable_message(failure))
                 break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
-            return NOTHING_UPDATED if chosen == CANCEL else UpdateRun(run_chosen(chosen), True)
+            return NOTHING_UPDATED if chosen == CANCEL else _run(chosen)
 
     while True:
         print_menu(entries)
@@ -206,7 +213,7 @@ def ask_what_to_update(reports):
             console.print("[yellow]Didn't catch that.[/]")
             continue
         prompting.answered()
-        return NOTHING_UPDATED if chosen == CANCEL else UpdateRun(run_chosen(chosen), True)
+        return NOTHING_UPDATED if chosen == CANCEL else _run(chosen)
 
 
 def print_what_changed(entries):
