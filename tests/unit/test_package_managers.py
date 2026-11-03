@@ -185,7 +185,7 @@ def test_only_homebrew_gets_an_environment_override():
 
 def test_a_manager_without_upgrade_arguments_is_not_run():
     shell = FakeShell(installed=("brew",), result=CommandResult(True, "", ""))
-    shell.stream_command = lambda args, env=None, silent_status=None, rewrite=None: 0
+    shell.stream_command = lambda args, env=None, status_while_silent=None, rewrite=None: 0
     class WithoutUpgradeArguments(managers.PackageManager):
         key, label, command = "x", "X", "brew"
         outdated_args = ("outdated",)
@@ -418,7 +418,7 @@ class StreamingShell:
     def find_executable(self, command):
         return f"/fake/{command}"
 
-    def stream_command(self, args, env=None, silent_status=None, rewrite=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.streamed.append(args[1:])
         return self.codes.pop(0)
 
@@ -464,7 +464,7 @@ def test_homebrew_upgrade_output_loses_the_builds_after_a_comma():
         b"cursor   3.25.6,f0df -> 3.27"
     )
 
-    assert brew.shorten_output(written).split(b"\n") == [
+    assert brew.rewrite_output_chunk(written).split(b"\n") == [
         b"==> Upgrading 2 outdated packages:\r",
         b"cursor   3.25.6 -> 3.27.14  (190 MB)\r",
         b"charles  5.2.1  -> 5.2.2\r",
@@ -480,7 +480,7 @@ def test_homebrew_download_progress_loses_the_build_after_a_comma():
         b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r\n"
     )
 
-    assert managers.by_key("brew").shorten_output(written).split(b"\n") == [
+    assert managers.by_key("brew").rewrite_output_chunk(written).split(b"\n") == [
         b"\xe2\x9c\x94\xef\xb8\x8e Cask cursor (3.27.22)  Verified\r",
         b"\xe2\x9c\x94\xef\xb8\x8e Formula git (2.51.0)  Verified\r",
         b"",
@@ -490,11 +490,11 @@ def test_homebrew_download_progress_loses_the_build_after_a_comma():
 def test_homebrew_upgrade_output_without_builds_keeps_its_own_layout():
     written = b"signal  8.31.0       -> 8.32.0\nzoom    7.1.5.84650  -> 7.2.2.88465\n"
 
-    assert managers.by_key("brew").shorten_output(written) == written
+    assert managers.by_key("brew").rewrite_output_chunk(written) == written
 
 
 def test_other_managers_show_their_upgrade_output_as_it_is():
-    assert managers.by_key("npm").shorten_output(b"a 1,2 -> 3,4\n") == b"a 1,2 -> 3,4\n"
+    assert managers.by_key("npm").rewrite_output_chunk(b"a 1,2 -> 3,4\n") == b"a 1,2 -> 3,4\n"
 
 
 def behind_its_recipe(token, app_version, cask_version, recorded=None):
@@ -522,7 +522,7 @@ class BrewShell:
     def run_command(self, args, success_exit_codes=(0,), env=None):
         return CommandResult(True, json.dumps(self.described) if "info" in args else self.outdated, "")
 
-    def stream_command(self, args, env=None, silent_status=None, rewrite=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.streamed.append(args[1:])
         return self.codes.pop(0) if self.codes else 0
 
@@ -645,4 +645,4 @@ def test_a_greedy_upgrade_is_not_enough_where_homebrew_recorded_the_recipes_vers
 def test_the_app_store_notice_about_progress_is_dropped_from_what_upgrade_shows():
     written = b"Update progress cannot be displayed\nInstalling CotEditor\n"
 
-    assert managers.by_key("mas").shorten_output(written) == b"Installing CotEditor\n"
+    assert managers.by_key("mas").rewrite_output_chunk(written) == b"Installing CotEditor\n"

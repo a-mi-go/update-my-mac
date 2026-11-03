@@ -110,9 +110,9 @@ class Homebrew(PackageManager):
             return []
         return brew.untrusted_taps()
 
-    def shorten_output(self, data):
+    def rewrite_output_chunk(self, chunk):
         """Returns the output with the build dropped from each version Homebrew writes for an upgrade."""
-        lines = CASK_DOWNLOAD.sub(rb"\1)", data).split(b"\n")
+        lines = CASK_DOWNLOAD.sub(rb"\1)", chunk).split(b"\n")
         # The last piece may be the start of a line the next read finishes.
         finished = [(line, _version_change(line)) for line in lines[:-1]]
         if not any(b"," in line for line, change in finished if change):

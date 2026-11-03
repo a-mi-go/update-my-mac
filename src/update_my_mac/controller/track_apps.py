@@ -55,7 +55,7 @@ def adopt_all(found, step):
             continue
         per_item.print_empty_line()
         per_item.print_indented(app.display_name, style="bold")
-        if _hand_to_homebrew(app, cask, per_item.inside()):
+        if _take_over_with_homebrew(app, cask, per_item.inside()):
             adopted.append(app)
     return adopted
 
@@ -148,7 +148,7 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
         elif chosen == TRASH:
             if _move_to_the_trash(app, step, results):
                 return chosen
-        elif chosen != ADOPT or _hand_to_homebrew(app, cask, results):
+        elif chosen != ADOPT or _take_over_with_homebrew(app, cask, results):
             return chosen
 
 
@@ -208,10 +208,10 @@ def _move_to_the_trash(app, step, results):
     return moved
 
 
-def _hand_to_homebrew(app, cask, step):
+def _take_over_with_homebrew(app, cask, step):
     """Returns whether Homebrew took the app over."""
     with prompting.warning_before_stopping():
-        taken, message = adopting.hand_to_homebrew(app, cask, status=report.waiting("waiting for Homebrew"))
+        taken, message = adopting.take_over_with_homebrew(app, cask, status=report.waiting_spinner("waiting for Homebrew"))
     color = "green" if taken else "red"
     step.print_indented(message, style=color)
     return taken

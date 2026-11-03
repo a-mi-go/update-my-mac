@@ -55,9 +55,9 @@ class PackageManager(ABC):
         """Returns what this manager left out of its answer without saying so."""
         return []
 
-    def shorten_output(self, data):
+    def rewrite_output_chunk(self, chunk):
         """Returns a piece of what an upgrade writes as it should be shown."""
-        return data
+        return chunk
 
     def environment(self):
         return dict(shell.current_environment(), **self.extra_env) if self.extra_env else None
@@ -134,7 +134,7 @@ class PackageManager(ABC):
         if executable is None:
             return None
         return shell.stream_command(
-            [executable, *args], self.environment(), silent_status=status, rewrite=self.shorten_output,
+            [executable, *args], self.environment(), status_while_silent=status, rewrite=self.rewrite_output_chunk,
         )
 
 

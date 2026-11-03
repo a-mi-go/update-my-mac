@@ -69,7 +69,7 @@ def run_command(command):
     environment = managers.by_key("brew").environment() if program == "brew" else None
     with prompting.warning_before_stopping():
         return shell.stream_command(
-            [executable, *arguments], environment, silent_status=report.waiting(f"waiting for {program}")
+            [executable, *arguments], environment, status_while_silent=report.waiting_spinner(f"waiting for {program}")
         )
 
 

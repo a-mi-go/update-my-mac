@@ -32,9 +32,9 @@ class AppStore(PackageManager):
         self.refused_in_last_upgrade = frozenset(self._names_by_id[one] for one in ids if one in self._names_by_id)
         return exit_code
 
-    def shorten_output(self, data):
+    def rewrite_output_chunk(self, chunk):
         """Returns the output without mas's note that it cannot show progress."""
-        return PROGRESS_NOTICE.sub(b"", data)
+        return PROGRESS_NOTICE.sub(b"", chunk)
 
     def open_updates_page(self):
         """Opens the App Store app on its list of updates. Returns whether it worked."""

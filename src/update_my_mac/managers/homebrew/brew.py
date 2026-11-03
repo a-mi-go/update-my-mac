@@ -123,7 +123,7 @@ def adopt_cask(token, status=None):
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--adopt"], silent_status=status)
+    return shell.stream_command([executable, "install", "--cask", token, "--adopt"], status_while_silent=status)
 
 
 def install_cask_over(token, status=None):
@@ -131,7 +131,7 @@ def install_cask_over(token, status=None):
     executable = shell.find_executable("brew")
     if executable is None:
         return -1
-    return shell.stream_command([executable, "install", "--cask", token, "--force"], silent_status=status)
+    return shell.stream_command([executable, "install", "--cask", token, "--force"], status_while_silent=status)
 
 
 def installed_packages(env=None):

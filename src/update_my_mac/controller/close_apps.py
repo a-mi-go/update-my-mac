@@ -38,7 +38,7 @@ def app_file_names(entries):
 
 def ask_before_the_update(entries, step=None):
     """Offers to close the running apps the update replaces. Returns the closed ones."""
-    with report.waiting("looking for running apps the update replaces"):
+    with report.waiting_spinner("looking for running apps the update replaces"):
         running = running_apps.find_named(app_file_names(entries))
     if not running:
         return []

@@ -23,12 +23,12 @@ _run_environment = None
 
 _command_output_listener = None
 
-SECONDS_OF_SILENCE_BEFORE_STATUS = 2
+SILENCE_BEFORE_STATUS_SECONDS = 2
 KEPT_OUTPUT_BYTES = 100_000
-SECONDS_TO_STOP = 5
+KILL_AFTER_CTRL_C_SECONDS = 5
 STDIN = 0
 KEYBOARD = STDIN
-COLOR_OR_CURSOR_VISIBILITY_AT_END = re.compile(rb"(?:\x1b\[(?:\?25[hl]|[0-9;]*m|0?K))+$")
+TRAILING_COLOR_AND_CURSOR_CODES = re.compile(rb"(?:\x1b\[(?:\?25[hl]|[0-9;]*m|0?K))+$")
 _last_streamed = bytearray()
 
 
@@ -78,7 +78,7 @@ def run_command(args, success_exit_codes=(0,), env=None, timeout=120):
     )
 
 
-def stream_command(args, env=None, silent_status=None, rewrite=None):
+def stream_command(args, env=None, status_while_silent=None, rewrite=None):
     """Runs a command with the terminal attached.
 
     Returns its exit code, or None when the command never started. A status,
@@ -88,9 +88,9 @@ def stream_command(args, env=None, silent_status=None, rewrite=None):
     env = _for_command(env)
     _last_streamed.clear()
     try:
-        if silent_status is None or not sys.stdout.isatty():
+        if status_while_silent is None or not sys.stdout.isatty():
             return subprocess.run(args, env=env).returncode
-        return _run_until_it_writes(args, env, silent_status, rewrite)
+        return _run_in_pty_with_status(args, env, status_while_silent, rewrite)
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -174,7 +174,7 @@ def _for_command(env):
     return _run_environment if env is None else env
 
 
-def _run_until_it_writes(args, env, status, rewrite=None):
+def _run_in_pty_with_status(args, env, status, rewrite=None):
     """Runs a command whose output reaches the terminal through a pty.
 
     The command still sees a terminal, with its colors and progress bars. The
@@ -192,7 +192,7 @@ def _run_until_it_writes(args, env, status, rewrite=None):
     try:
         process = subprocess.Popen(
             args, env=env, stdin=slave, stdout=slave, stderr=slave,
-            start_new_session=True, preexec_fn=_take_the_terminal_on_stdin,
+            start_new_session=True, preexec_fn=_make_stdin_the_controlling_terminal,
         )
     except BaseException:
         os.close(slave)
@@ -202,8 +202,8 @@ def _run_until_it_writes(args, env, status, rewrite=None):
     os.close(slave)
 
     sys.stdout.flush()
-    keys_as_they_were = _read_keys_as_typed()
-    typed = [KEYBOARD] if keys_as_they_were else []
+    keyboard_settings_before = _switch_to_unbuffered_keys()
+    inputs_to_pass_on = [KEYBOARD] if keyboard_settings_before else []
     waiting = True
     status.start()
     quiet_since = None
@@ -214,8 +214,8 @@ def _run_until_it_writes(args, env, status, rewrite=None):
         while True:
             try:
                 while True:
-                    ready, _, _ = select.select([master, *typed], [], [], 0.1)
-                    if KEYBOARD in typed and KEYBOARD in ready:
+                    ready, _, _ = select.select([master, *inputs_to_pass_on], [], [], 0.1)
+                    if KEYBOARD in inputs_to_pass_on and KEYBOARD in ready:
                         _write_all(master, os.read(KEYBOARD, 1024))
                     if master in ready:
                         try:
@@ -236,15 +236,15 @@ def _run_until_it_writes(args, env, status, rewrite=None):
                         if _command_output_listener is not None:
                             _command_output_listener(shown)
                         quiet_since = time.monotonic()
-                        text = COLOR_OR_CURSOR_VISIBILITY_AT_END.sub(b"", data)
+                        text = TRAILING_COLOR_AND_CURSOR_CODES.sub(b"", data)
                         if text:
                             at_line_start = text.endswith(b"\n")
                     elif process.poll() is not None:
                         # Something it started may still hold the pty open.
                         break
-                    elif stopping_since is not None and time.monotonic() - stopping_since >= SECONDS_TO_STOP:
+                    elif stopping_since is not None and time.monotonic() - stopping_since >= KILL_AFTER_CTRL_C_SECONDS:
                         process.kill()
-                    elif not waiting and at_line_start and time.monotonic() - quiet_since >= SECONDS_OF_SILENCE_BEFORE_STATUS:
+                    elif not waiting and at_line_start and time.monotonic() - quiet_since >= SILENCE_BEFORE_STATUS_SECONDS:
                         status.start()
                         waiting = True
                 break
@@ -261,10 +261,10 @@ def _run_until_it_writes(args, env, status, rewrite=None):
     finally:
         if waiting:
             status.stop()
-        if keys_as_they_were:
+        if keyboard_settings_before:
             import termios
 
-            termios.tcsetattr(KEYBOARD, termios.TCSANOW, keys_as_they_were)
+            termios.tcsetattr(KEYBOARD, termios.TCSANOW, keyboard_settings_before)
         if _command_output_listener is not None:
             _command_output_listener(None)
         signal.signal(signal.SIGWINCH, previous)
@@ -280,24 +280,25 @@ def _interrupt(process):
         pass
 
 
-def _take_the_terminal_on_stdin():
+def _make_stdin_the_controlling_terminal():
+    """Makes the command's stdin, its pty, the terminal it answers to."""
     import fcntl
     import termios
 
     fcntl.ioctl(STDIN, termios.TIOCSCTTY, 0)
 
 
-def _read_keys_as_typed():
-    """Returns the keyboard's terminal settings before it is read key by key without echo, or None."""
+def _switch_to_unbuffered_keys():
+    """Switches the keyboard to key-by-key without echo. Returns the settings from before, or None without a terminal."""
     import termios
     import tty
 
     if not os.isatty(KEYBOARD):
         return None
-    as_it_was = termios.tcgetattr(KEYBOARD)
+    settings_before = termios.tcgetattr(KEYBOARD)
     # Ctrl-C still reaches this run rather than being passed on.
     tty.setcbreak(KEYBOARD, termios.TCSANOW)
-    return as_it_was
+    return settings_before
 
 
 def _copy_window_size(source, target):

@@ -33,7 +33,7 @@ class BrewShell:
     def find_executable(self, command):
         return f"/fake/{command}" if self.installed else None
 
-    def stream_command(self, args, env=None, silent_status=None, rewrite=None):
+    def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
         self.streamed.append(args)
         return self.exit_code
 
@@ -46,7 +46,7 @@ def test_a_matching_app_is_handed_over(tmp_path):
     shell = BrewShell("betterdisplay 5.0.6")
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, CASK)
+    taken, message = adopting.take_over_with_homebrew(app, CASK)
     assert taken
     assert "looks after it now" in message
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--adopt"]]
@@ -59,7 +59,7 @@ def test_an_older_app_gets_the_recipe_version_put_over_it(tmp_path):
     shell = BrewShell("")
 
     use_shell(shell)
-    taken, _ = adopting.hand_to_homebrew(app, CASK)
+    taken, _ = adopting.take_over_with_homebrew(app, CASK)
     assert taken
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--force"]]
 
@@ -72,7 +72,7 @@ def test_an_app_newer_than_the_recipe_is_put_back_when_that_is_asked_for(tmp_pat
     shell = BrewShell("")
 
     use_shell(shell)
-    taken, _ = adopting.hand_to_homebrew(app, CASK)
+    taken, _ = adopting.take_over_with_homebrew(app, CASK)
     assert taken
     assert shell.streamed == [["/fake/brew", "install", "--cask", "betterdisplay", "--force"]]
 
@@ -129,7 +129,7 @@ def test_homebrew_writing_down_a_version_it_did_not_install_is_caught(tmp_path):
     shell = BrewShell("betterdisplay 5.0.6")
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, CASK)
+    taken, message = adopting.take_over_with_homebrew(app, CASK)
     assert not taken
     assert "wrote down betterdisplay 5.0.6, but the app is still 5.0.5" in message
     assert "brew reinstall --cask betterdisplay" in message
@@ -141,7 +141,7 @@ def test_a_browsers_own_numbering_is_not_taken_for_a_version_that_was_never_inst
     shell = BrewShell("brave-browser 1.98.60.0")
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, cask)
+    taken, message = adopting.take_over_with_homebrew(app, cask)
     assert taken
     assert "wrote down" not in message
     assert shell.streamed == [["/fake/brew", "install", "--cask", "brave-browser", "--adopt"]]
@@ -153,14 +153,14 @@ def test_a_build_number_after_the_comma_is_not_a_difference(tmp_path):
     shell = BrewShell("docker-desktop 4.92.0,240144")
 
     use_shell(shell)
-    assert adopting.hand_to_homebrew(app, cask)[0]
+    assert adopting.take_over_with_homebrew(app, cask)[0]
 
 
 def test_an_app_no_cask_ships_is_said_so(tmp_path):
     app = bundle(tmp_path, "TokenEater", "5.13.0")
 
     use_shell(BrewShell(""))
-    taken, message = adopting.hand_to_homebrew(app, None)
+    taken, message = adopting.take_over_with_homebrew(app, None)
     assert not taken
     assert "no recipe" in message
 
@@ -170,7 +170,7 @@ def test_without_homebrew_nothing_is_attempted(tmp_path):
     shell = BrewShell("", installed=False)
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, CASK)
+    taken, message = adopting.take_over_with_homebrew(app, CASK)
     assert not taken
     assert "not installed" in message
 
@@ -180,7 +180,7 @@ def test_a_failed_takeover_is_reported(tmp_path):
     shell = BrewShell("betterdisplay 5.0.6", exit_code=1)
 
     use_shell(shell)
-    taken, message = adopting.hand_to_homebrew(app, CASK)
+    taken, message = adopting.take_over_with_homebrew(app, CASK)
     assert not taken
     assert "exited with 1" in message
 
@@ -190,7 +190,7 @@ def test_an_unreadable_record_is_not_treated_as_a_mismatch(tmp_path):
     app = bundle(tmp_path, "BetterDisplay", "5.0.6")
 
     use_shell(BrewShell(""))
-    assert adopting.hand_to_homebrew(app, CASK)[0]
+    assert adopting.take_over_with_homebrew(app, CASK)[0]
 
 
 def test_a_recipe_that_lags_the_app_says_so_in_the_option(tmp_path):
@@ -289,7 +289,7 @@ def test_handing_over_a_package_cask_runs_its_installer_again_even_at_the_same_v
     shell = BrewShell("131.0.2")
 
     use_shell(shell)
-    taken, _ = adopting.hand_to_homebrew(app, PACKAGE)
+    taken, _ = adopting.take_over_with_homebrew(app, PACKAGE)
 
     assert taken
     assert shell.streamed == [["/fake/brew", "install", "--cask", "google-drive", "--force"]]

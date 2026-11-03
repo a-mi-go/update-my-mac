@@ -101,5 +101,5 @@ def _remove(copy):
         return None
     with prompting.warning_before_stopping():
         return shell.stream_command(
-            [executable, *copy.remove_with[1:]], silent_status=report.waiting(f"waiting for {copy.remove_with[0]}")
+            [executable, *copy.remove_with[1:]], status_while_silent=report.waiting_spinner(f"waiting for {copy.remove_with[0]}")
         )

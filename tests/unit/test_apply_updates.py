@@ -183,7 +183,7 @@ def test_a_failed_upgrade_is_reported_back():
 
 def test_ctrl_c_during_an_upgrade_ends_the_run():
     class InterruptedShell(RecordingShell):
-        def stream_command(self, args, env=None, silent_status=None, rewrite=None):
+        def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
             self.streamed.append(args)
             raise KeyboardInterrupt
 
@@ -297,7 +297,7 @@ def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
 
 def test_nothing_is_claimed_after_an_interrupted_run():
     class InterruptedShell(RecordingShell):
-        def stream_command(self, args, env=None, silent_status=None, rewrite=None):
+        def stream_command(self, args, env=None, status_while_silent=None, rewrite=None):
             raise KeyboardInterrupt
 
     console = Console(width=100, no_color=True)

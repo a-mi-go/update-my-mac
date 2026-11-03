@@ -114,8 +114,8 @@ def homebrew_note(app, cask):
     return ""
 
 
-def hand_to_homebrew(app, cask, status=None):
-    """Hands the app over. Returns whether it is now looked after, and why."""
+def take_over_with_homebrew(app, cask, status=None):
+    """Has Homebrew take the app over. Returns whether it is now looked after, and why."""
     if not has_a_recipe(cask):
         return False, "Homebrew has no recipe for this app."
     if shell.find_executable("brew") is None:

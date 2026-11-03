@@ -116,12 +116,12 @@ def run_each_manager(manager_keys, announce, run_one, dotted=False):
         label = f"{announce} {manager.label}"
         if dotted:
             console.print()
-            status = report.waiting(label)
+            status = report.waiting_spinner(label)
         else:
             console.print(f"\n{label}")
             if manager.asks_for_password:
                 console.print("[dim]It may ask for your password.[/]")
-            status = report.waiting(f"waiting for {manager.label}")
+            status = report.waiting_spinner(f"waiting for {manager.label}")
         with prompting.warning_before_stopping():
             exit_code = run_one(manager, status)
         how = describe_exit(exit_code) if exit_code != 0 else ""
@@ -192,7 +192,7 @@ def print_what_changed(entries):
     could_not_confirm = []
     for entry in entries:
         manager = managers.by_key(entry.keys[0])
-        with report.waiting(f"asking {manager.label} again what is outdated"):
+        with report.waiting_spinner(f"asking {manager.label} again what is outdated"):
             again = manager.outdated()
         if again is None or again.error_message:
             output.print_plain(f"{manager.label}: could not check again", style="yellow")
@@ -200,7 +200,7 @@ def print_what_changed(entries):
             continue
 
         remaining = again.outdated_packages
-        entry.left_outdated = frozenset(report.parse_to_item(one).name for one in remaining)
+        entry.left_outdated = frozenset(report.item_from_package_line(one).name for one in remaining)
         updated = max(0, len(entry.outdated) - len(remaining))
         if not remaining:
             output.print_plain((manager.label, "green"), f": {len(entry.outdated)} updated")
@@ -209,7 +209,7 @@ def print_what_changed(entries):
         output.print_plain(
             (manager.label, "yellow"), f": {updated} of {len(entry.outdated)} updated, still outdated:"
         )
-        items = [report.parse_to_item(package) for package in remaining]
+        items = [report.item_from_package_line(package) for package in remaining]
         for item in items:
             if item.name in manager.refused_in_last_upgrade:
                 item.comment = "no download started"

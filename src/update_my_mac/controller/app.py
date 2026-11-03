@@ -82,7 +82,7 @@ def run_updates_only_mode():
     result = self_update.update_managers(managers_behind)
     _clean_up(installed)
 
-    with report.waiting("asking what is outdated"):
+    with report.waiting_spinner("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
     failed = result.failed + apply_updates.ask_what_to_update(reports)
@@ -98,14 +98,14 @@ def run_retry_app_mode():
 
 
 def _check_the_managers(installed):
-    with report.waiting("asking the package managers if they need an update themselves"):
+    with report.waiting_spinner("asking the package managers if they need an update themselves"):
         return managers.check_themselves(installed)
 
 
 def _check_the_mac(installed, decisions):
     findings = Findings(any_manager_installed=bool(installed))
 
-    with report.waiting() as spinner:
+    with report.waiting_spinner() as spinner:
         def now(what):
             spinner.update(Text(what, style="dim"))
 
@@ -200,7 +200,7 @@ class _Updates:
 
     def reports(self):
         if self._out_of_date:
-            with report.waiting("asking what is outdated"):
+            with report.waiting_spinner("asking what is outdated"):
                 self._reports = managers.check_what_is_outdated()
             self._out_of_date = False
         return self._reports
@@ -346,6 +346,6 @@ def _restart_every_app(apps, step):
 
 def _offer_to_restart_what_the_updates_replaced(already_offered=()):
     offered = {app.bundle for app in already_offered}
-    with report.waiting("looking for running apps the updates replaced"):
+    with report.waiting_spinner("looking for running apps the updates replaced"):
         replaced = [app for app in running_apps.find() if app.bundle not in offered]
     restart_apps.ask_after_the_update(replaced)

@@ -31,7 +31,7 @@ def quit_app(app):
         return False, "It would not take the request to quit."
 
     waited = 0.0
-    with report.waiting(f"waiting for {app.display_name} to quit"):
+    with report.waiting_spinner(f"waiting for {app.display_name} to quit"):
         while shell.is_running(app.pid) and waited < WAIT_SECONDS:
             time.sleep(LOOK_AGAIN_EVERY)
             waited += LOOK_AGAIN_EVERY
