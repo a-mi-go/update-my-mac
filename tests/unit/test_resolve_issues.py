@@ -1,6 +1,7 @@
 """The one question that offers everything the run found to sort out."""
 
 import pytest
+from fake_report import FakeReport
 from fake_terminal import Terminal
 from rich.text import Text
 
@@ -220,7 +221,7 @@ def test_the_report_is_printed_above_the_first_menu_only():
     terminal = Terminal("1", "2")
 
     resolve_issues.ask_what_to_fix(
-        [problem("apps")], terminal.step, above=lambda console: shown.append("report")
+        [problem("apps")], terminal.step, above=FakeReport(lambda console: shown.append("report"))
     )
 
     assert shown == ["report"]
@@ -230,7 +231,7 @@ def test_the_report_is_printed_even_when_there_is_nothing_to_ask():
     shown = []
 
     resolve_issues.ask_what_to_fix(
-        [], Terminal().step, above=lambda console: shown.append("report")
+        [], Terminal().step, above=FakeReport(lambda console: shown.append("report"))
     )
 
     assert shown == ["report"]
@@ -308,10 +309,7 @@ def test_with_nothing_to_update_the_way_out_is_an_exit_and_the_question_says_so(
     assert not any("take care of that later" in line for line in terminal.lines)
 
 
-def test_the_report_stays_over_the_menu_when_it_comes_back_but_is_printed_once(monkeypatch):
-    from update_my_mac.view import output
-
-    printed = []
+def test_the_report_stays_over_the_menu_when_it_comes_back(monkeypatch):
     seen = []
     step = Terminal().step
     answers = iter([0, -1])
@@ -321,12 +319,8 @@ def test_the_report_stays_over_the_menu_when_it_comes_back_but_is_printed_once(m
         return options[next(answers)][0]
 
     monkeypatch.setattr(step, "choose", choose)
-    monkeypatch.setattr(output, "print_above", lambda above: printed.append(above))
+    report = FakeReport(lambda console: None)
 
-    resolve_issues.ask_what_to_fix(
-        [problem("apps")], step, above=lambda console: None, updates=None
-    )
+    resolve_issues.ask_what_to_fix([problem("apps")], step, above=report, updates=None)
 
-    assert not output.is_already_printed(seen[0])
-    assert output.is_already_printed(seen[1])
-    assert printed == []
+    assert seen == [report, report]

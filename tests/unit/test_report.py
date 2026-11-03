@@ -6,8 +6,9 @@ from rich.console import Console
 from rich.text import Text
 
 from update_my_mac import __version__
-from update_my_mac.checks import Findings, app_updaters
+from update_my_mac.checks import app_updaters
 from update_my_mac.checks.app_updaters import UpdaterStatus
+from update_my_mac.checks.findings import Findings
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers import ManagerReport
 from update_my_mac.view import report, sections
@@ -203,6 +204,17 @@ def with_feed(name, version, url="https://x.test/appcast.xml"):
 def report_of(findings, width=80, terminal=False):
     return printed_by(lambda: report.print_report(findings),
                       Console(width=width, no_color=True, force_terminal=terminal or None))
+
+
+def test_a_report_prints_its_findings_and_starts_out_unprinted():
+    findings = Findings(reports=[ManagerReport("brew", "Homebrew", ["git  2.48.1 → 2.49.0"])])
+    console = Console(width=80, no_color=True, record=True)
+
+    shown = report.Report(findings)
+    shown.print_to(console)
+
+    assert not shown.printed
+    assert console.export_text() == report_of(findings)
 
 
 def test_the_report_is_framed_for_someone_watching():

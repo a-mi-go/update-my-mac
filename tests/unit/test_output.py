@@ -3,6 +3,7 @@
 import io
 
 import pytest
+from fake_report import FakeReport
 from rich.console import Console
 
 from update_my_mac.view import output
@@ -21,17 +22,6 @@ def terminal(rows=40):
     written = io.StringIO()
     output.console = Console(file=written, force_terminal=True, height=rows, width=100)
     return written
-
-
-def test_a_report_is_marked_as_printed_once_however_often_it_is_marked():
-    def report(console):
-        pass
-
-    marked = output.already_printed(report)
-
-    assert output.is_already_printed(marked)
-    assert output.already_printed(marked) is marked
-    assert output.already_printed(None) is None
 
 
 def test_a_run_on_a_terminal_starts_on_a_screen_of_its_own_and_leaves_it():
@@ -194,7 +184,7 @@ def test_print_above_leaves_the_screen_then_prints_what_ran_on_it_and_then_the_r
 
     with output.full_screen():
         output.console.print("earlier output")
-        output.print_above(lambda console: console.print("the report"))
+        output.print_above(FakeReport(lambda console: console.print("the report")))
 
     text = written.getvalue()
     assert text.index("\x1b[?1049l") < text.rindex("earlier output") < text.rindex("the report")
@@ -203,8 +193,7 @@ def test_print_above_leaves_the_screen_then_prints_what_ran_on_it_and_then_the_r
 def test_the_same_report_is_printed_above_only_once():
     written = recording_console()
 
-    def report(console):
-        console.print("the report")
+    report = FakeReport(lambda console: console.print("the report"))
 
     with output.full_screen():
         output.console.print("earlier output")
@@ -212,6 +201,7 @@ def test_the_same_report_is_printed_above_only_once():
         output.print_above(report)
 
     text = written.getvalue()
+    assert report.printed
     assert text.count("the report") == 1
     assert text.count("earlier output") == 2
 

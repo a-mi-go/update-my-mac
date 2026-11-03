@@ -17,6 +17,7 @@ from rich.text import Text
 
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
+from update_my_mac.checks.findings import Findings
 from update_my_mac.view import output, prompting, sections
 from update_my_mac.view.sections import CRITICAL, INFO, WARNING
 
@@ -56,6 +57,17 @@ SECTION_COLOR = {
     WARNING: "yellow",
     INFO: "green",
 }
+
+
+@dataclass
+class Report:
+    """The findings of one run, as a report printed before the first options menu."""
+
+    findings: Findings
+    printed: bool = False
+
+    def print_to(self, console):
+        print_to(console, self.findings)
 
 
 @dataclass

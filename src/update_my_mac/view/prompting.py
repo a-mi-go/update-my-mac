@@ -141,10 +141,10 @@ class Step:
         return self._ask_by_typed_number(options, question, note)
 
     def _can_show_below(self, options):
-        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(_rows_of(options))
+        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(_row_count_for(options))
 
     def _print_above(self, above):
-        if output.is_already_printed(above):
+        if above.printed:
             return
         output.print_above(above)
         self.print_empty_line()
@@ -178,14 +178,14 @@ class Step:
             for key, label in options
         ]
         # A line the cursor skips sets the way out apart.
-        way_out = _way_out_at(options)
+        way_out = _index_of_way_out(options)
         if way_out is not None:
             entries.insert(way_out, None)
 
         if above is None:
             picked = arrow_menu.pick_one(question, entries, note)
         else:
-            picked = arrow_menu.pick_one_below(above, question, entries, note)
+            picked = arrow_menu.pick_one_below(above.print_to, question, entries, note)
         if picked is None:
             # questionary gives None when the menu was aborted.
             raise Stopped
@@ -212,7 +212,7 @@ class Step:
         if not self._next_menu_is_apart:
             return
         self._next_menu_is_apart = False
-        if not arrow_menu.runs_on_its_own_screen(_rows_of(options)):
+        if not arrow_menu.runs_on_its_own_screen(_row_count_for(options)):
             self.print_empty_line()
             self.print_separator()
 
@@ -257,16 +257,16 @@ def read_answer(prompt):
     return input(prompt)
 
 
-def _rows_of(options):
+def _row_count_for(options):
     """Returns how many terminal rows the options take, as the arrow menu would draw them."""
     texts = [_plain(_bulleted(label)) for _, label in options]
-    way_out = _way_out_at(options)
+    way_out = _index_of_way_out(options)
     if way_out is not None:
         texts.insert(way_out, "")
     return arrow_menu.rows_of_options(texts)
 
 
-def _way_out_at(options):
+def _index_of_way_out(options):
     """Returns where the first way out stands among the options, or None without one."""
     return next(
         (at for at, (_, label) in enumerate(options) if _plain(label).startswith(WAYS_OUT)),

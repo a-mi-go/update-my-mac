@@ -34,7 +34,6 @@ MOUSE_REPORTING_OFF = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l"
 _in_full_screen = False
 _remembered = []
 _remembering = False
-_printed_above = None
 _decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 _unfinished_line = ""
 
@@ -79,38 +78,15 @@ def clear_and_replay():
         _remembering = kept
 
 
-class AlreadyPrinted:
-    """A report that is already on the normal screen, shown over a menu again but never printed twice."""
-
-    def __init__(self, print_report):
-        self.print_report = print_report
-
-    def __call__(self, console):
-        self.print_report(console)
-
-
-def is_already_printed(above):
-    """Returns whether the report `above` was already printed on the normal screen."""
-    return isinstance(above, AlreadyPrinted)
-
-
-def already_printed(above):
-    """Returns `above` marked as already printed, or None for no report. Marking twice changes nothing."""
-    if above is None or is_already_printed(above):
-        return above
-    return AlreadyPrinted(above)
-
-
-def print_above(above):
-    """Leaves the screen of its own and prints what ran on it, then what `above` prints, once for each `above`."""
-    global _printed_above
-    if above is _printed_above:
+def print_above(report):
+    """Leaves the screen of its own and prints what ran on it, then the report, unless that is printed already."""
+    if report.printed:
         return
     leave_full_screen()
     replay(console)
     _remembered.clear()
-    above(console)
-    _printed_above = above
+    report.print_to(console)
+    report.printed = True
 
 
 def in_full_screen():

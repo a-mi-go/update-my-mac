@@ -1,4 +1,4 @@
-"""The parts of prompt_toolkit that have no public way, kept together so an upgrade breaks them in one place."""
+"""Every use of prompt_toolkit's private parts that the menus rely on."""
 
 import math
 

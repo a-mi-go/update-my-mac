@@ -7,7 +7,6 @@ from rich.text import Text
 
 from update_my_mac import managers
 from update_my_mac.checks import (
-    Findings,
     app_decisions,
     appcast,
     duplicate_installations,
@@ -15,6 +14,7 @@ from update_my_mac.checks import (
     running_apps,
     to_sort_out,
 )
+from update_my_mac.checks.findings import Findings
 from update_my_mac.controller import (
     apply_updates,
     homebrew_fixes,
@@ -66,7 +66,7 @@ def _run_interactive():
     updates = _Updates(findings.reports)
     resolved = resolve_issues.ask_what_to_fix(
         _issues(findings, decisions),
-        above=lambda console: report.print_to(console, findings),
+        above=report.Report(findings),
         updates=updates,
     )
 

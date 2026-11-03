@@ -48,7 +48,6 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
                 step.print_empty_line()
             asked_before = True
             chosen = step.choose(options, QUESTION_WITHOUT_UPDATES if nothing_to_update else QUESTION, above=above)
-            above = output.already_printed(above)
 
             if chosen == NOT_NOW:
                 if updates is not None and not nothing_to_update:
@@ -89,5 +88,5 @@ def _not_now(updates):
 
 
 def _print(above):
-    if above is not None and not output.is_already_printed(above):
+    if above is not None:
         output.print_above(above)
