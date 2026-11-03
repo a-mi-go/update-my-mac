@@ -7,6 +7,7 @@ import shutil
 import sys
 
 from update_my_mac.view import output
+from update_my_mac.view import prompt_toolkit_internals
 
 POINTER = "❯"
 QMARK = "፧፧"
@@ -17,6 +18,8 @@ SEPARATOR_COLOR = "#666666"
 NOTE_COLOR = "#999999"
 # Where the labels start, so the note lines up with the rows below it.
 NOTE_INDENT = "   "
+LABEL_COLUMN = len(POINTER) + 2
+CHECKBOX_LABEL_COLUMN = LABEL_COLUMN + len(TICKED) + 1
 ANSWER_COLOR = "#f2a900"
 # The question, the blank line and the Ctrl-C warning, besides the options.
 MENU_ROWS = 3
@@ -132,54 +135,15 @@ def pick_one(question, entries, note=""):
     prompt = _select(question, entries, note)
     app = prompt.application
     if runs_on_its_own_screen(len(entries)):
-        # Changed in place, because the Ctrl-C handling hangs on this Application.
-        app.full_screen = app.renderer.full_screen = True
+        prompt_toolkit_internals.make_full_screen(app)
     else:
-        _redraw_on_resize(app)
+        prompt_toolkit_internals.redraw_on_resize(app)
     return _answer_to(prompt, warn_in_menu=True, blank_line=bool(question or note))
 
 
 def runs_on_its_own_screen(option_count):
     """Returns whether a menu with this many options is drawn on a screen of its own, which a resize redraws whole."""
     return _is_a_terminal() and not output.in_full_screen() and can_fill_the_screen(option_count)
-
-
-def _redraw_on_resize(app):
-    """Redraws a menu after a resize, which the terminal answers by wrapping the lines already drawn."""
-    def on_resize():
-        if output.in_full_screen():
-            output.clear_and_replay()
-        else:
-            _erase_the_wrapped_menu(app)
-        app.renderer.reset(leave_alternate_screen=False)
-        app._request_absolute_cursor_position()
-        app._redraw()
-
-    app._on_resize = on_resize
-
-
-def _erase_the_wrapped_menu(app):
-    """Erases from the first menu row, counting the rows each line takes at the new width."""
-    renderer, out = app.renderer, app.output
-    width = max(1, out.get_size().columns)
-    cursor = renderer._cursor_pos
-    screen = renderer._last_screen
-    above = cursor.x // width
-    if screen is not None:
-        above += sum(_rows_taken(screen.data_buffer[y], width) for y in range(cursor.y))
-    out.write("\r")
-    out.cursor_up(above)
-    out.erase_down()
-    out.reset_attributes()
-    out.enable_autowrap()
-    out.flush()
-
-
-def _rows_taken(row, width):
-    """Returns how many terminal rows a drawn line takes at this width."""
-    ends = max((x + 1 for x, char in row.items() if char.char != " "), default=0)
-    drawn = sum(char.width for x, char in row.items() if x < ends)
-    return max(1, -(-drawn // width))
 
 
 def _select(question, entries, note):
@@ -197,7 +161,7 @@ def _select(question, entries, note):
         qmark=QMARK if question else "",
     )
     _highlight_styled_rows(prompt)
-    _wrap_long_rows(prompt, len(POINTER) + 2)
+    _wrap_long_rows(prompt, LABEL_COLUMN)
     return prompt
 
 
@@ -252,6 +216,12 @@ def _wrapped_at_spaces(tokens, width, indent):
 
 
 def _row_wrapped(row, width, indent):
+    """Returns the row with a line break before each word that would pass `width`."""
+    return _joined(_laid_out(_words_of(row), width, indent))
+
+
+def _words_of(row):
+    """Returns the row's tokens cut into words, a word ending after its space."""
     words, word = [], []
     for style, text, *rest in row:
         for character in text or [""]:
@@ -259,8 +229,11 @@ def _row_wrapped(row, width, indent):
             if character == " ":
                 words.append(word)
                 word = []
-    words.append(word)
+    return words + [word]
 
+
+def _laid_out(words, width, indent):
+    """Returns the words as tokens, a line break at `indent` where the next word would pass `width`."""
     wrapped, column = [], 0
     for word in words:
         length = sum(len(token[1]) for token in word)
@@ -270,7 +243,7 @@ def _row_wrapped(row, width, indent):
             column = indent
         wrapped += word
         column += length
-    return _joined(wrapped)
+    return wrapped
 
 
 def _joined(tokens):
@@ -333,8 +306,7 @@ def pick_one_below(print_report, question, entries, note=""):
 
     if output.in_full_screen():
         app.output = app.renderer.output = _InTheScreenAlreadyEntered(app.output)
-    # Changed in place, because the Ctrl-C handling hangs on this Application.
-    app.full_screen = app.renderer.full_screen = True
+    prompt_toolkit_internals.make_full_screen(app)
     app.mouse_support = app.renderer.mouse_support = to_filter(True)
     app.layout = Layout(
         HSplit([pane, Window(FormattedTextControl(scrolling.status_line), height=1, dont_extend_height=True)]),
@@ -421,7 +393,7 @@ def pick_several(question, entries, ends_menu=(), confirm=None, checked=(), star
         initial_choice=start_at,
     )
     _shape_checkbox(prompt, ends_menu, confirm)
-    _wrap_long_rows(prompt, len(POINTER) + 2 + len(TICKED) + 1)
+    _wrap_long_rows(prompt, CHECKBOX_LABEL_COLUMN)
     return _answer_to(prompt, warn_in_menu=True, blank_line=True)
 
 

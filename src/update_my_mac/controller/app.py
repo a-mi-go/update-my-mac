@@ -71,10 +71,13 @@ def _run_interactive():
         output.console.print()
         report.print_outdated_summary(reports)
 
-    failed_updates = apply_updates.ask_what_to_update(reports, already_chosen=updates.chosen_to_update)
-    if resolved or failed_updates is not None:
+    if updates.is_chosen_to_update() and apply_updates.has_only_one_manager_to_update(reports):
+        update_run = apply_updates.update_the_only_manager(reports)
+    else:
+        update_run = apply_updates.ask_what_to_update(reports)
+    if resolved or update_run.ran:
         _offer_to_restart_what_the_updates_replaced(findings.stale)
-    failed = result.failed + (failed_updates or [])
+    failed = result.failed + update_run.failed
     return 1 if failed else _exit_code(reports, findings.managers_behind)
 
 
@@ -88,10 +91,10 @@ def run_updates_only_mode():
     with report.waiting_spinner("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
-    failed_updates = apply_updates.ask_what_to_update(reports)
-    if failed_updates is not None:
+    update_run = apply_updates.ask_what_to_update(reports)
+    if update_run.ran:
         _offer_to_restart_what_the_updates_replaced()
-    failed = result.failed + (failed_updates or [])
+    failed = result.failed + update_run.failed
     return 1 if failed else _exit_code(
         reports, managers.still_behind(managers_behind, result.updated)
     )
@@ -199,7 +202,7 @@ class _Updates:
     def __init__(self, reports):
         self._reports = reports
         self._out_of_date = False
-        self.chosen_to_update = False
+        self._chosen_to_update = False
 
     def something_changed(self):
         self._out_of_date = True
@@ -214,11 +217,17 @@ class _Updates:
     def count(self):
         return report.count_outdated_packages(self.reports())
 
-    def named(self):
-        """Returns what to update, as in "Homebrew packages", when only one manager has any, else None."""
+    def choose_to_update(self):
+        self._chosen_to_update = True
+
+    def is_chosen_to_update(self):
+        return self._chosen_to_update
+
+    def what_the_only_manager_updates(self):
+        """Returns what to update, as in "Homebrew packages", when only one manager has any, or "" otherwise."""
         outdated = [one for one in self.reports() if one.outdated_packages]
         if len(outdated) != 1:
-            return None
+            return ""
         return f"{outdated[0].label} {apply_updates.noun_for_outdated(outdated[0])}"
 
 

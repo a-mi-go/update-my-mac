@@ -123,7 +123,7 @@ def a_self_update_that(monkeypatch, found, updated=(), failed=()):
         lambda behind, *a, **k: app.self_update.SelfUpdateResult(list(updated), list(failed)),
     )
     monkeypatch.setattr(app.resolve_issues, "ask_what_to_fix", lambda *a, **k: 0)
-    monkeypatch.setattr(app.apply_updates, "ask_what_to_update", lambda *a, **k: [])
+    monkeypatch.setattr(app.apply_updates, "ask_what_to_update", lambda *a, **k: app.apply_updates.NOTHING_UPDATED)
 
 
 def test_a_failed_self_update_exits_non_zero(monkeypatch):
@@ -188,7 +188,7 @@ def test_interactive_mode_offers_the_restart_after_the_updates(monkeypatch):
     a_self_update_that(monkeypatch, found=[])
     order = []
     monkeypatch.setattr(
-        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or []
+        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or app.apply_updates.UpdateRun([], True)
     )
     monkeypatch.setattr(
         app, "_offer_to_restart_what_the_updates_replaced", lambda *a: order.append("restart")
@@ -203,7 +203,7 @@ def test_with_nothing_updated_or_fixed_the_restart_is_not_offered(monkeypatch):
     a_self_update_that(monkeypatch, found=[])
     order = []
     monkeypatch.setattr(
-        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or None
+        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or app.apply_updates.NOTHING_UPDATED
     )
     monkeypatch.setattr(
         app, "_offer_to_restart_what_the_updates_replaced", lambda *a: order.append("restart")
@@ -218,7 +218,7 @@ def test_updates_only_offers_the_restart_after_the_updates(monkeypatch):
     a_self_update_that(monkeypatch, found=[])
     order = []
     monkeypatch.setattr(
-        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or []
+        app.apply_updates, "ask_what_to_update", lambda *a, **k: order.append("updates") or app.apply_updates.UpdateRun([], True)
     )
     monkeypatch.setattr(
         app, "_offer_to_restart_what_the_updates_replaced", lambda *a: order.append("restart")
@@ -593,6 +593,6 @@ def test_only_one_manager_with_updates_is_named_with_what_it_counts():
     mas = app.managers.ManagerReport("mas", "Mac App Store", ["Pages  1 → 2"])
     empty = app.managers.ManagerReport("npm", "npm (global)", [])
 
-    assert app._Updates([brew, empty]).named() == "Homebrew packages"
-    assert app._Updates([mas]).named() == "Mac App Store app"
-    assert app._Updates([brew, mas]).named() is None
+    assert app._Updates([brew, empty]).what_the_only_manager_updates() == "Homebrew packages"
+    assert app._Updates([mas]).what_the_only_manager_updates() == "Mac App Store app"
+    assert app._Updates([brew, mas]).what_the_only_manager_updates() == ""

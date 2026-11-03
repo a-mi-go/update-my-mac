@@ -239,7 +239,7 @@ def test_the_report_is_printed_even_when_there_is_nothing_to_ask():
 
 
 class Updates:
-    def __init__(self, *counts, named=None):
+    def __init__(self, *counts, named=""):
         self.counts = list(counts)
         self.changed = 0
         self.chosen_to_update = False
@@ -248,8 +248,11 @@ class Updates:
     def count(self):
         return self.counts[0]
 
-    def named(self):
+    def what_the_only_manager_updates(self):
         return self.what
+
+    def choose_to_update(self):
+        self.chosen_to_update = True
 
     def something_changed(self):
         self.changed += 1
@@ -326,6 +329,6 @@ def test_the_report_stays_over_the_menu_when_it_comes_back_but_is_printed_once(m
         [problem("apps")], step, above=lambda console: None, updates=None
     )
 
-    assert not isinstance(seen[0], output.Printed)
-    assert isinstance(seen[1], output.Printed)
+    assert not output.is_already_printed(seen[0])
+    assert output.is_already_printed(seen[1])
     assert printed == []

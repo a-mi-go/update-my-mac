@@ -52,11 +52,11 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
             asked_before = True
             chosen = step.choose(options, QUESTION_WITHOUT_UPDATES if nothing_to_update else QUESTION, above=above)
             if above is not None:
-                above = above if isinstance(above, output.Printed) else output.Printed(above)
+                above = above if output.is_already_printed(above) else output.AlreadyPrinted(above)
 
             if chosen == NOT_NOW:
                 if updates is not None:
-                    updates.chosen_to_update = True
+                    updates.choose_to_update()
                 break
             before = dealt_with
             if chosen == FIX_EVERYTHING:
@@ -78,12 +78,12 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
 def _not_now(updates):
     if updates is None:
         return NOT_NOW
-    named = updates.named()
-    if named:
-        return Markup(NOT_NOW_NAMED.format(named, updates.count()))
+    what = updates.what_the_only_manager_updates()
+    if what:
+        return Markup(NOT_NOW_NAMED.format(what, updates.count()))
     return Markup(NOT_NOW_COUNTED.format(updates.count()))
 
 
 def _print(above):
-    if above is not None and not isinstance(above, output.Printed):
+    if above is not None and not output.is_already_printed(above):
         output.print_above(above)

@@ -79,7 +79,7 @@ def clear_and_replay():
         _remembering = kept
 
 
-class Printed:
+class AlreadyPrinted:
     """A report that is already on the normal screen, shown over a menu again but never printed twice."""
 
     def __init__(self, print_report):
@@ -87,6 +87,11 @@ class Printed:
 
     def __call__(self, console):
         self.print_report(console)
+
+
+def is_already_printed(above):
+    """Returns whether the report `above` was already printed on the normal screen."""
+    return isinstance(above, AlreadyPrinted)
 
 
 def print_above(above):

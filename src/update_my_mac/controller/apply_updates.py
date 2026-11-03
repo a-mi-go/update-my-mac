@@ -147,17 +147,38 @@ def upgrade_managers(manager_keys):
     )
 
 
-def ask_what_to_update(reports, already_chosen=False):
-    """Asks which managers to update and updates them. Returns the ones that failed, or None when nothing was updated."""
+@dataclass
+class UpdateRun:
+    """Whether any manager was updated, and which ones failed."""
+
+    failed: list
+    ran: bool
+
+
+NOTHING_UPDATED = UpdateRun([], False)
+
+
+def update_the_only_manager(reports):
+    """Updates the one manager with something outdated without asking. Returns how it went."""
+    output.console.print()
+    prompting.print_separator()
+    return UpdateRun(run_chosen(build_menu(reports)), True)
+
+
+def has_only_one_manager_to_update(reports):
+    """Returns whether exactly one manager has something outdated."""
+    return len(build_menu(reports)) == 1
+
+
+def ask_what_to_update(reports):
+    """Asks which managers to update and updates them. Returns how it went."""
     console = output.console
     entries = build_menu(reports)
     if not entries:
-        return None
+        return NOTHING_UPDATED
 
     console.print()
     prompting.print_separator()
-    if already_chosen and len(entries) == 1:
-        return run_chosen(entries)
 
     if arrow_menu.can_be_drawn():
         while True:
@@ -170,7 +191,7 @@ def ask_what_to_update(reports, already_chosen=False):
                 console.print(arrow_menu.unusable_message(failure))
                 break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
-            return None if chosen == CANCEL else run_chosen(chosen)
+            return NOTHING_UPDATED if chosen == CANCEL else UpdateRun(run_chosen(chosen), True)
 
     while True:
         print_menu(entries)
@@ -180,14 +201,14 @@ def ask_what_to_update(reports, already_chosen=False):
             # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
             prompting.answered()
-            return None
+            return NOTHING_UPDATED
 
         chosen = parse_menu_answer(answer, entries)
         if chosen is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
         prompting.answered()
-        return None if chosen == CANCEL else run_chosen(chosen)
+        return NOTHING_UPDATED if chosen == CANCEL else UpdateRun(run_chosen(chosen), True)
 
 
 def print_what_changed(entries):

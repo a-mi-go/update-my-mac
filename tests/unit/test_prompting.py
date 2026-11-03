@@ -402,17 +402,35 @@ def test_a_menu_on_a_screen_of_its_own_leaves_nothing_behind(monkeypatch):
 
 def test_no_line_sets_a_menu_apart_when_it_comes_up_on_a_screen_of_its_own(monkeypatch):
     terminal = Terminal()
+    step = terminal.with_arrows()
     monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
 
-    terminal.step.begin_menu()
+    step.begin_menu()
+    step.choose([("a", "one")])
 
     assert terminal.lines == []
 
 
 def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
     terminal = Terminal()
+    step = terminal.with_arrows()
     monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: False)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
 
-    terminal.step.begin_menu()
+    step.begin_menu()
+    step.choose([("a", "one")])
+
+    assert len(terminal.lines) == 2
+
+
+def test_whether_a_menu_is_set_apart_follows_the_options_it_really_has(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: option_count < 5)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: 0)
+
+    step.begin_menu()
+    step.choose([(number, str(number)) for number in range(8)])
 
     assert len(terminal.lines) == 2

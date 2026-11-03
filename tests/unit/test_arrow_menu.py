@@ -6,6 +6,7 @@ from update_my_mac.view.prompting import BULLET
 
 from update_my_mac.view import arrow_menu
 from update_my_mac.view import output
+from update_my_mac.view import prompt_toolkit_internals
 from update_my_mac.view import prompting
 
 from fake_terminal import Terminal
@@ -932,7 +933,7 @@ def screen_with_lines(*lines):
 def test_a_line_wider_than_the_terminal_takes_the_rows_it_wraps_to():
     screen = screen_with_lines("a" * 100, "b" * 10, "")
 
-    assert [arrow_menu._rows_taken(screen.data_buffer[y], 40) for y in range(3)] == [3, 1, 1]
+    assert [prompt_toolkit_internals.rows_taken(screen.data_buffer[y], 40) for y in range(3)] == [3, 1, 1]
 
 
 def test_a_resize_outside_the_screen_of_its_own_erases_from_where_the_wrapped_menu_starts(monkeypatch):
@@ -952,7 +953,7 @@ def test_a_resize_outside_the_screen_of_its_own_erases_from_where_the_wrapped_me
     renderer = SimpleNamespace(_cursor_pos=Point(x=45, y=2), _last_screen=screen_with_lines("a" * 100, "b" * 10, "c"))
     monkeypatch.setattr(output, "in_full_screen", lambda: False)
 
-    arrow_menu._erase_the_wrapped_menu(SimpleNamespace(renderer=renderer, output=Out()))
+    prompt_toolkit_internals.erase_the_wrapped_menu(SimpleNamespace(renderer=renderer, output=Out()))
 
     # 3 rows for the first line, 1 for the second, 1 more for the cursor 45 columns into its own.
     assert ("cursor_up", 5) in moves

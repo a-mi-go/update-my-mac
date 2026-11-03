@@ -49,16 +49,18 @@ def test_the_one_manager_already_chosen_is_updated_without_asking():
     use_shell(shell)
 
     reports = [ManagerReport("brew", "Homebrew", ["git  1 → 2"])]
-    assert apply_updates.ask_what_to_update(reports, already_chosen=True) == []
+    assert apply_updates.has_only_one_manager_to_update(reports)
+    assert apply_updates.update_the_only_manager(reports).failed == []
     assert len(shell.streamed) == 1
 
 
-def test_already_chosen_still_asks_which_of_several_managers():
+def test_several_managers_to_update_are_not_the_one_already_chosen():
     shell = RecordingShell()
     answer_with(answers("3"))
     use_shell(shell)
 
-    apply_updates.ask_what_to_update(REPORTS, already_chosen=True)
+    assert not apply_updates.has_only_one_manager_to_update(REPORTS)
+    apply_updates.ask_what_to_update(REPORTS)
 
     assert [args[0].rsplit("/", 1)[-1] for args in shell.streamed] == ["npm"]
 
@@ -134,14 +136,14 @@ def test_nonsense_is_not_understood():
 def test_cancelling_updates_nothing():
     shell = RecordingShell()
 
-    assert run(shell, "4") is None
+    assert run(shell, "4") == apply_updates.NOTHING_UPDATED
     assert shell.streamed == []
 
 
 def test_everything_upgrades_each_manager_with_work():
     shell = RecordingShell()
 
-    assert run(shell, "1") == []
+    assert run(shell, "1") == apply_updates.UpdateRun([], True)
     assert shell.streamed == [["/fake/brew", "upgrade"], ["/fake/npm", "update", "-g"]]
 
 
@@ -170,7 +172,7 @@ def test_nothing_to_do_means_no_prompt():
     failed = update_menu(
         [ManagerReport("brew", "Homebrew", [])], shell, record
     )
-    assert failed is None
+    assert failed == apply_updates.NOTHING_UPDATED
     assert asked == []
 
 
@@ -179,7 +181,7 @@ def test_no_terminal_cancels_instead_of_crashing():
     shell = RecordingShell()
     failed = update_menu(REPORTS, shell, raising(EOFError()))
 
-    assert failed is None
+    assert failed == apply_updates.NOTHING_UPDATED
     assert shell.streamed == []
 
 
@@ -198,7 +200,7 @@ def test_ctrl_c_at_the_menu_ends_the_run():
 def test_a_failed_upgrade_is_reported_back():
     shell = RecordingShell(exit_code=3)
 
-    assert run(shell, "1") == ["brew", "npm"]
+    assert run(shell, "1").failed == ["brew", "npm"]
 
 
 def test_ctrl_c_during_an_upgrade_ends_the_run():
@@ -312,7 +314,7 @@ def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
         REPORTS, SilentShell(), answers("2")
     )
 
-    assert failed == ["brew"]
+    assert failed.failed == ["brew"]
 
 
 def test_nothing_is_claimed_after_an_interrupted_run():

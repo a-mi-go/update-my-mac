@@ -48,6 +48,7 @@ class Step:
     def __init__(self, depth=0):
         self.depth = depth
         self.margin = STEP * depth
+        self._set_next_menu_apart = False
 
     def inside(self):
         return Step(self.depth + 1)
@@ -74,6 +75,7 @@ class Step:
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
+        self._set_apart_if_asked(options)
         while True:
             try:
                 chosen = self._ask_by_arrows_or_typed_number(options, question, note, above)
@@ -132,7 +134,7 @@ class Step:
         return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(len(options))
 
     def _print_above(self, above):
-        if isinstance(above, output.Printed):
+        if output.is_already_printed(above):
             return
         output.print_above(above)
         self.print_empty_line()
@@ -196,11 +198,16 @@ class Step:
         print_separator()
 
     def begin_menu(self):
-        """Sets the next menu apart from what is above it, unless it comes up on a screen that leaves nothing behind."""
-        if arrow_menu.runs_on_its_own_screen(1):
+        """Has the next menu set apart from what is above it, unless it comes up on a screen that leaves nothing behind."""
+        self._set_next_menu_apart = True
+
+    def _set_apart_if_asked(self, options):
+        if not self._set_next_menu_apart:
             return
-        self.print_empty_line()
-        self.print_separator()
+        self._set_next_menu_apart = False
+        if not arrow_menu.runs_on_its_own_screen(len(options)):
+            self.print_empty_line()
+            self.print_separator()
 
 
 def print_unwrapped(renderable, **options):
