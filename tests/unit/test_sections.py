@@ -2,15 +2,10 @@
 
 from pathlib import Path
 
-from update_my_mac.checks import (
-    Findings,
-    app_updaters,
-    appcast,
-    running_apps,
-    to_sort_out,
-)
+from update_my_mac.checks import app_updaters, appcast, running_apps, to_sort_out
 from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.duplicate_installations import Copy, Duplicate
+from update_my_mac.checks.findings import Findings
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers import ManagerReport, ManagerUpdate
 from update_my_mac.managers.homebrew import behind_the_recipe, flagged

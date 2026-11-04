@@ -11,7 +11,7 @@ from rich.text import Text
 
 from update_my_mac.system import shell
 
-_NOT_A_COLOUR = re.compile(r"\x1b\](?:[^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-ln-~]")
+_NOT_A_COLOR = re.compile(r"\x1b\](?:[^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-ln-~]")
 
 
 class RecordingConsole(Console):
@@ -34,7 +34,6 @@ MOUSE_REPORTING_OFF = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l"
 _in_full_screen = False
 _remembered = []
 _remembering = False
-_printed_above = None
 _decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 _unfinished_line = ""
 
@@ -63,20 +62,31 @@ def remember_command_output(data):
         _unfinished_line = ""
     for line in lines:
         # A progress bar redraws its line, and a pty ends every line with a carriage return.
-        shown = _NOT_A_COLOUR.sub("", line.rstrip("\r").split("\r")[-1])
+        shown = _NOT_A_COLOR.sub("", line.rstrip("\r").split("\r")[-1])
         remember(lambda console, shown=shown: console.print(Text.from_ansi(shown)))
 
 
-def print_above(above):
-    """Leaves the screen of its own and prints what ran on it, then what `above` prints, once for each `above`."""
-    global _printed_above
-    if above is _printed_above:
+def clear_and_replay():
+    """Wipes the screen of its own and prints again what ran on it, wrapped to the width it has now."""
+    global _remembering
+    console.clear()
+    # What is printed again must not be kept a second time, or the list it is read from never ends.
+    kept, _remembering = _remembering, False
+    try:
+        replay(console)
+    finally:
+        _remembering = kept
+
+
+def print_above(report):
+    """Leaves the screen of its own and prints what ran on it, then the report, unless that is printed already."""
+    if report.printed:
         return
     leave_full_screen()
     replay(console)
     _remembered.clear()
-    above(console)
-    _printed_above = above
+    report.print_to(console)
+    report.printed = True
 
 
 def in_full_screen():

@@ -557,3 +557,22 @@ def test_an_offer_with_nothing_to_add_stays_plain_text():
 
     assert track_apps._takeover_choice(app("Dockish", "6.0"), None) == ""
     assert track_apps._takeover_choice(app("Dockish", "6.0"), cask) == "update to dockish 6.2.1 and let Homebrew take over"
+
+
+def test_an_app_that_would_not_start_is_asked_about_again_with_the_warning_in_the_note(tmp_path):
+    terminal = Terminal("1", LATER)
+
+    swap(track_apps.shell, "open_application", lambda path: False)
+    track_apps.ask_what_to_do([app("TokenEater")], decisions_in(tmp_path), terminal.step)
+
+    assert terminal.text.count("That app would not start.") == 2
+
+
+def test_the_warning_is_left_out_of_the_note_once_the_next_answer_is_given(tmp_path):
+    # Not moved to the Trash after all, so the app is asked about once more.
+    terminal = Terminal("1", "2", "2", LATER)
+
+    swap(track_apps.shell, "open_application", lambda path: False)
+    track_apps.ask_what_to_do([app("TokenEater")], decisions_in(tmp_path), terminal.step)
+
+    assert terminal.text.count("That app would not start.") == 2

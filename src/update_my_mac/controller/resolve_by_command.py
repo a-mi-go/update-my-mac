@@ -78,7 +78,7 @@ def _walk_through(fixes, step):
     done = []
     try:
         for fix in fixes:
-            step.begin_menu()
+            step.set_next_menu_apart()
             chosen = step.choose(
                 _choices_for(fix, len(fixes) > 1),
                 fix.label,

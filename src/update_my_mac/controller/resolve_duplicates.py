@@ -48,7 +48,7 @@ def _walk_through(duplicates, step):
     resolved = []
     try:
         for duplicate in duplicates:
-            step.begin_menu()
+            step.set_next_menu_apart()
             chosen = step.choose(
                 _copy_choices(duplicate, len(duplicates) > 1),
                 duplicate.command,

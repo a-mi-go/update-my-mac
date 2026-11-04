@@ -4,6 +4,7 @@ import os
 import signal
 
 import pytest
+from fake_report import FakeReport
 from fake_terminal import Terminal
 
 from update_my_mac.view import prompting
@@ -286,7 +287,7 @@ def test_what_belongs_above_a_menu_is_printed_before_the_numbered_options():
     terminal = Terminal("1")
 
     terminal.step.choose(
-        [("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report")
+        [("a", "one")], "Which one?", above=FakeReport(lambda console: terminal.lines.append("the report"))
     )
 
     assert terminal.lines[:3] == ["the report", "", "Which one?"]
@@ -296,7 +297,7 @@ def test_a_ctrl_c_at_the_numbered_options_does_not_print_the_report_again():
     terminal = Terminal()
     step = terminal.answering(interrupting(INTERRUPT, "1"))
 
-    step.choose([("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report"))
+    step.choose([("a", "one")], "Which one?", above=FakeReport(lambda console: terminal.lines.append("the report")))
 
     assert terminal.lines.count("the report") == 1
 
@@ -309,11 +310,11 @@ def test_on_a_screen_of_its_own_the_report_and_the_answer_are_printed_once_it_is
 
     chosen = step.choose(
         [("a", "one"), ("b", "two")], "Which one?",
-        above=lambda console: terminal.lines.append("the report"),
+        above=FakeReport(lambda console: terminal.lines.append("the report")),
     )
 
     assert chosen == "b"
-    assert terminal.lines == ["the report", "", f"{prompting.arrow_menu.QMARK} Which one? {BULLET}two", ""]
+    assert terminal.lines == ["the report", ""]
 
 
 def test_a_screen_too_short_for_the_menu_prints_the_report_and_asks_in_place(monkeypatch):
@@ -323,7 +324,7 @@ def test_a_screen_too_short_for_the_menu_prints_the_report_and_asks_in_place(mon
     monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
 
     step.choose(
-        [("a", "one")], "Which one?", above=lambda console: terminal.lines.append("the report")
+        [("a", "one")], "Which one?", above=FakeReport(lambda console: terminal.lines.append("the report"))
     )
 
     assert terminal.lines == ["the report", ""]
@@ -344,7 +345,7 @@ def test_the_screen_of_its_own_is_left_before_the_report_is_printed(monkeypatch)
 
     with output.full_screen():
         terminal.step.choose(
-            [("a", "one")], "Which one?", above=lambda console: console.print("the report")
+            [("a", "one")], "Which one?", above=FakeReport(lambda console: console.print("the report"))
         )
 
     text = written.getvalue()
@@ -385,3 +386,65 @@ def test_once_it_has_run_a_ctrl_c_is_its_own_again():
     assert not prompting.arrow_menu.pressed_ctrl_c()
 
 
+def test_a_menu_on_a_screen_of_its_own_leaves_nothing_behind(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "b")
+
+    chosen = step.choose([("a", "one"), ("b", "two")], "Which one?")
+
+    assert chosen == "b"
+    assert terminal.lines == []
+
+
+def test_no_line_sets_a_menu_apart_when_it_comes_up_on_a_screen_of_its_own(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: True)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
+
+    step.set_next_menu_apart()
+    step.choose([("a", "one")])
+
+    assert terminal.lines == []
+
+
+def test_a_menu_whose_wrapped_options_are_too_tall_is_not_shown_below_a_report(monkeypatch):
+    monkeypatch.setattr(prompting.arrow_menu, "can_be_drawn", lambda: True)
+    monkeypatch.setattr(prompting.arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((30, 13)))
+    step = prompting.Step()
+
+    assert step._can_show_below([("a", "one"), ("b", "two"), ("c", "three")])
+    assert not step._can_show_below([(number, "a label that has to wrap onto the next rows") for number in range(3)])
+
+
+def test_the_line_before_the_way_out_counts_as_a_row_of_the_menu(monkeypatch):
+    monkeypatch.setattr(prompting.arrow_menu.shutil, "get_terminal_size", lambda: os.terminal_size((80, 40)))
+
+    assert prompting._row_count_for([("a", "one"), ("b", "two")]) == 2
+    assert prompting._row_count_for([("a", "one"), ("b", f"{WAY_OUT}exit")]) == 3
+
+
+def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: False)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: "a")
+
+    step.set_next_menu_apart()
+    step.choose([("a", "one")])
+
+    assert len(terminal.lines) == 2
+
+
+def test_whether_a_menu_is_set_apart_follows_the_options_it_really_has(monkeypatch):
+    terminal = Terminal()
+    step = terminal.with_arrows()
+    monkeypatch.setattr(prompting.arrow_menu, "runs_on_its_own_screen", lambda option_count: option_count < 5)
+    monkeypatch.setattr(prompting.arrow_menu, "pick_one", lambda *a, **k: 0)
+
+    step.set_next_menu_apart()
+    step.choose([(number, str(number)) for number in range(8)])
+
+    assert len(terminal.lines) == 2

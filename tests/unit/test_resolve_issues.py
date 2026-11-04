@@ -1,6 +1,7 @@
 """The one question that offers everything the run found to sort out."""
 
 import pytest
+from fake_report import FakeReport
 from fake_terminal import Terminal
 from rich.text import Text
 
@@ -34,10 +35,18 @@ def test_only_what_turned_up_is_offered():
     resolve_issues.ask_what_to_fix([problem("untracked apps")], terminal.step)
 
     assert f"1) {BULLET}untracked apps" in terminal.text
-    assert (
-        "2) " + Text.from_markup(resolve_issues.FIX_EVERYTHING).plain in terminal.text
-    )
-    assert "3) " + Text.from_markup(resolve_issues.NOT_NOW).plain in terminal.text
+    assert "2) " + Text.from_markup(resolve_issues.NOT_NOW).plain in terminal.text
+
+
+def test_fixing_everything_is_offered_only_where_there_is_more_than_one_thing_to_fix():
+    one, several = Terminal("2"), Terminal("4")
+    fix_everything = Text.from_markup(resolve_issues.FIX_EVERYTHING).plain
+
+    resolve_issues.ask_what_to_fix([problem("apps")], one.step)
+    resolve_issues.ask_what_to_fix([problem("apps"), problem("copies")], several.step)
+
+    assert fix_everything not in one.text
+    assert "3) " + fix_everything in several.text
 
 
 def test_picking_one_opens_its_walk_through():
@@ -79,7 +88,7 @@ def test_fixing_everything_asks_nothing_further():
 
 def test_saying_no_leaves_everything_as_it_is():
     walked, fixed = [], []
-    terminal = Terminal("3")
+    terminal = Terminal("2")
 
     dealt_with = resolve_issues.ask_what_to_fix(
         [problem("apps", walked, fixed)], terminal.step
@@ -99,7 +108,7 @@ def test_ctrl_c_is_left_to_end_the_run():
 
 
 def test_the_next_menu_draws_the_line_not_this_one():
-    terminal = Terminal("3")
+    terminal = Terminal("2")
 
     resolve_issues.ask_what_to_fix([problem("apps")], terminal.step)
 
@@ -148,11 +157,11 @@ def test_a_step_that_ran_out_of_input_does_not_take_the_others_with_it():
     def out_of_input(_step):
         raise prompting.Stopped
 
-    terminal = Terminal("2")
+    terminal = Terminal("1")
 
     assert (
         resolve_issues.ask_what_to_fix(
-            [resolve_issues.Problem("apps", None, out_of_input)], terminal.step
+            [resolve_issues.Problem("apps", out_of_input, None)], terminal.step
         )
         == 0
     )
@@ -175,7 +184,7 @@ def shrinking(things):
 def test_the_count_follows_what_has_been_dealt_with():
     things = ["a", "b", "c"]
     # Open it, then open it again, then leave.
-    terminal = Terminal("1", "1", "3")
+    terminal = Terminal("1", "1", "2")
 
     resolve_issues.ask_what_to_fix([shrinking(things)], terminal.step)
 
@@ -209,10 +218,10 @@ def test_the_menu_comes_back_after_a_line_but_does_not_open_with_one():
 
 def test_the_report_is_printed_above_the_first_menu_only():
     shown = []
-    terminal = Terminal("1", "3")
+    terminal = Terminal("1", "2")
 
     resolve_issues.ask_what_to_fix(
-        [problem("apps")], terminal.step, above=lambda console: shown.append("report")
+        [problem("apps")], terminal.step, above=FakeReport(lambda console: shown.append("report"))
     )
 
     assert shown == ["report"]
@@ -222,19 +231,27 @@ def test_the_report_is_printed_even_when_there_is_nothing_to_ask():
     shown = []
 
     resolve_issues.ask_what_to_fix(
-        [], Terminal().step, above=lambda console: shown.append("report")
+        [], Terminal().step, above=FakeReport(lambda console: shown.append("report"))
     )
 
     assert shown == ["report"]
 
 
 class Updates:
-    def __init__(self, *counts):
+    def __init__(self, *counts, named=None):
         self.counts = list(counts)
         self.changed = 0
+        self.skipped_to_updating = False
+        self.what = named
 
     def count(self):
         return self.counts[0]
+
+    def what_the_only_manager_updates(self):
+        return self.what
+
+    def skip_to_updating(self):
+        self.skipped_to_updating = True
 
     def something_changed(self):
         self.changed += 1
@@ -242,21 +259,68 @@ class Updates:
 
 
 def test_the_way_out_says_how_many_updates_the_next_menu_offers_and_follows_a_fix():
-    terminal = Terminal("1", "3")
+    terminal = Terminal("1", "2")
     updates = Updates(5, 3)
 
     resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=updates)
 
     way_out = [line for line in terminal.lines if "take care of that later" in line]
-    assert "update (5)!" in way_out[0]
-    assert "update (3)!" in way_out[1]
+    assert "update (5)" in way_out[0]
+    assert "update (3)" in way_out[1]
     assert updates.changed == 1
 
 
 def test_a_step_that_dealt_with_nothing_leaves_the_count_alone():
-    terminal = Terminal("1", "3")
+    terminal = Terminal("1", "2")
     updates = Updates(5)
 
     resolve_issues.ask_what_to_fix([problem("apps", count=0)], terminal.step, updates=updates)
 
     assert updates.changed == 0
+
+
+def test_the_way_out_names_the_one_manager_with_updates():
+    terminal = Terminal("2")
+    updates = Updates(11, named="Homebrew packages")
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=updates)
+
+    way_out = [line for line in terminal.lines if "take care of that later" in line]
+    assert way_out[0].endswith("I'll take care of that later, update Homebrew packages (11)")
+    assert updates.skipped_to_updating
+
+
+def test_fixing_everything_is_not_a_choice_to_update():
+    terminal = Terminal("3")
+    updates = Updates(5, 5)
+
+    resolve_issues.ask_what_to_fix([problem("apps"), problem("copies")], terminal.step, updates=updates)
+
+    assert not updates.skipped_to_updating
+
+
+def test_with_nothing_to_update_the_way_out_is_an_exit_and_the_question_says_so():
+    terminal = Terminal("2")
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=Updates(0))
+
+    assert any(resolve_issues.QUESTION_WITHOUT_UPDATES in line for line in terminal.lines)
+    assert any(line.endswith(resolve_issues.EXIT) for line in terminal.lines)
+    assert not any("take care of that later" in line for line in terminal.lines)
+
+
+def test_the_report_stays_over_the_menu_when_it_comes_back(monkeypatch):
+    seen = []
+    step = Terminal().step
+    answers = iter([0, -1])
+
+    def choose(options, question="", note="", above=None):
+        seen.append(above)
+        return options[next(answers)][0]
+
+    monkeypatch.setattr(step, "choose", choose)
+    report = FakeReport(lambda console: None)
+
+    resolve_issues.ask_what_to_fix([problem("apps")], step, above=report, updates=None)
+
+    assert seen == [report, report]

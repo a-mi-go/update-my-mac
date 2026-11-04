@@ -92,6 +92,6 @@ def _restart_one(app, step):
     done, message = restart(app)
     # Which of the two it is, is the whole point of the line: green for an app
     # that is back on the version on disk, red for one still running the old one.
-    colour = "green" if done else "red"
-    step.print_indented(message, style=colour)
+    color = "green" if done else "red"
+    step.print_indented(message, style=color)
     return done

@@ -22,23 +22,30 @@ class MenuEntry:
     left_outdated: frozenset = frozenset()
 
 
+def outdated_reports(reports):
+    """Returns the reports of the managers that have something outdated."""
+    return [one for one in reports if one.outdated_packages]
+
+
 def build_menu(reports):
     entries = []
-    for manager_report in reports:
-        if not manager_report.outdated_packages:
-            continue
-        count = len(manager_report.outdated_packages)
-        counted_as = managers.by_key(manager_report.manager).counted_as
+    for manager_report in outdated_reports(reports):
         entries.append(
             MenuEntry(
                 PACKAGES,
-                f"{manager_report.label} ({count} {counted_as if count != 1 else counted_as[:-1]})",
+                f"{manager_report.label} ({len(manager_report.outdated_packages)} {noun_for_outdated(manager_report)})",
                 [manager_report.manager],
                 outdated=list(manager_report.outdated_packages),
             )
         )
 
     return entries
+
+
+def noun_for_outdated(manager_report):
+    """Returns the word for the report's outdated lines, singular for one: "package" or "packages"."""
+    plural = managers.by_key(manager_report.manager).counted_as
+    return plural if len(manager_report.outdated_packages) != 1 else plural[:-1]
 
 
 def parse_menu_answer(answer, entries):
@@ -87,7 +94,7 @@ def pick_what_to_update(entries):
     """Returns the entries that are ticked when Enter is pressed, or CANCEL."""
     choices = [(entry, entry.label) for entry in entries] + [
         arrow_menu.BLANK_LINE,
-        (UPDATE, "⬆ UPDATE (lets do it!)"),
+        (UPDATE, "⬆ update"),
         None,
         (CANCEL, f"{prompting.WAY_OUT}exit without updating"),
     ]
@@ -141,11 +148,39 @@ def upgrade_managers(manager_keys):
     )
 
 
+@dataclass
+class UpdateRun:
+    """Whether any manager was updated, and which ones failed."""
+
+    failed: list
+    ran: bool
+
+
+NOTHING_UPDATED = UpdateRun([], False)
+
+
+def update_the_only_manager(reports):
+    """Updates the one manager with something outdated without asking. Returns how it went."""
+    output.console.print()
+    prompting.print_separator()
+    return _run(build_menu(reports))
+
+
+def _run(chosen):
+    return UpdateRun(run_chosen(chosen), True)
+
+
+def has_only_one_manager_to_update(reports):
+    """Returns whether exactly one manager has something outdated."""
+    return len(outdated_reports(reports)) == 1
+
+
 def ask_what_to_update(reports):
+    """Asks which managers to update and updates them. Returns how it went."""
     console = output.console
     entries = build_menu(reports)
     if not entries:
-        return []
+        return NOTHING_UPDATED
 
     console.print()
     prompting.print_separator()
@@ -161,7 +196,7 @@ def ask_what_to_update(reports):
                 console.print(arrow_menu.unusable_message(failure))
                 break  # out of this loop only: the numbered menu below takes over
             prompting.answered()
-            return [] if chosen == CANCEL else run_chosen(chosen)
+            return NOTHING_UPDATED if chosen == CANCEL else _run(chosen)
 
     while True:
         print_menu(entries)
@@ -171,14 +206,14 @@ def ask_what_to_update(reports):
             # No more input. Silence is not consent to upgrade.
             console.print("\nNothing updated.")
             prompting.answered()
-            return []
+            return NOTHING_UPDATED
 
         chosen = parse_menu_answer(answer, entries)
         if chosen is None:
             console.print("[yellow]Didn't catch that.[/]")
             continue
         prompting.answered()
-        return [] if chosen == CANCEL else run_chosen(chosen)
+        return NOTHING_UPDATED if chosen == CANCEL else _run(chosen)
 
 
 def print_what_changed(entries):

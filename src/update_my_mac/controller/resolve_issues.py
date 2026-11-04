@@ -3,12 +3,15 @@
 from dataclasses import dataclass
 
 from update_my_mac.view import output
-from update_my_mac.view.prompting import Markup, Step, Stopped
+from update_my_mac.view.prompting import WAY_OUT, Markup, Step, Stopped
 
 QUESTION = "Should we sort things out before updating?"
+QUESTION_WITHOUT_UPDATES = "Nothing to update, but should we sort some things out?"
 FIX_EVERYTHING = Markup("⎷ [bold]FIX EVERYTHING[/]......... I trust you !!! [red](use at your own risk)[/]")
-NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]!")
-NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})!"
+NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]")
+NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})"
+NOT_NOW_NAMED = "↳ I'll take care of that later, [bold]update[/] {} ({})"
+EXIT = f"{WAY_OUT}Exit"
 
 
 @dataclass
@@ -35,19 +38,20 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
             problems = [one for one in problems if one.refresh is None or one.refresh(one)]
             if not problems:
                 break
-            options = [(problem, problem.label) for problem in problems]
-            options += [(FIX_EVERYTHING, FIX_EVERYTHING), (NOT_NOW, _not_now(updates))]
+            nothing_to_update = updates is not None and updates.count() == 0
+            options = _options(problems, updates, nothing_to_update)
 
             # The first time it follows the report, which is divider enough.
             if asked_before:
-                step.begin_menu()
+                step.set_next_menu_apart()
             elif above is None:
                 step.print_empty_line()
             asked_before = True
-            chosen = step.choose(options, QUESTION, above=above)
-            above = None
+            chosen = step.choose(options, QUESTION_WITHOUT_UPDATES if nothing_to_update else QUESTION, above=above)
 
             if chosen == NOT_NOW:
+                if updates is not None and not nothing_to_update:
+                    updates.skip_to_updating()
                 break
             before = dealt_with
             if chosen == FIX_EVERYTHING:
@@ -66,8 +70,21 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
     return dealt_with
 
 
+def _options(problems, updates, nothing_to_update):
+    options = [(problem, problem.label) for problem in problems]
+    if len(problems) > 1:
+        options.append((FIX_EVERYTHING, FIX_EVERYTHING))
+    options.append((NOT_NOW, EXIT if nothing_to_update else _not_now(updates)))
+    return options
+
+
 def _not_now(updates):
-    return NOT_NOW if updates is None else Markup(NOT_NOW_COUNTED.format(updates.count()))
+    if updates is None:
+        return NOT_NOW
+    what = updates.what_the_only_manager_updates()
+    if what is not None:
+        return Markup(NOT_NOW_NAMED.format(what, updates.count()))
+    return Markup(NOT_NOW_COUNTED.format(updates.count()))
 
 
 def _print(above):

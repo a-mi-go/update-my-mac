@@ -7,7 +7,6 @@ from rich.text import Text
 
 from update_my_mac import managers
 from update_my_mac.checks import (
-    Findings,
     app_decisions,
     appcast,
     duplicate_installations,
@@ -15,6 +14,7 @@ from update_my_mac.checks import (
     running_apps,
     to_sort_out,
 )
+from update_my_mac.checks.findings import Findings
 from update_my_mac.controller import (
     apply_updates,
     homebrew_fixes,
@@ -66,16 +66,22 @@ def _run_interactive():
     updates = _Updates(findings.reports)
     resolved = resolve_issues.ask_what_to_fix(
         _issues(findings, decisions),
-        above=lambda console: report.print_to(console, findings),
+        above=report.Report(findings),
         updates=updates,
     )
 
     reports = updates.reports()
     if resolved:
+        output.console.print()
         report.print_outdated_summary(reports)
 
-    failed = result.failed + apply_updates.ask_what_to_update(reports)
-    _offer_to_restart_what_the_updates_replaced(findings.stale)
+    if updates.is_skipping_to_updating() and apply_updates.has_only_one_manager_to_update(reports):
+        update_run = apply_updates.update_the_only_manager(reports)
+    else:
+        update_run = apply_updates.ask_what_to_update(reports)
+    if resolved or update_run.ran:
+        _offer_to_restart_what_the_updates_replaced(findings.stale)
+    failed = result.failed + update_run.failed
     return 1 if failed else _exit_code(reports, findings.managers_behind)
 
 
@@ -89,8 +95,10 @@ def run_updates_only_mode():
     with report.waiting_spinner("asking what is outdated"):
         reports = managers.check_what_is_outdated()
 
-    failed = result.failed + apply_updates.ask_what_to_update(reports)
-    _offer_to_restart_what_the_updates_replaced()
+    update_run = apply_updates.ask_what_to_update(reports)
+    if update_run.ran:
+        _offer_to_restart_what_the_updates_replaced()
+    failed = result.failed + update_run.failed
     return 1 if failed else _exit_code(
         reports, managers.still_behind(managers_behind, result.updated)
     )
@@ -198,6 +206,7 @@ class _Updates:
     def __init__(self, reports):
         self._reports = reports
         self._out_of_date = False
+        self._skipping_to_updating = False
 
     def something_changed(self):
         self._out_of_date = True
@@ -211,6 +220,19 @@ class _Updates:
 
     def count(self):
         return report.count_outdated_packages(self.reports())
+
+    def skip_to_updating(self):
+        self._skipping_to_updating = True
+
+    def is_skipping_to_updating(self):
+        return self._skipping_to_updating
+
+    def what_the_only_manager_updates(self):
+        """Returns what to update, as in "Homebrew packages", when only one manager has any, or None otherwise."""
+        outdated = apply_updates.outdated_reports(self.reports())
+        if len(outdated) != 1:
+            return None
+        return f"{outdated[0].label} {apply_updates.noun_for_outdated(outdated[0])}"
 
 
 def _issues(findings, decisions):

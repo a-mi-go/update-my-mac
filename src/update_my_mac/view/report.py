@@ -17,7 +17,9 @@ from rich.text import Text
 
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
+from update_my_mac.checks.findings import Findings
 from update_my_mac.view import output, prompting, sections
+from update_my_mac.view.sections import CRITICAL, INFO, WARNING
 
 # The spinner every wait is shown with.
 SPINNER = "dots"
@@ -26,6 +28,46 @@ SPINNER = "dots"
 PRINT_MAX_LIST_ITEMS = 5
 PRINT_GRID_COLUMNS = 3
 GRID_GAP = 3
+# Wider than this the lines only get longer to read, not more informative.
+REPORT_MAX_WIDTH = 100
+PANEL_BORDER, PANEL_PADDING = 1, 2
+PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
+# The corner and a dash on each side of a title in the frame's top or bottom line.
+TITLE_EDGES = 4
+# The fewest dashes between the two names in the top line, and either side of them.
+MIN_DASHES = 3
+# Between the time in the top line and the corner.
+CORNER_DASHES = "──"
+ROW_INDENT = "   "
+CELL_GAP = 3
+# Two columns of updates sit closer, and keep the room between them on top of that.
+PAIR_GAP = 2
+COLUMN_GAP = 3
+DOTTED_WIDTH = 50
+
+# An icon as well as a color, so the level survives a pipe and a log file.
+SECTION_ICON = {
+    CRITICAL: "🚨",
+    WARNING: "🟡",
+    INFO: "🔵",
+}
+UP_TO_DATE_ICON = "✅"
+SECTION_COLOR = {
+    CRITICAL: "red",
+    WARNING: "yellow",
+    INFO: "green",
+}
+
+
+@dataclass
+class Report:
+    """The findings of one run, as a report printed before the first options menu."""
+
+    findings: Findings
+    printed: bool = False
+
+    def print_to(self, console):
+        print_to(console, self.findings)
 
 
 @dataclass
@@ -105,29 +147,6 @@ def _items_per_line(indent, cells):
         if needed <= output.console.width:
             return per_line
     return 1
-
-
-# A mark as well as a colour, so the level survives a pipe and a log file.
-# No variation selector after ⚠: rich counts that as two cells, the terminal as one.
-MARK = {sections.CRITICAL: "🚨", sections.WARNING: "⚠ ", sections.INFO: "✅"}
-CLEAN = "✅"
-COLOUR = {sections.CRITICAL: "red", sections.WARNING: "yellow", sections.INFO: "green"}
-
-# Wider than this the lines only get longer to read, not more informative.
-REPORT_MAX_WIDTH = 100
-PANEL_BORDER, PANEL_PADDING = 1, 2
-PANEL_SIDES = 2 * (PANEL_BORDER + PANEL_PADDING)
-# The corner and a dash on each side of a title in the frame's top or bottom line.
-TITLE_EDGES = 4
-# The fewest dashes between the two names in the top line, and either side of them.
-MIN_DASHES = 3
-# Between the time in the top line and the corner.
-CORNER_DASHES = "──"
-ROW_INDENT = "   "
-CELL_GAP = 3
-# Two columns of updates sit closer, and keep the room between them on top of that.
-PAIR_GAP = 2
-COLUMN_GAP = 3
 
 
 def print_report(findings):
@@ -268,8 +287,8 @@ def print_outdated_summary(reports):
 def _heading(section, width):
     """Returns the section title, its count and its note, on one line."""
     heading = Text.assemble(
-        (f"{MARK[section.level]} ", COLOUR[section.level]),
-        (f"{section.title} ", f"bold {COLOUR[section.level]}"),
+        (f"{SECTION_ICON[section.level]} ", SECTION_COLOR[section.level]),
+        (f"{section.title} ", f"bold {SECTION_COLOR[section.level]}"),
         (section.counted(), "cyan"),
     )
     room = width - heading.cell_len - len(section.note)
@@ -335,7 +354,7 @@ def _footer(findings, found, framed):
     clean = sections.clean_managers(findings)
     if clean:
         lines.append(Text.assemble(
-            (f"{CLEAN} ", ""), (f"{', '.join(clean)} : everything up to date", "green"),
+            (f"{UP_TO_DATE_ICON} ", ""), (f"{', '.join(clean)} : everything up to date", "green"),
         ))
     if findings.left_alone:
         lines.append(Text(
@@ -369,11 +388,8 @@ def _print_what_was_left_out(report):
     )
 
 
-DOTTED_WIDTH = 50
-
-
 def dotted_line(label, result, succeeded=True):
     """Returns "label ..... result", the result in green or yellow."""
     dots = "." * max(3, DOTTED_WIDTH - len(label) - len(result) - 2)
-    colour = "green" if succeeded else "yellow"
-    return Text.assemble(label, " ", (dots, "dim"), " ", (result, colour))
+    color = "green" if succeeded else "yellow"
+    return Text.assemble(label, " ", (dots, "dim"), " ", (result, color))

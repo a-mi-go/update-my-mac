@@ -35,11 +35,21 @@ class Markup(str):
     """A menu label that carries rich markup, drawn styled instead of escaped."""
 
 
+def note_after_warning(warning, note):
+    """Returns the note with the warning as its first line, or the note alone without a warning."""
+    return arrow_menu.WarningNote(warning, note) if warning else note
+
+
+def _note_color(row, warning_rows):
+    """Returns yellow for a row of the warning a note starts with, grey for the rest."""
+    return "yellow" if row < warning_rows else arrow_menu.NOTE_COLOR
+
+
 def label_with_note(label, note):
     """Returns the menu label with the note after it in grey, or just the label without a note."""
     if not note:
         return label
-    return Markup(f"{escape(label)} [{arrow_menu.NOTE_COLOUR}]({escape(note)})[/]")
+    return Markup(f"{escape(label)} [{arrow_menu.NOTE_COLOR}]({escape(note)})[/]")
 
 
 class Step:
@@ -48,6 +58,7 @@ class Step:
     def __init__(self, depth=0):
         self.depth = depth
         self.margin = STEP * depth
+        self._next_menu_is_apart = False
 
     def inside(self):
         return Step(self.depth + 1)
@@ -74,6 +85,7 @@ class Step:
         if not options:
             # Asking would loop forever, because no answer could be right.
             raise ValueError("a menu has to offer something")
+        self._set_apart_if_asked(options)
         while True:
             try:
                 chosen = self._ask_by_arrows_or_typed_number(options, question, note, above)
@@ -104,7 +116,7 @@ class Step:
     def _remember_answer(self, question, shown):
         # The menu drew this line itself, which is not on any console to be kept.
         output.remember(lambda console: console.print(Text.assemble(
-            (arrow_menu.QMARK, "cyan"), " ", (f"{question} ", "bold"), (shown, arrow_menu.ANSWER_COLOUR),
+            (arrow_menu.QMARK, "cyan"), " ", (f"{question} ", "bold"), (shown, arrow_menu.ANSWER_COLOR),
         )))
 
     def _yes_or_no_by_arrows_or_typed_number(self, question, default):
@@ -129,23 +141,26 @@ class Step:
         return self._ask_by_typed_number(options, question, note)
 
     def _can_show_below(self, options):
-        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(len(options))
+        return arrow_menu.can_be_drawn() and arrow_menu.can_fill_the_screen(_row_count_for(options))
 
     def _print_above(self, above):
+        if above.printed:
+            return
         output.print_above(above)
         self.print_empty_line()
 
     def _ask_by_typed_number(self, options, question, note):
         # An empty question still takes its line, as it does with the arrow keys.
         first, *rest = note.splitlines() or [""]
+        warning_rows = len(note.warning.splitlines()) if isinstance(note, arrow_menu.WarningNote) else 0
         if first:
-            self.print_indented((question, "bold"), "  ", (first, arrow_menu.NOTE_COLOUR))
+            self.print_indented((question, "bold"), "  ", (first, _note_color(0, warning_rows)))
         elif question:
             self.print_indented(question, style="bold")
         else:
             self.print_empty_line()
-        for line in rest:
-            self.inside().print_indented(line, style=arrow_menu.NOTE_COLOUR)
+        for row, line in enumerate(rest, start=1):
+            self.inside().print_indented(line, style=_note_color(row, warning_rows))
         if question or note:
             self.print_empty_line()
         self._print_numbered(options)
@@ -163,35 +178,21 @@ class Step:
             for key, label in options
         ]
         # A line the cursor skips sets the way out apart.
-        way_out = next(
-            (at for at, (_, label) in enumerate(options)
-             if _plain(label).startswith(WAYS_OUT)),
-            None,
-        )
+        way_out = _index_of_way_out(options)
         if way_out is not None:
             entries.insert(way_out, None)
 
         if above is None:
             picked = arrow_menu.pick_one(question, entries, note)
         else:
-            picked = arrow_menu.pick_one_below(above, question, entries, note)
+            picked = arrow_menu.pick_one_below(above.print_to, question, entries, note)
         if picked is None:
             # questionary gives None when the menu was aborted.
             raise Stopped
         if above is not None:
-            # The screen the menu was on is gone, with the report and the answer.
+            # The screen the menu was on is gone, with the report.
             self._print_above(above)
-            self._print_answer(question, options, picked)
-            self.print_empty_line()
         return picked
-
-    def _print_answer(self, question, options, picked):
-        label = next(label for key, label in options if key == picked)
-        self.print_indented(
-            (arrow_menu.QMARK, "cyan"), " ",
-            (f"{question} " if question else "", "bold"),
-            (_plain(_bulleted(label)), arrow_menu.ANSWER_COLOUR),
-        )
 
     def _print_numbered(self, options):
         listed_items = self.inside()
@@ -203,10 +204,17 @@ class Step:
     def print_separator(self):
         print_separator()
 
-    def begin_menu(self):
-        """Sets the next menu apart from the answer above it."""
-        self.print_empty_line()
-        self.print_separator()
+    def set_next_menu_apart(self):
+        """Has the next menu set apart from what is above it, unless it comes up on a screen that leaves nothing behind."""
+        self._next_menu_is_apart = True
+
+    def _set_apart_if_asked(self, options):
+        if not self._next_menu_is_apart:
+            return
+        self._next_menu_is_apart = False
+        if not arrow_menu.runs_on_its_own_screen(_row_count_for(options)):
+            self.print_empty_line()
+            self.print_separator()
 
 
 def print_unwrapped(renderable, **options):
@@ -219,7 +227,7 @@ def print_unwrapped(renderable, **options):
 def print_separator():
     """Draws the line that sets a new menu apart from what came before."""
     print_unwrapped(
-        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOUR), width=SEPARATOR_WIDTH
+        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR), width=SEPARATOR_WIDTH
     )
 
 
@@ -247,6 +255,23 @@ def warning_before_stopping():
 
 def read_answer(prompt):
     return input(prompt)
+
+
+def _row_count_for(options):
+    """Returns how many terminal rows the options take, as the arrow menu would draw them."""
+    texts = [_plain(_bulleted(label)) for _, label in options]
+    way_out = _index_of_way_out(options)
+    if way_out is not None:
+        texts.insert(way_out, "")
+    return arrow_menu.rows_of_options(texts)
+
+
+def _index_of_way_out(options):
+    """Returns where the first way out stands among the options, or None without one."""
+    return next(
+        (at for at, (_, label) in enumerate(options) if _plain(label).startswith(WAYS_OUT)),
+        None,
+    )
 
 
 def _bulleted(label):

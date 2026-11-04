@@ -50,6 +50,28 @@ def run(shell, *replies, reports=REPORTS):
     return apply_updates.ask_what_to_update(reports)
 
 
+def test_the_one_manager_already_chosen_is_updated_without_asking():
+    shell = RecordingShell()
+    answer_with(raising(AssertionError("asked")))
+    use_shell(shell)
+
+    reports = [ManagerReport("brew", "Homebrew", ["git  1 → 2"])]
+    assert apply_updates.has_only_one_manager_to_update(reports)
+    assert apply_updates.update_the_only_manager(reports).failed == []
+    assert len(shell.streamed) == 1
+
+
+def test_several_managers_to_update_are_not_the_one_already_chosen():
+    shell = RecordingShell()
+    answer_with(answers("3"))
+    use_shell(shell)
+
+    assert not apply_updates.has_only_one_manager_to_update(REPORTS)
+    apply_updates.ask_what_to_update(REPORTS)
+
+    assert [args[0].rsplit("/", 1)[-1] for args in shell.streamed] == ["npm"]
+
+
 def test_only_managers_with_something_outdated_get_an_entry():
     entries = apply_updates.build_menu(REPORTS)
 
@@ -121,14 +143,14 @@ def test_nonsense_is_not_understood():
 def test_cancelling_updates_nothing():
     shell = RecordingShell()
 
-    assert run(shell, "4") == []
+    assert run(shell, "4") == apply_updates.NOTHING_UPDATED
     assert shell.streamed == []
 
 
 def test_everything_upgrades_each_manager_with_work():
     shell = RecordingShell()
 
-    assert run(shell, "1") == []
+    assert run(shell, "1") == apply_updates.UpdateRun([], True)
     assert shell.streamed == [["/fake/brew", "upgrade"], ["/fake/npm", "update", "-g"]]
 
 
@@ -157,7 +179,7 @@ def test_nothing_to_do_means_no_prompt():
     failed = update_menu(
         [ManagerReport("brew", "Homebrew", [])], shell, record
     )
-    assert failed == []
+    assert failed == apply_updates.NOTHING_UPDATED
     assert asked == []
 
 
@@ -166,7 +188,7 @@ def test_no_terminal_cancels_instead_of_crashing():
     shell = RecordingShell()
     failed = update_menu(REPORTS, shell, raising(EOFError()))
 
-    assert failed == []
+    assert failed == apply_updates.NOTHING_UPDATED
     assert shell.streamed == []
 
 
@@ -185,7 +207,7 @@ def test_ctrl_c_at_the_menu_ends_the_run():
 def test_a_failed_upgrade_is_reported_back():
     shell = RecordingShell(exit_code=3)
 
-    assert run(shell, "1") == ["brew", "npm"]
+    assert run(shell, "1").failed == ["brew", "npm"]
 
 
 def test_ctrl_c_during_an_upgrade_ends_the_run():
@@ -203,8 +225,8 @@ def test_ctrl_c_during_an_upgrade_ends_the_run():
     assert shell.streamed == [["/fake/brew", "upgrade"]]
 
 
-def test_only_the_menu_numbers_are_coloured():
-    # Left to rich's highlighter, the brackets in "npm (global)" got coloured too.
+def test_only_the_menu_numbers_are_colored():
+    # Left to rich's highlighter, the brackets in "npm (global)" got colored too.
     menu = printed_by(
         lambda: apply_updates.print_menu(apply_updates.build_menu(REPORTS)),
         Console(force_terminal=True, color_system="standard", width=200),
@@ -299,7 +321,7 @@ def test_a_manager_that_cannot_be_asked_again_counts_as_a_failure():
         REPORTS, SilentShell(), answers("2")
     )
 
-    assert failed == ["brew"]
+    assert failed.failed == ["brew"]
 
 
 def test_nothing_is_claimed_after_an_interrupted_run():
@@ -359,7 +381,7 @@ def test_the_multi_select_lists_the_entries_then_update_and_exit_apart():
     assert question == "What should be updated?"
     assert [choice[1] for choice in choices[:2]] == ["Homebrew (1 package)", "Mac App Store (1 app)"]
     assert choices[2] is apply_updates.arrow_menu.BLANK_LINE
-    assert choices[3][1] == "⬆ UPDATE (lets do it!)"
+    assert choices[3][1] == "⬆ update"
     assert choices[4] is None
     assert choices[5][1] == f"{apply_updates.prompting.WAY_OUT}exit without updating"
 

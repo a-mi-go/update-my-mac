@@ -3,6 +3,7 @@
 import io
 
 import pytest
+from fake_report import FakeReport
 from rich.console import Console
 
 from update_my_mac.view import output
@@ -183,7 +184,7 @@ def test_print_above_leaves_the_screen_then_prints_what_ran_on_it_and_then_the_r
 
     with output.full_screen():
         output.console.print("earlier output")
-        output.print_above(lambda console: console.print("the report"))
+        output.print_above(FakeReport(lambda console: console.print("the report")))
 
     text = written.getvalue()
     assert text.index("\x1b[?1049l") < text.rindex("earlier output") < text.rindex("the report")
@@ -192,8 +193,7 @@ def test_print_above_leaves_the_screen_then_prints_what_ran_on_it_and_then_the_r
 def test_the_same_report_is_printed_above_only_once():
     written = recording_console()
 
-    def report(console):
-        console.print("the report")
+    report = FakeReport(lambda console: console.print("the report"))
 
     with output.full_screen():
         output.console.print("earlier output")
@@ -201,6 +201,7 @@ def test_the_same_report_is_printed_above_only_once():
         output.print_above(report)
 
     text = written.getvalue()
+    assert report.printed
     assert text.count("the report") == 1
     assert text.count("earlier output") == 2
 
@@ -224,3 +225,14 @@ def test_a_pipe_gets_no_codes_for_the_mouse_either():
 
     assert output.MOUSE_REPORTING_OFF not in written.getvalue()
 
+
+def test_printing_the_screen_again_does_not_keep_it_a_second_time(monkeypatch):
+    kept = []
+    monkeypatch.setattr(output, "_remembering", True)
+    monkeypatch.setattr(output, "_remembered", kept)
+    kept.append(lambda console: output.remember(lambda c: None))
+
+    output.clear_and_replay()
+
+    assert len(kept) == 1
+    assert output._remembering
