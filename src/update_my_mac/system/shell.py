@@ -290,7 +290,10 @@ def _make_stdin_the_controlling_terminal():
 
 
 def _switch_to_unbuffered_keys():
-    """Switches the keyboard to key-by-key without echo. Returns the settings from before, or None when the keyboard is not this run's."""
+    """Makes each key reach this run at once instead of a line at a time, and stops the terminal from showing it.
+
+    Returns the settings from before, or None without a terminal or in the background.
+    """
     import termios
     import tty
 
