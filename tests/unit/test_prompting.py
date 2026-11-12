@@ -9,7 +9,8 @@ from fake_report import FakeReport
 from fake_run import printing_to
 from fake_terminal import Terminal
 
-from update_my_mac.view import output, prompting
+from update_my_mac.system import shell
+from update_my_mac.view import arrow_menu, output, prompting
 from update_my_mac.view.prompting import BULLET, STEP, WAY_OUT, Markup, Stopped
 
 
@@ -470,3 +471,28 @@ def test_a_separator_after_something_else_is_drawn_again():
     )
 
     assert drawn == 2
+
+
+def test_a_separator_after_a_menu_is_drawn_again():
+    class AnsweredPrompt:
+        def unsafe_ask(self):
+            return "picked"
+
+    drawn = separators_drawn(prompting.print_separator, lambda: arrow_menu._run(AnsweredPrompt()), prompting.print_separator)
+
+    assert drawn == 2
+
+
+def test_a_separator_after_what_a_command_wrote_is_drawn_again():
+    drawn = separators_drawn(
+        prompting.print_separator, lambda: shell._command_output_listener(b"done\n"), prompting.print_separator
+    )
+
+    assert drawn == 2
+
+
+def test_a_separator_after_an_empty_line_is_drawn_again():
+    drawn = separators_drawn(prompting.print_separator, lambda: output.console.print(), prompting.print_separator)
+
+    assert drawn == 2
+

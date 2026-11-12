@@ -481,6 +481,7 @@ def _answer_to(prompt, warn_in_menu=False, blank_line=False):
 
 
 def _run(prompt):
+    output.forget_the_last_printed()
     # A Ctrl-C is a BaseException, so it passes this by and ends the run.
     try:
         return prompt.unsafe_ask()

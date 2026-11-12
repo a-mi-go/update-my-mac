@@ -240,11 +240,12 @@ def test_what_a_streamed_command_writes_reaches_a_listener_and_so_does_its_end(c
             pass
 
     heard = []
+    listening_before = shell._command_output_listener
     shell.listen_to_command_output(heard.append)
     try:
         shell._run_in_pty_with_status(["echo", "hello"], os.environ, Status())
     finally:
-        shell.listen_to_command_output(None)
+        shell.listen_to_command_output(listening_before)
 
     assert b"hello" in b"".join(piece for piece in heard if piece is not None)
     assert heard[-1] is None

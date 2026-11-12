@@ -23,8 +23,7 @@ class RecordingConsole(Console):
         super().print(*objects, **options)
         # The spinner moves itself with control codes and a line break it takes back, which are not output.
         if not any(isinstance(each, (Control, NewLine)) for each in objects):
-            if objects:
-                self.last_printed = objects[-1]
+            self.last_printed = objects[-1] if objects else None
             remember(lambda console: console.print(*objects, **options))
 
 
@@ -51,6 +50,15 @@ def remember(print_again):
 def replay(console):
     for print_again in _remembered:
         print_again(console)
+
+
+def heard_command_output(data):
+    """Notes that a command wrote past the console, and keeps what it wrote on the screen of its own."""
+    forget_the_last_printed()
+    remember_command_output(data)
+
+
+shell.listen_to_command_output(heard_command_output)
 
 
 def remember_command_output(data):
@@ -80,6 +88,11 @@ def clear_and_replay():
         replay(console)
     finally:
         _remembering = kept
+
+
+def forget_the_last_printed():
+    """Marks that something reached the screen past the console."""
+    console.last_printed = None
 
 
 def last_printed_is(renderable):
@@ -114,7 +127,6 @@ def full_screen():
         _in_full_screen = True
         _remembered.clear()
         _remembering = True
-        shell.listen_to_command_output(remember_command_output)
     try:
         yield
     finally:
@@ -130,7 +142,6 @@ def leave_full_screen():
         console.set_alt_screen(False)
         _in_full_screen = False
         _remembering = False
-        shell.listen_to_command_output(None)
 
 
 def print_plain(*pieces, style=None):
