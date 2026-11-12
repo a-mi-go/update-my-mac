@@ -52,13 +52,13 @@ def replay(console):
         print_again(console)
 
 
-def heard_command_output(data):
+def on_command_output(data):
     """Notes that a command wrote past the console, and keeps what it wrote on the screen of its own."""
     forget_the_last_printed()
     remember_command_output(data)
 
 
-shell.listen_to_command_output(heard_command_output)
+shell.listen_to_command_output(on_command_output)
 
 
 def remember_command_output(data):
