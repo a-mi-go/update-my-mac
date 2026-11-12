@@ -196,8 +196,12 @@ def test_keys_typed_while_ignored_are_not_echoed_and_stay_for_the_next_read(monk
         time.sleep(0.1)
         assert not select.select([keys], [], [], 0)[0]
     os.write(keys, b"\n")
+    received = b""
+    # Linux hands over the keys typed before the switch back at once, macOS with the line.
+    while not received.endswith(b"\n"):
+        received += os.read(keyboard, 100)
 
-    assert os.read(keyboard, 100) == b"\x1b[A\n"
+    assert received == b"\x1b[A\n"
     assert termios.tcgetattr(keyboard)[3] & termios.ECHO
     os.close(keys)
     os.close(keyboard)
