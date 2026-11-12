@@ -159,6 +159,27 @@ def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
     os.close(keyboard)
 
 
+def test_keys_typed_while_ignored_are_not_echoed_and_do_not_reach_the_next_read(monkeypatch):
+    import pty
+    import select
+    import termios
+    import time
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+
+    with shell.keys_ignored():
+        os.write(keys, b"\x1b[A")
+        time.sleep(0.1)
+        assert not select.select([keys], [], [], 0)[0]
+    os.write(keys, b"y\n")
+
+    assert os.read(keyboard, 100) == b"y\n"
+    assert termios.tcgetattr(keyboard)[3] & termios.ECHO
+    os.close(keys)
+    os.close(keyboard)
+
+
 def test_something_the_command_left_running_does_not_hold_the_run_up():
     import time
 

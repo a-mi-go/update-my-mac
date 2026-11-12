@@ -1,6 +1,7 @@
 """Turning check results into something readable."""
 
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass
 from itertools import zip_longest
 
@@ -18,6 +19,7 @@ from rich.text import Text
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
 from update_my_mac.checks.findings import Findings
+from update_my_mac.system import shell
 from update_my_mac.view import output, prompting, sections
 from update_my_mac.view.sections import CRITICAL, INFO, WARNING
 
@@ -82,18 +84,20 @@ class Item:
 
 
 class _WaitingSpinner(Status):
-    """A spinner that warns on the first Ctrl-C instead of stopping the run."""
+    """A spinner that warns on the first Ctrl-C instead of stopping the run, and ignores other keys."""
 
     def __enter__(self):
-        self._warning = prompting.warning_before_stopping()
-        self._warning.__enter__()
+        self._waiting = ExitStack()
+        self._waiting.enter_context(prompting.warning_before_stopping())
+        # Scrolling sends arrow keys, which would echo as ^[[A and move the next menu.
+        self._waiting.enter_context(shell.keys_ignored())
         return super().__enter__()
 
     def __exit__(self, *exception):
         try:
             super().__exit__(*exception)
         finally:
-            self._warning.__exit__(None, None, None)
+            self._waiting.close()
 
 
 def waiting_spinner(what=""):

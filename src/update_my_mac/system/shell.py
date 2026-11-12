@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 
@@ -299,6 +300,19 @@ def _switch_to_unbuffered_keys():
     # Ctrl-C still reaches this run rather than being passed on.
     tty.setcbreak(KEYBOARD, termios.TCSANOW)
     return settings_before
+
+
+@contextmanager
+def keys_ignored():
+    """Hides what is typed while the block runs, and throws it away afterwards."""
+    import termios
+
+    settings_before = _switch_to_unbuffered_keys()
+    try:
+        yield
+    finally:
+        if settings_before:
+            termios.tcsetattr(KEYBOARD, termios.TCSAFLUSH, settings_before)
 
 
 def _copy_window_size(source, target):
