@@ -156,8 +156,8 @@ def test_a_command_that_worked_says_what_it_did_to_what():
     swap(resolve_by_command, "run_command", Runner())
     resolve_by_command.ask_what_to_do(FIXES, terminal.step)
 
-    assert "clerk  64 → 3.4.1: reinstalled" in terminal.text
-    assert "google-trends: uninstalled" in terminal.text
+    assert "clerk  64 → 3.4.1 - reinstalled" in terminal.text
+    assert "google-trends - uninstalled" in terminal.text
 
 
 def test_a_command_that_failed_is_not_confirmed():
@@ -209,5 +209,5 @@ def test_opening_an_app_says_so_but_leaves_it_waiting():
     done = resolve_by_command.ask_what_to_do([fix], terminal.step)
 
     assert done == []
-    assert "Foo 1.0 → 2.0: opened" in terminal.text
+    assert "Foo 1.0 → 2.0 - opened" in terminal.text
     assert "open Foo and update it manually" in terminal.text
