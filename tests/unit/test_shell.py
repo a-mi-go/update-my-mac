@@ -150,6 +150,7 @@ def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
 
     keys, keyboard = pty.openpty()
     monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
     os.write(keys, b"secret\n")
 
     shell._run_in_pty_with_status(["sh", "-c", "read answer; printf \"got $answer\""], None, Status())
@@ -195,6 +196,21 @@ def test_a_run_in_the_background_leaves_the_keyboard_as_it_is(monkeypatch):
     os.write(keys, b"typed ahead\n")
 
     assert os.read(keyboard, 100) == b"typed ahead\n"
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_a_run_in_the_background_does_not_switch_the_keyboard_for_a_command(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: False)
+    settings_before = termios.tcgetattr(keyboard)
+
+    assert shell._switch_to_unbuffered_keys() is None
+    assert termios.tcgetattr(keyboard) == settings_before
     os.close(keys)
     os.close(keyboard)
 

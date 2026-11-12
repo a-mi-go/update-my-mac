@@ -290,11 +290,11 @@ def _make_stdin_the_controlling_terminal():
 
 
 def _switch_to_unbuffered_keys():
-    """Switches the keyboard to key-by-key without echo. Returns the settings from before, or None without a terminal."""
+    """Switches the keyboard to key-by-key without echo. Returns the settings from before, or None when the keyboard is not this run's."""
     import termios
     import tty
 
-    if not os.isatty(KEYBOARD):
+    if not os.isatty(KEYBOARD) or not _has_the_keyboard():
         return None
     settings_before = termios.tcgetattr(KEYBOARD)
     # Ctrl-C still reaches this run rather than being passed on.
@@ -312,10 +312,10 @@ def _has_the_keyboard():
 
 @contextmanager
 def keys_ignored():
-    """Hides what is typed while the block runs, and throws it away afterwards, when the keyboard is this run's."""
+    """Hides what is typed while the block runs, and throws it away afterwards."""
     import termios
 
-    settings_before = _switch_to_unbuffered_keys() if _has_the_keyboard() else None
+    settings_before = _switch_to_unbuffered_keys()
     try:
         yield
     finally:
