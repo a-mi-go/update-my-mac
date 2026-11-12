@@ -51,6 +51,7 @@ def adopt_all(found, step):
     for app, cask in found:
         if not adopting.can_join_the_bulk_takeover(app, cask):
             continue
+        per_item.print_indented(app.display_name, style="bold")
         if _take_over_with_homebrew(app, cask, per_item):
             adopted.append(app)
     return adopted

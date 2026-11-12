@@ -339,6 +339,24 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
     assert len(dealt_with) == 1
 
 
+def test_all_of_them_at_once_names_each_app_before_homebrew_writes_about_it(tmp_path):
+    terminal = Terminal(ADOPT_ALL)
+
+    def adopt(app):
+        terminal.lines.append(f"brew output for {app.file_stem}")
+        return True, "done"
+
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopt: adopt(app))
+    track_apps.ask_what_to_do(
+        [app("BetterDisplay"), app("Mounty")], decisions_in(tmp_path), terminal.step,
+        find_cask=cask_for({"BetterDisplay": cask(), "Mounty": cask()}),
+    )
+
+    lines = [line.strip() for line in terminal.lines]
+    assert lines.index("BetterDisplay") < lines.index("brew output for BetterDisplay")
+    assert lines.index("Mounty") < lines.index("brew output for Mounty")
+
+
 def test_the_menu_counts_how_many_homebrew_could_take(tmp_path):
     terminal = Terminal("3")
 
