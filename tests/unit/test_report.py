@@ -1,8 +1,13 @@
+import io
+import signal
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
-from fake_run import printed_by
+import pytest
+from fake_run import printed_by, printing_to, raising, swap
 from rich.console import Console
+from rich.status import Status
 from rich.text import Text
 
 from update_my_mac import __version__
@@ -11,6 +16,7 @@ from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.findings import Findings
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers import ManagerReport
+from update_my_mac.system import shell
 from update_my_mac.view import report, sections
 
 
@@ -341,7 +347,7 @@ def test_the_top_line_names_the_app_and_the_report():
     top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
 
     assert top.startswith(f"╭── update-my-mac {__version__} ─")
-    assert " STATUS REPORT ─" in top
+    assert " CHECK REPORT ─" in top
     assert top.endswith("╮")
 
 
@@ -352,7 +358,7 @@ def test_the_name_of_the_report_is_in_the_middle_of_the_top_line():
     for width in (101, 121):
         top = Text.from_ansi(report_of(findings, width=width, terminal=True).splitlines()[1]).plain
         frame = len(top)
-        name = " STATUS REPORT "
+        name = " CHECK REPORT "
         assert top.index(name) == (frame - len(name)) // 2
 
 
@@ -361,7 +367,7 @@ def test_a_window_too_narrow_for_both_names_keeps_only_the_app_name():
 
     lines = report_of(findings, width=40, terminal=True).splitlines()
 
-    assert "STATUS REPORT" not in lines[1]
+    assert "CHECK REPORT" not in lines[1]
     assert all(Text.from_ansi(line).cell_len <= 40 for line in lines)
 
 
@@ -383,7 +389,7 @@ def test_the_top_line_says_when_the_report_was_made(monkeypatch):
 
     top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
 
-    assert top.index(" STATUS REPORT ") < top.index(" 2026-10-17 14:32 ")
+    assert top.index(" CHECK REPORT ") < top.index(" 2026-10-17 14:32 ")
     # Two dashes between the time and the corner.
     assert top.endswith(" 2026-10-17 14:32 ──╮")
 
@@ -393,7 +399,7 @@ def test_a_window_with_no_room_for_the_time_leaves_it_off():
 
     top = Text.from_ansi(report_of(findings, width=50, terminal=True).splitlines()[1]).plain
 
-    assert " STATUS REPORT " in top
+    assert " CHECK REPORT " in top
     assert ":" not in top
 
 
@@ -454,3 +460,36 @@ def test_one_wide_entry_takes_room_only_in_its_own_column():
 
     rows = [Text.from_ansi(line).plain for line in printed.splitlines() if "→" in line]
     assert len(rows) == 2
+
+
+def keys_ignored_while_waiting(console):
+    ignored = []
+
+    @contextmanager
+    def ignoring():
+        ignored.append(True)
+        yield
+
+    swap(shell, "keys_ignored", ignoring)
+    with printing_to(console), report.waiting_spinner("waiting"):
+        pass
+    return bool(ignored)
+
+
+def test_a_spinner_on_a_terminal_ignores_the_keys():
+    assert keys_ignored_while_waiting(Console(file=io.StringIO(), force_terminal=True))
+
+
+def test_a_spinner_piped_into_a_pager_leaves_the_keys_to_it():
+    assert not keys_ignored_while_waiting(Console(file=io.StringIO(), force_terminal=False))
+
+
+def test_a_spinner_that_cannot_start_gives_ctrl_c_back():
+    before = signal.getsignal(signal.SIGINT)
+    swap(Status, "__enter__", raising(RuntimeError))
+
+    with pytest.raises(RuntimeError), report.waiting_spinner("waiting"):
+        pass
+
+    assert signal.getsignal(signal.SIGINT) is before
+

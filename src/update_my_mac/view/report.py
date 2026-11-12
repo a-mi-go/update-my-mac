@@ -1,6 +1,7 @@
 """Turning check results into something readable."""
 
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass
 from itertools import zip_longest
 
@@ -18,6 +19,7 @@ from rich.text import Text
 from update_my_mac import __version__ as _version
 from update_my_mac.checks import versions
 from update_my_mac.checks.findings import Findings
+from update_my_mac.system import shell
 from update_my_mac.view import output, prompting, sections
 from update_my_mac.view.sections import CRITICAL, INFO, WARNING
 
@@ -82,18 +84,24 @@ class Item:
 
 
 class _WaitingSpinner(Status):
-    """A spinner that warns on the first Ctrl-C instead of stopping the run."""
+    """A spinner that warns on the first Ctrl-C instead of stopping the run, and ignores other keys."""
 
     def __enter__(self):
-        self._warning = prompting.warning_before_stopping()
-        self._warning.__enter__()
-        return super().__enter__()
+        with ExitStack() as waiting:
+            waiting.enter_context(prompting.warning_before_stopping())
+            # Scrolling sends arrow keys, which would echo as ^[[A.
+            # Piped into a pager, the keys are the pager's.
+            if output.console.is_terminal:
+                waiting.enter_context(shell.keys_ignored())
+            spinner = super().__enter__()
+            self._waiting = waiting.pop_all()
+        return spinner
 
     def __exit__(self, *exception):
         try:
             super().__exit__(*exception)
         finally:
-            self._warning.__exit__(None, None, None)
+            self._waiting.close()
 
 
 def waiting_spinner(what=""):
@@ -111,7 +119,7 @@ def print_as_list_or_grid(indent, items):
     cells = [[item.fields()[place] for place in used] for item in items]
 
     per_line = _items_per_line(indent, cells) if len(items) > PRINT_MAX_LIST_ITEMS else 1
-    rows = [sum(cells[start : start + per_line], []) for start in range(0, len(cells), per_line)]
+    rows = [sum(cells[start: start + per_line], []) for start in range(0, len(cells), per_line)]
     width = per_line * len(used)
 
     table = Table.grid(padding=(0, GRID_GAP))
@@ -201,7 +209,7 @@ def _app_name():
 
 
 def _report_name():
-    return Text.assemble(" ", ("STATUS REPORT", "bold"), " ")
+    return Text.assemble(" ", ("CHECK REPORT", "bold"), " ")
 
 
 def _time_stamp():

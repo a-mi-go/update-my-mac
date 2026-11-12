@@ -3,6 +3,7 @@
 import pytest
 from fake_report import FakeReport
 from fake_terminal import Terminal
+from rich.rule import Rule
 from rich.text import Text
 
 from update_my_mac.controller import resolve_issues
@@ -122,7 +123,7 @@ def test_the_line_is_thin_grey_like_the_menu_separators_and_at_most_84_wide():
     prompting.print_unwrapped = lambda rule, **options: drawn.append((rule, options))
     prompting.Step().print_separator()
 
-    rule, options = drawn[0]
+    rule, options = next((one, options) for one, options in drawn if isinstance(one, Rule))
     assert (rule.characters, rule.style) == ("─", "#666666")
     assert options["width"] == 84
     assert prompting.SEPARATOR_WIDTH == 84

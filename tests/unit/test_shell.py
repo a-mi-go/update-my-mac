@@ -150,11 +150,127 @@ def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
 
     keys, keyboard = pty.openpty()
     monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
     os.write(keys, b"secret\n")
 
     shell._run_in_pty_with_status(["sh", "-c", "read answer; printf \"got $answer\""], None, Status())
 
     assert capfd.readouterr().out.endswith("got secret")
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_the_keyboard_is_this_runs_when_the_terminal_reads_for_its_process_group(monkeypatch):
+    monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp())
+
+    assert shell._has_the_keyboard()
+
+
+def test_the_keyboard_is_not_this_runs_when_the_terminal_reads_for_another_group(monkeypatch):
+    monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp() + 1)
+
+    assert not shell._has_the_keyboard()
+
+
+def test_without_a_terminal_the_keyboard_is_not_this_runs(monkeypatch):
+    def no_terminal(fd):
+        raise OSError("not a terminal")
+
+    monkeypatch.setattr(os, "tcgetpgrp", no_terminal)
+
+    assert not shell._has_the_keyboard()
+
+
+def test_keys_typed_while_ignored_are_not_echoed_and_stay_for_the_next_read(monkeypatch):
+    import pty
+    import select
+    import termios
+    import time
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
+
+    with shell.keys_ignored():
+        os.write(keys, b"\x1b[A")
+        time.sleep(0.1)
+        assert not select.select([keys], [], [], 0)[0]
+    os.write(keys, b"\n")
+    received = b""
+    # Linux hands over the keys typed before the switch back at once, macOS with the line.
+    while not received.endswith(b"\n"):
+        received += os.read(keyboard, 100)
+
+    assert received == b"\x1b[A\n"
+    assert termios.tcgetattr(keyboard)[3] & termios.ECHO
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_a_run_in_the_background_leaves_the_keyboard_as_it_is(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: False)
+    settings_before = termios.tcgetattr(keyboard)
+
+    with shell.keys_ignored():
+        assert termios.tcgetattr(keyboard) == settings_before
+    os.write(keys, b"typed ahead\n")
+
+    assert os.read(keyboard, 100) == b"typed ahead\n"
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_a_run_sent_to_the_background_while_keys_are_ignored_does_not_touch_the_keyboard_again(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    in_the_foreground = [True]
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: in_the_foreground[0])
+    restored = []
+
+    with shell.keys_ignored():
+        monkeypatch.setattr(termios, "tcsetattr", lambda *args: restored.append(args))
+        in_the_foreground[0] = False
+
+    assert restored == []
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_what_was_typed_ahead_is_forgotten(monkeypatch):
+    import pty
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
+    os.write(keys, b"\x1b[A\x1b[A")
+
+    shell.forget_what_was_typed_ahead()
+    os.write(keys, b"y\n")
+
+    assert os.read(keyboard, 100) == b"y\n"
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_a_run_in_the_background_does_not_switch_the_keyboard_for_a_command(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: False)
+    settings_before = termios.tcgetattr(keyboard)
+
+    assert shell._switch_to_unbuffered_keys() is None
+    assert termios.tcgetattr(keyboard) == settings_before
     os.close(keys)
     os.close(keyboard)
 
@@ -219,11 +335,12 @@ def test_what_a_streamed_command_writes_reaches_a_listener_and_so_does_its_end(c
             pass
 
     heard = []
+    listening_before = shell._command_output_listener
     shell.listen_to_command_output(heard.append)
     try:
         shell._run_in_pty_with_status(["echo", "hello"], os.environ, Status())
     finally:
-        shell.listen_to_command_output(None)
+        shell.listen_to_command_output(listening_before)
 
     assert b"hello" in b"".join(piece for piece in heard if piece is not None)
     assert heard[-1] is None

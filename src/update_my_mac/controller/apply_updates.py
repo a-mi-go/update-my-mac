@@ -161,7 +161,6 @@ NOTHING_UPDATED = UpdateRun([], False)
 
 def update_the_only_manager(reports):
     """Updates the one manager with something outdated without asking. Returns how it went."""
-    output.console.print()
     prompting.print_separator()
     return _run(build_menu(reports))
 
@@ -182,7 +181,6 @@ def ask_what_to_update(reports):
     if not entries:
         return NOTHING_UPDATED
 
-    console.print()
     prompting.print_separator()
 
     if arrow_menu.can_be_drawn():
