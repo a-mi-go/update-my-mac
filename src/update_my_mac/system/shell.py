@@ -319,7 +319,8 @@ def keys_ignored():
     try:
         yield
     finally:
-        if settings_before:
+        # Sent to the background with Ctrl-Z and bg, the run has left the keyboard to the shell.
+        if settings_before and _has_the_keyboard():
             termios.tcsetattr(KEYBOARD, termios.TCSAFLUSH, settings_before)
 
 

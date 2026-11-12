@@ -200,6 +200,25 @@ def test_a_run_in_the_background_leaves_the_keyboard_as_it_is(monkeypatch):
     os.close(keyboard)
 
 
+def test_a_run_sent_to_the_background_while_keys_are_ignored_does_not_touch_the_keyboard_again(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    in_the_foreground = [True]
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: in_the_foreground[0])
+    restored = []
+    monkeypatch.setattr(termios, "tcsetattr", lambda *args: restored.append(args))
+
+    with shell.keys_ignored():
+        in_the_foreground[0] = False
+
+    assert termios.TCSAFLUSH not in [when for _, when, _ in restored]
+    os.close(keys)
+    os.close(keyboard)
+
+
 def test_a_run_in_the_background_does_not_switch_the_keyboard_for_a_command(monkeypatch):
     import pty
     import termios
