@@ -167,6 +167,7 @@ def test_keys_typed_while_ignored_are_not_echoed_and_do_not_reach_the_next_read(
 
     keys, keyboard = pty.openpty()
     monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
 
     with shell.keys_ignored():
         os.write(keys, b"\x1b[A")
@@ -176,6 +177,24 @@ def test_keys_typed_while_ignored_are_not_echoed_and_do_not_reach_the_next_read(
 
     assert os.read(keyboard, 100) == b"y\n"
     assert termios.tcgetattr(keyboard)[3] & termios.ECHO
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_a_run_in_the_background_leaves_the_keyboard_as_it_is(monkeypatch):
+    import pty
+    import termios
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: False)
+    settings_before = termios.tcgetattr(keyboard)
+
+    with shell.keys_ignored():
+        assert termios.tcgetattr(keyboard) == settings_before
+    os.write(keys, b"typed ahead\n")
+
+    assert os.read(keyboard, 100) == b"typed ahead\n"
     os.close(keys)
     os.close(keyboard)
 

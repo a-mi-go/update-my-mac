@@ -302,12 +302,20 @@ def _switch_to_unbuffered_keys():
     return settings_before
 
 
+def _has_the_keyboard():
+    """Returns whether the terminal passes what is typed to this run, which it does not for a run in the background."""
+    try:
+        return os.tcgetpgrp(KEYBOARD) == os.getpgrp()
+    except OSError:
+        return False
+
+
 @contextmanager
 def keys_ignored():
-    """Hides what is typed while the block runs, and throws it away afterwards."""
+    """Hides what is typed while the block runs, and throws it away afterwards, when the keyboard is this run's."""
     import termios
 
-    settings_before = _switch_to_unbuffered_keys()
+    settings_before = _switch_to_unbuffered_keys() if _has_the_keyboard() else None
     try:
         yield
     finally:

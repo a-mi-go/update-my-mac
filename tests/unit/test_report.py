@@ -1,7 +1,9 @@
+import io
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
-from fake_run import printed_by
+from fake_run import printed_by, printing_to, swap
 from rich.console import Console
 from rich.text import Text
 
@@ -11,6 +13,7 @@ from update_my_mac.checks.app_updaters import UpdaterStatus
 from update_my_mac.checks.findings import Findings
 from update_my_mac.checks.installed_apps import InstalledApp
 from update_my_mac.managers import ManagerReport
+from update_my_mac.system import shell
 from update_my_mac.view import report, sections
 
 
@@ -454,3 +457,26 @@ def test_one_wide_entry_takes_room_only_in_its_own_column():
 
     rows = [Text.from_ansi(line).plain for line in printed.splitlines() if "→" in line]
     assert len(rows) == 2
+
+
+def keys_ignored_while_waiting(console):
+    ignored = []
+
+    @contextmanager
+    def ignoring():
+        ignored.append(True)
+        yield
+
+    swap(shell, "keys_ignored", ignoring)
+    with printing_to(console), report.waiting_spinner("waiting"):
+        pass
+    return bool(ignored)
+
+
+def test_a_spinner_on_a_terminal_ignores_the_keys():
+    assert keys_ignored_while_waiting(Console(file=io.StringIO(), force_terminal=True))
+
+
+def test_a_spinner_piped_into_a_pager_leaves_the_keys_to_it():
+    assert not keys_ignored_while_waiting(Console(file=io.StringIO(), force_terminal=False))
+
