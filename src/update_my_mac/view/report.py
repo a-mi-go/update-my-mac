@@ -89,7 +89,7 @@ class _WaitingSpinner(Status):
     def __enter__(self):
         with ExitStack() as waiting:
             waiting.enter_context(prompting.warning_before_stopping())
-            # Scrolling sends arrow keys, which would echo as ^[[A and move the next menu.
+            # Scrolling sends arrow keys, which would echo as ^[[A.
             # Piped into a pager, the keys are the pager's.
             if output.console.is_terminal:
                 waiting.enter_context(shell.keys_ignored())

@@ -315,7 +315,7 @@ def _has_the_keyboard():
 
 @contextmanager
 def keys_ignored():
-    """Hides what is typed while the block runs, and throws it away afterwards."""
+    """Hides what is typed while the block runs."""
     import termios
 
     settings_before = _switch_to_unbuffered_keys()
@@ -324,7 +324,15 @@ def keys_ignored():
     finally:
         # Sent to the background with Ctrl-Z and bg, the run has left the keyboard to the shell.
         if settings_before and _has_the_keyboard():
-            termios.tcsetattr(KEYBOARD, termios.TCSAFLUSH, settings_before)
+            termios.tcsetattr(KEYBOARD, termios.TCSANOW, settings_before)
+
+
+def forget_what_was_typed_ahead():
+    """Throws away the keys typed so far, when the keyboard is this run's."""
+    import termios
+
+    if _has_the_keyboard():
+        termios.tcflush(KEYBOARD, termios.TCIFLUSH)
 
 
 def _copy_window_size(source, target):

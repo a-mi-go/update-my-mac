@@ -9,6 +9,7 @@ import sys
 
 from rich.cells import cell_len
 
+from update_my_mac.system import shell
 from update_my_mac.view import output, prompt_toolkit_internals
 
 POINTER = "❯"
@@ -482,6 +483,8 @@ def _answer_to(prompt, warn_in_menu=False, blank_line=False):
 
 def _run(prompt):
     output.forget_the_last_printed()
+    # Keys typed while the run was busy, such as the arrow keys a scroll sends, would move the menu.
+    shell.forget_what_was_typed_ahead()
     # A Ctrl-C is a BaseException, so it passes this by and ends the run.
     try:
         return prompt.unsafe_ask()

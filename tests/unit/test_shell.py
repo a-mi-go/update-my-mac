@@ -160,7 +160,7 @@ def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
     os.close(keyboard)
 
 
-def test_keys_typed_while_ignored_are_not_echoed_and_do_not_reach_the_next_read(monkeypatch):
+def test_keys_typed_while_ignored_are_not_echoed_and_stay_for_the_next_read(monkeypatch):
     import pty
     import select
     import termios
@@ -174,9 +174,9 @@ def test_keys_typed_while_ignored_are_not_echoed_and_do_not_reach_the_next_read(
         os.write(keys, b"\x1b[A")
         time.sleep(0.1)
         assert not select.select([keys], [], [], 0)[0]
-    os.write(keys, b"y\n")
+    os.write(keys, b"\n")
 
-    assert os.read(keyboard, 100) == b"y\n"
+    assert os.read(keyboard, 100) == b"\x1b[A\n"
     assert termios.tcgetattr(keyboard)[3] & termios.ECHO
     os.close(keys)
     os.close(keyboard)
@@ -209,12 +209,28 @@ def test_a_run_sent_to_the_background_while_keys_are_ignored_does_not_touch_the_
     in_the_foreground = [True]
     monkeypatch.setattr(shell, "_has_the_keyboard", lambda: in_the_foreground[0])
     restored = []
-    monkeypatch.setattr(termios, "tcsetattr", lambda *args: restored.append(args))
 
     with shell.keys_ignored():
+        monkeypatch.setattr(termios, "tcsetattr", lambda *args: restored.append(args))
         in_the_foreground[0] = False
 
-    assert termios.TCSAFLUSH not in [when for _, when, _ in restored]
+    assert restored == []
+    os.close(keys)
+    os.close(keyboard)
+
+
+def test_what_was_typed_ahead_is_forgotten(monkeypatch):
+    import pty
+
+    keys, keyboard = pty.openpty()
+    monkeypatch.setattr(shell, "KEYBOARD", keyboard)
+    monkeypatch.setattr(shell, "_has_the_keyboard", lambda: True)
+    os.write(keys, b"\x1b[A\x1b[A")
+
+    shell.forget_what_was_typed_ahead()
+    os.write(keys, b"y\n")
+
+    assert os.read(keyboard, 100) == b"y\n"
     os.close(keys)
     os.close(keyboard)
 

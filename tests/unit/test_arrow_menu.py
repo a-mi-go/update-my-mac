@@ -42,6 +42,20 @@ def choices():
     ]
 
 
+def test_a_menu_forgets_what_was_typed_while_the_run_was_busy(monkeypatch):
+    order = []
+
+    class Prompt:
+        def unsafe_ask(self):
+            order.append("ask")
+            return "a"
+
+    monkeypatch.setattr(arrow_menu.shell, "forget_what_was_typed_ahead", lambda: order.append("forget"))
+    arrow_menu._run(Prompt())
+
+    assert order == ["forget", "ask"]
+
+
 def test_a_line_the_cursor_skips_sets_the_way_out_apart(monkeypatch):
     seen = []
     monkeypatch.setattr(
