@@ -20,6 +20,7 @@ def forget_the_interrupt_warning():
 def restore_where_the_run_reads_and_prints():
     """A test may point these at a fake terminal; the next one starts afresh."""
     saved = (prompting.print_unwrapped, prompting.read_answer, output.console, arrow_menu.can_be_drawn, arrow_menu.pick_several)
+    output.forget_the_last_printed()
     yield
     (prompting.print_unwrapped, prompting.read_answer, output.console,
      arrow_menu.can_be_drawn, arrow_menu.pick_several) = saved

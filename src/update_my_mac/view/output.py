@@ -17,13 +17,12 @@ _NOT_A_COLOR = re.compile(r"\x1b\](?:[^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*
 class RecordingConsole(Console):
     """A console that keeps what is printed to it while the run is on a screen of its own, and what it printed last."""
 
-    last_printed = None
-
     def print(self, *objects, **options):
+        global _last_printed
         super().print(*objects, **options)
         # The spinner moves itself with control codes and a line break it takes back, which are not output.
         if not any(isinstance(each, (Control, NewLine)) for each in objects):
-            self.last_printed = objects[-1] if objects else None
+            _last_printed = objects[-1] if objects else None
             remember(lambda console: console.print(*objects, **options))
 
 
@@ -39,6 +38,7 @@ _remembered = []
 _remembering = False
 _decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 _unfinished_line = ""
+_last_printed = None
 
 
 def remember(print_again):
@@ -92,12 +92,12 @@ def clear_and_replay():
 
 def forget_the_last_printed():
     """Marks that something reached the screen past the console."""
-    console.last_printed = None
+    global _last_printed
+    _last_printed = None
 
 
 def last_printed_is(renderable):
-    # A console a test swaps in does not keep what it printed last.
-    return getattr(console, "last_printed", None) is renderable
+    return _last_printed is renderable
 
 
 def print_above(report):
