@@ -323,8 +323,8 @@ def test_after_an_update_the_replaced_apps_are_named_above_the_menu(tmp_path):
     swap(restart_apps, "restart", restarting(True))
     restart_apps.ask_after_the_update(two_apps(tmp_path), terminal.step)
 
-    assert terminal.lines[2] == "Updated but the old version is still running"
-    assert [line.strip() for line in terminal.lines[3:5]] == ["Thing", "Other"]
+    heading = terminal.lines.index("Updated but the old version is still running")
+    assert [line.strip() for line in terminal.lines[heading + 1:heading + 3]] == ["Thing", "Other"]
     assert f"1) {BULLET}restart all" in terminal.text
 
 
@@ -384,7 +384,8 @@ def test_the_offer_after_an_update_is_set_apart_by_a_line(tmp_path):
     swap(restart_apps, "restart", restarting(True))
     restart_apps.ask_after_the_update(two_apps(tmp_path), terminal.step)
 
-    assert prompting.SEPARATOR_CHARACTER in terminal.lines[1]
+    separator = next(i for i, line in enumerate(terminal.lines) if prompting.SEPARATOR_CHARACTER in line)
+    assert separator < terminal.lines.index("Updated but the old version is still running")
 
 
 def test_each_app_in_a_walk_through_starts_after_a_line(tmp_path):
