@@ -160,6 +160,27 @@ def test_what_is_typed_reaches_the_command(monkeypatch, capfd):
     os.close(keyboard)
 
 
+def test_the_keyboard_is_this_runs_when_the_terminal_reads_for_its_process_group(monkeypatch):
+    monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp())
+
+    assert shell._has_the_keyboard()
+
+
+def test_the_keyboard_is_not_this_runs_when_the_terminal_reads_for_another_group(monkeypatch):
+    monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp() + 1)
+
+    assert not shell._has_the_keyboard()
+
+
+def test_without_a_terminal_the_keyboard_is_not_this_runs(monkeypatch):
+    def no_terminal(fd):
+        raise OSError("not a terminal")
+
+    monkeypatch.setattr(os, "tcgetpgrp", no_terminal)
+
+    assert not shell._has_the_keyboard()
+
+
 def test_keys_typed_while_ignored_are_not_echoed_and_stay_for_the_next_read(monkeypatch):
     import pty
     import select
