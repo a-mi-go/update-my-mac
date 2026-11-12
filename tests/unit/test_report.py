@@ -1,10 +1,13 @@
 import io
+import signal
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from fake_run import printed_by, printing_to, swap
+import pytest
+from fake_run import printed_by, printing_to, raising, swap
 from rich.console import Console
+from rich.status import Status
 from rich.text import Text
 
 from update_my_mac import __version__
@@ -479,4 +482,14 @@ def test_a_spinner_on_a_terminal_ignores_the_keys():
 
 def test_a_spinner_piped_into_a_pager_leaves_the_keys_to_it():
     assert not keys_ignored_while_waiting(Console(file=io.StringIO(), force_terminal=False))
+
+
+def test_a_spinner_that_cannot_start_gives_ctrl_c_back():
+    before = signal.getsignal(signal.SIGINT)
+    swap(Status, "__enter__", raising(RuntimeError))
+
+    with pytest.raises(RuntimeError), report.waiting_spinner("waiting"):
+        pass
+
+    assert signal.getsignal(signal.SIGINT) is before
 
