@@ -72,7 +72,7 @@ def test_a_command_that_fails_is_said_and_not_counted():
     done = resolve_by_command.ask_what_to_do(FIXES, terminal.step)
 
     assert len(done) == 0
-    assert "exited with 1" in terminal.text
+    assert any(line.strip() == "google-trends - That exited with 1." for line in terminal.lines)
 
 
 def test_nothing_to_put_right_asks_nothing():

@@ -51,9 +51,7 @@ def adopt_all(found, step):
     for app, cask in found:
         if not adopting.can_join_the_bulk_takeover(app, cask):
             continue
-        per_item.print_empty_line()
-        per_item.print_indented(app.display_name, style="bold")
-        if _take_over_with_homebrew(app, cask, per_item.inside()):
+        if _take_over_with_homebrew(app, cask, per_item):
             adopted.append(app)
     return adopted
 
@@ -138,16 +136,16 @@ def _ask_about(app, cask, offered, step, is_walkthrough=True):
         )
         warning = ""
         if chosen == WEBSITE:
-            results.print_indented(vendor_site)
+            results.print_indented(f"{app.display_name} - {vendor_site}")
             if not shell.open_in_browser(vendor_site):
                 warning = "Could not open that in a browser."
-                results.print_indented(warning, style="yellow")
+                results.print_indented(f"{app.display_name} - ", (warning, "yellow"))
         elif chosen == LAUNCH:
             if shell.open_application(app.path):
-                _print_that_it_started(results)
+                _print_that_it_started(app, results)
                 return chosen
             warning = "That app would not start."
-            results.print_indented(warning, style="yellow")
+            results.print_indented(f"{app.display_name} - ", (warning, "yellow"))
         elif chosen == TRASH:
             if _move_to_the_trash(app, step, results):
                 return chosen
@@ -192,11 +190,11 @@ def _what_is_known(app, cask, answer):
     return ' '.join(known)
 
 
-def _print_that_it_started(step):
+def _print_that_it_started(app, step):
     step.print_indented(
-        "Started it. It looks for its update on startup, and anything it "
-        "does not offer there is under its own menu.",
-        style="green",
+        f"{app.display_name} - ",
+        ("Started it. It looks for its update on startup, and anything it "
+         "does not offer there is under its own menu.", "green"),
     )
 
 
@@ -216,7 +214,7 @@ def _take_over_with_homebrew(app, cask, step):
     with prompting.warning_before_stopping():
         taken, message = adopting.take_over_with_homebrew(app, cask, status=report.waiting_spinner("waiting for Homebrew"))
     color = "green" if taken else "red"
-    step.print_indented(message, style=color)
+    step.print_indented(f"{app.display_name} - ", (message, color))
     return taken
 
 

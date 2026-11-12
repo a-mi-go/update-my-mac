@@ -111,7 +111,7 @@ def print_as_list_or_grid(indent, items):
     cells = [[item.fields()[place] for place in used] for item in items]
 
     per_line = _items_per_line(indent, cells) if len(items) > PRINT_MAX_LIST_ITEMS else 1
-    rows = [sum(cells[start : start + per_line], []) for start in range(0, len(cells), per_line)]
+    rows = [sum(cells[start: start + per_line], []) for start in range(0, len(cells), per_line)]
     width = per_line * len(used)
 
     table = Table.grid(padding=(0, GRID_GAP))
@@ -201,7 +201,7 @@ def _app_name():
 
 
 def _report_name():
-    return Text.assemble(" ", ("STATUS REPORT", "bold"), " ")
+    return Text.assemble(" ", ("CHECK REPORT", "bold"), " ")
 
 
 def _time_stamp():

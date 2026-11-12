@@ -21,6 +21,7 @@ STEP = "  "
 # as the edge of the terminal.
 SEPARATOR_WIDTH = 84
 SEPARATOR_CHARACTER = "─"
+SEPARATOR = Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR)
 
 # Leads an option that has no symbol of its own, so all texts start in line.
 BULLET = "• "
@@ -213,7 +214,6 @@ class Step:
             return
         self._next_menu_is_apart = False
         if not arrow_menu.runs_on_its_own_screen(_row_count_for(options)):
-            self.print_empty_line()
             self.print_separator()
 
 
@@ -225,10 +225,11 @@ def print_unwrapped(renderable, **options):
 
 
 def print_separator():
-    """Draws the line that sets a new menu apart from what came before."""
-    print_unwrapped(
-        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR), width=SEPARATOR_WIDTH
-    )
+    """Draws an empty line and the line that sets a new menu apart, unless that line is the last thing printed."""
+    if output.last_printed_is(SEPARATOR):
+        return
+    print_unwrapped("")
+    print_unwrapped(SEPARATOR, width=SEPARATOR_WIDTH)
 
 
 def interrupted(print_line):

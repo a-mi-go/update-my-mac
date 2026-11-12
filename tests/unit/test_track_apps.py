@@ -424,6 +424,15 @@ def test_an_app_that_will_not_start_says_so(tmp_path):
     assert "would not start" in terminal.text
 
 
+def test_a_result_names_the_app_it_is_about(tmp_path):
+    terminal = Terminal(START_IT, LATER)
+
+    swap(track_apps.shell, "open_application", lambda path: True)
+    track_apps.ask_what_to_do([sparkle_app(), app("Evoto")], decisions_in(tmp_path), terminal.step)
+
+    assert any(line.strip().startswith("Dockish - Started it.") for line in terminal.lines)
+
+
 def test_an_app_without_a_known_updater_can_still_be_opened_to_check_for_updates(tmp_path):
     terminal = Terminal(LATER)
 
@@ -530,7 +539,7 @@ def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping(
     swap(track_apps.adopting, "take_over_with_homebrew", hand_over)
     before = signal.getsignal(signal.SIGINT)
 
-    assert track_apps._take_over_with_homebrew(object(), object(), Terminal().step)
+    assert track_apps._take_over_with_homebrew(app("Thing"), object(), Terminal().step)
 
     status, handler = seen[0]
     assert status is not None

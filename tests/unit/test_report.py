@@ -341,7 +341,7 @@ def test_the_top_line_names_the_app_and_the_report():
     top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
 
     assert top.startswith(f"╭── update-my-mac {__version__} ─")
-    assert " STATUS REPORT ─" in top
+    assert " CHECK REPORT ─" in top
     assert top.endswith("╮")
 
 
@@ -352,7 +352,7 @@ def test_the_name_of_the_report_is_in_the_middle_of_the_top_line():
     for width in (101, 121):
         top = Text.from_ansi(report_of(findings, width=width, terminal=True).splitlines()[1]).plain
         frame = len(top)
-        name = " STATUS REPORT "
+        name = " CHECK REPORT "
         assert top.index(name) == (frame - len(name)) // 2
 
 
@@ -361,7 +361,7 @@ def test_a_window_too_narrow_for_both_names_keeps_only_the_app_name():
 
     lines = report_of(findings, width=40, terminal=True).splitlines()
 
-    assert "STATUS REPORT" not in lines[1]
+    assert "CHECK REPORT" not in lines[1]
     assert all(Text.from_ansi(line).cell_len <= 40 for line in lines)
 
 
@@ -383,7 +383,7 @@ def test_the_top_line_says_when_the_report_was_made(monkeypatch):
 
     top = Text.from_ansi(report_of(findings, width=100, terminal=True).splitlines()[1]).plain
 
-    assert top.index(" STATUS REPORT ") < top.index(" 2026-10-17 14:32 ")
+    assert top.index(" CHECK REPORT ") < top.index(" 2026-10-17 14:32 ")
     # Two dashes between the time and the corner.
     assert top.endswith(" 2026-10-17 14:32 ──╮")
 
@@ -393,7 +393,7 @@ def test_a_window_with_no_room_for_the_time_leaves_it_off():
 
     top = Text.from_ansi(report_of(findings, width=50, terminal=True).splitlines()[1]).plain
 
-    assert " STATUS REPORT " in top
+    assert " CHECK REPORT " in top
     assert ":" not in top
 
 

@@ -294,9 +294,7 @@ def indent_of(line):
     return len(line) - len(line.lstrip())
 
 
-def test_a_result_is_printed_in_line_with_the_question_it_answers(tmp_path):
-    # It used to be written at its own hardcoded indent, so in the walk-through
-    # the result sat left of the question it belonged to.
+def test_a_result_names_the_app_and_is_printed_in_line_with_the_options_it_answers(tmp_path):
     terminal = Terminal("1")
     lines = printed_lines(terminal, [app_at(tmp_path)])
 
@@ -305,23 +303,18 @@ def test_a_result_is_printed_in_line_with_the_question_it_answers(tmp_path):
     option = next(
         line for line in lines if line.rstrip().endswith(f"1) {BULLET}restart")
     )
-    result = next(line for line in lines if "restarted" in line)
-    heading = next(line for line in lines if "Thing" in line)
+    result = next(line for line in lines if "Thing - " in line)
 
-    # The result stands where the options stood, and the app's name one step
-    # out from both, which is where the question that opened them stands.
+    assert result.strip() == "Thing - restarted"
     assert indent_of(result) == indent_of(option)
-    assert indent_of(heading) == indent_of(option) - 2
 
 
-def test_restarting_them_all_prints_results_under_their_names(tmp_path):
+def test_restarting_them_all_puts_each_result_on_one_line_with_the_app_it_names(tmp_path):
     terminal = Terminal("1")
-    lines = printed_lines(terminal, [app_at(tmp_path)])
+    lines = printed_lines(terminal, [app_at(tmp_path, name="Thing"), app_at(tmp_path, name="Other")])
 
-    name = next(line for line in lines if "Thing" in line)
-    result = next(line for line in lines if "restarted" in line)
-
-    assert indent_of(result) == indent_of(name) + 2
+    assert "  Thing - restarted" in lines
+    assert "  Other - restarted" in lines
 
 
 def test_after_an_update_the_replaced_apps_are_named_above_the_menu(tmp_path):

@@ -122,7 +122,7 @@ def test_the_line_is_thin_grey_like_the_menu_separators_and_at_most_84_wide():
     prompting.print_unwrapped = lambda rule, **options: drawn.append((rule, options))
     prompting.Step().print_separator()
 
-    rule, options = drawn[0]
+    rule, options = drawn[-1]
     assert (rule.characters, rule.style) == ("─", "#666666")
     assert options["width"] == 84
     assert prompting.SEPARATOR_WIDTH == 84

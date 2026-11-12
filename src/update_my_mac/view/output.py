@@ -5,7 +5,7 @@ import re
 import sys
 from contextlib import contextmanager
 
-from rich.console import Console
+from rich.console import Console, NewLine
 from rich.control import Control
 from rich.text import Text
 
@@ -15,12 +15,16 @@ _NOT_A_COLOR = re.compile(r"\x1b\](?:[^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*
 
 
 class RecordingConsole(Console):
-    """A console that keeps what is printed to it while the run is on a screen of its own."""
+    """A console that keeps what is printed to it while the run is on a screen of its own, and what it printed last."""
+
+    last_printed = None
 
     def print(self, *objects, **options):
         super().print(*objects, **options)
-        # The spinner prints control codes to move itself, which are not output.
-        if not any(isinstance(each, Control) for each in objects):
+        # The spinner moves itself with control codes and a line break it takes back, which are not output.
+        if not any(isinstance(each, (Control, NewLine)) for each in objects):
+            if objects:
+                self.last_printed = objects[-1]
             remember(lambda console: console.print(*objects, **options))
 
 
@@ -76,6 +80,11 @@ def clear_and_replay():
         replay(console)
     finally:
         _remembering = kept
+
+
+def last_printed_is(renderable):
+    # A console a test swaps in does not keep what it printed last.
+    return getattr(console, "last_printed", None) is renderable
 
 
 def print_above(report):
