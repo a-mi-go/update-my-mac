@@ -427,6 +427,7 @@ def test_the_line_before_the_way_out_counts_as_a_row_of_the_menu(monkeypatch):
 
     assert prompting._row_count_for([("a", "one"), ("b", "two")]) == 2
     assert prompting._row_count_for([("a", "one"), ("b", f"{WAY_OUT}exit")]) == 3
+    assert prompting._row_count_for([("a", "one"), ("b", "↳ later"), ("c", prompting.SetApart(f"{WAY_OUT}exit"))]) == 5
 
 
 def test_a_menu_drawn_in_place_is_set_apart_by_a_line(monkeypatch):

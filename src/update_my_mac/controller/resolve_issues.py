@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from update_my_mac.view import output
-from update_my_mac.view.prompting import WAY_OUT, Markup, Step, Stopped
+from update_my_mac.view.prompting import WAY_OUT, Markup, SetApart, Step, Stopped
 
 QUESTION = "Should we sort things out before updating?"
 QUESTION_WITHOUT_UPDATES = "Nothing to update, but should we sort some things out?"
@@ -12,7 +12,7 @@ NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]")
 NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})"
 NOT_NOW_NAMED = "↳ I'll take care of that later, [bold]update[/] {} ({})"
 EXIT = f"{WAY_OUT}Exit"
-LEAVE, LEAVE_LABEL = "leave", f"{WAY_OUT}exit"
+LEAVE, LEAVE_LABEL = "leave", SetApart(f"{WAY_OUT}exit")
 
 
 @dataclass

@@ -16,6 +16,7 @@ POINTER = "❯"
 QMARK = "፧፧"
 TICKED, UNTICKED = "[x]", "[ ]"
 SEPARATOR = "─" * 24
+WAVY_SEPARATOR = "~" * 24
 SEPARATOR_COLOR = "#666666"
 # The note under a question, lighter than the separator and darker than the text.
 NOTE_COLOR = "#999999"
@@ -102,15 +103,18 @@ def _style(for_note=False):
 
 
 BLANK_LINE = object()
+WAVY_LINE = object()
 
 
 def _choices(entries, checked=()):
-    """Returns the entries as choices, with None a line of dashes and BLANK_LINE an empty one."""
+    """Returns the entries as choices, with None a line of dashes, WAVY_LINE one of tildes and BLANK_LINE an empty one."""
     from questionary import Choice, Separator
 
     def one(entry):
         if entry is None:
             return Separator(SEPARATOR)
+        if entry is WAVY_LINE:
+            return Separator(WAVY_SEPARATOR)
         if entry is BLANK_LINE:
             return Separator(" ")
         value, label = entry
@@ -168,10 +172,10 @@ def _replay_own_screen():
 
 
 def _label_texts(entries):
-    """Returns the text each row of the menu shows, a line of dashes or a blank line included."""
+    """Returns the text each row of the menu shows, a line of dashes, tildes or a blank line included."""
     texts = []
     for entry in entries:
-        if entry is None or entry is BLANK_LINE:
+        if entry is None or entry is BLANK_LINE or entry is WAVY_LINE:
             texts.append("")
             continue
         label = entry[1]
