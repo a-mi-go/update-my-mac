@@ -12,6 +12,7 @@ NOT_NOW = Markup("↳ I'll take care of that later, lets go [bold]update[/]")
 NOT_NOW_COUNTED = "↳ I'll take care of that later, lets go [bold]update[/] ({})"
 NOT_NOW_NAMED = "↳ I'll take care of that later, [bold]update[/] {} ({})"
 EXIT = f"{WAY_OUT}Exit"
+LEAVE, LEAVE_LABEL = "leave", f"{WAY_OUT}exit"
 
 
 @dataclass
@@ -53,6 +54,10 @@ def ask_what_to_fix(problems, step=None, above=None, updates=None):
                 if updates is not None and not nothing_to_update:
                     updates.skip_to_updating()
                 break
+            if chosen == LEAVE:
+                if updates is not None:
+                    updates.leave_without_updating()
+                break
             before = dealt_with
             if chosen == FIX_EVERYTHING:
                 for problem in problems:
@@ -74,7 +79,10 @@ def _options(problems, updates, nothing_to_update):
     options = [(problem, problem.label) for problem in problems]
     if len(problems) > 1:
         options.append((FIX_EVERYTHING, FIX_EVERYTHING))
-    options.append((NOT_NOW, EXIT if nothing_to_update else _not_now(updates)))
+    if nothing_to_update:
+        options.append((NOT_NOW, EXIT))
+    else:
+        options += [(NOT_NOW, _not_now(updates)), (LEAVE, LEAVE_LABEL)]
     return options
 
 
