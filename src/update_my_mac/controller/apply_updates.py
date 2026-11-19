@@ -95,7 +95,7 @@ def pick_what_to_update(entries):
     choices = [(entry, entry.label) for entry in entries] + [
         arrow_menu.BLANK_LINE,
         (UPDATE, "⬆ update"),
-        None,
+        arrow_menu.WAVY_LINE,
         (CANCEL, f"{prompting.WAY_OUT}exit without updating"),
     ]
     picked = arrow_menu.pick_several(
