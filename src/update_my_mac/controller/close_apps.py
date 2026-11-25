@@ -42,7 +42,6 @@ def ask_before_the_update(entries, step=None):
         return []
 
     step = step or Step()
-    step.print_empty_line()
     step.print_separator()
     step.print_indented(RUNNING_AND_UPDATING, style="bold")
     for app in running:
@@ -77,7 +76,6 @@ def ask_to_start_again(apps, step=None):
         return []
 
     step = step or Step()
-    step.print_empty_line()
     step.print_separator()
     started = []
     try:

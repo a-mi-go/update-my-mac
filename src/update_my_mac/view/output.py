@@ -5,7 +5,7 @@ import re
 import sys
 from contextlib import contextmanager
 
-from rich.console import Console
+from rich.console import Console, NewLine
 from rich.control import Control
 from rich.text import Text
 
@@ -15,12 +15,14 @@ _NOT_A_COLOR = re.compile(r"\x1b\](?:[^\x07\x1b]*)(?:\x07|\x1b\\)|\x1b\[[0-9;?]*
 
 
 class RecordingConsole(Console):
-    """A console that keeps what is printed to it while the run is on a screen of its own."""
+    """A console that keeps what is printed to it while the run is on a screen of its own, and what it printed last."""
 
     def print(self, *objects, **options):
+        global _last_printed
         super().print(*objects, **options)
-        # The spinner prints control codes to move itself, which are not output.
-        if not any(isinstance(each, Control) for each in objects):
+        # The spinner moves itself with control codes and a line break it takes back, which are not output.
+        if not any(isinstance(each, (Control, NewLine)) for each in objects):
+            _last_printed = objects[-1] if objects else None
             remember(lambda console: console.print(*objects, **options))
 
 
@@ -36,6 +38,7 @@ _remembered = []
 _remembering = False
 _decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 _unfinished_line = ""
+_last_printed = None
 
 
 def remember(print_again):
@@ -47,6 +50,15 @@ def remember(print_again):
 def replay(console):
     for print_again in _remembered:
         print_again(console)
+
+
+def on_command_output(data):
+    """Notes that a command wrote past the console, and keeps what it wrote on the screen of its own."""
+    forget_the_last_printed()
+    remember_command_output(data)
+
+
+shell.listen_to_command_output(on_command_output)
 
 
 def remember_command_output(data):
@@ -78,6 +90,16 @@ def clear_and_replay():
         _remembering = kept
 
 
+def forget_the_last_printed():
+    """Marks that something reached the screen past the console."""
+    global _last_printed
+    _last_printed = None
+
+
+def last_printed_is(renderable):
+    return _last_printed is renderable
+
+
 def print_above(report):
     """Leaves the screen of its own and prints what ran on it, then the report, unless that is printed already."""
     if report.printed:
@@ -105,7 +127,6 @@ def full_screen():
         _in_full_screen = True
         _remembered.clear()
         _remembering = True
-        shell.listen_to_command_output(remember_command_output)
     try:
         yield
     finally:
@@ -121,7 +142,6 @@ def leave_full_screen():
         console.set_alt_screen(False)
         _in_full_screen = False
         _remembering = False
-        shell.listen_to_command_output(None)
 
 
 def print_plain(*pieces, style=None):

@@ -99,7 +99,7 @@ def test_an_upgrade_is_confirmed_with_the_version_now_on_disk(tmp_path):
 
     said = homebrew_fixes.fix_for_behind(behind).confirm(("brew", "upgrade", "--cask", "x"))
 
-    assert said == (True, ("BetterDisplay: updated 5.0.5 → 5.0.6", "green"))
+    assert said == (True, ("BetterDisplay - updated 5.0.5 → 5.0.6", "green"))
 
 
 def test_an_upgrade_that_changed_nothing_says_so_and_did_not_work(tmp_path):
@@ -109,7 +109,7 @@ def test_an_upgrade_that_changed_nothing_says_so_and_did_not_work(tmp_path):
     worked, said = homebrew_fixes.fix_for_behind(behind).confirm(("brew", "reinstall", "--cask", "x"))
 
     assert not worked
-    assert said == ("BetterDisplay: the command finished, but the app is still 5.0.5", "yellow")
+    assert said == ("BetterDisplay - the command finished, but the app is still 5.0.5", "yellow")
 
 
 def test_the_other_ways_out_are_left_to_the_plain_confirmation():

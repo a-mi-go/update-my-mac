@@ -42,6 +42,20 @@ def choices():
     ]
 
 
+def test_a_menu_forgets_what_was_typed_while_the_run_was_busy(monkeypatch):
+    order = []
+
+    class Prompt:
+        def unsafe_ask(self):
+            order.append("ask")
+            return "a"
+
+    monkeypatch.setattr(arrow_menu.shell, "forget_what_was_typed_ahead", lambda: order.append("forget"))
+    arrow_menu._run(Prompt())
+
+    assert order == ["forget", "ask"]
+
+
 def test_a_line_the_cursor_skips_sets_the_way_out_apart(monkeypatch):
     seen = []
     monkeypatch.setattr(
@@ -61,6 +75,27 @@ def test_a_line_the_cursor_skips_sets_the_way_out_apart(monkeypatch):
     # None is drawn as a separator, which questionary will not land on.
     assert seen[0][2] is None
     assert [entry[0] for entry in seen[0] if entry] == ["adopt", "all", "no"]
+
+
+def test_a_label_set_apart_has_a_line_of_tildes_above_it_and_the_way_out_keeps_its_dashes(monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        arrow_menu,
+        "pick_one",
+        lambda question, entries, note="": seen.append(entries) or "adopt",
+    )
+
+    Terminal().with_arrows().choose(
+        [
+            ("adopt", "get them back on track"),
+            ("later", "↳ not now"),
+            ("leave", prompting.SetApart("↩ exit")),
+        ]
+    )
+
+    assert [entry if entry in (None, arrow_menu.WAVY_LINE) else entry[0] for entry in seen[0]] == [
+        "adopt", None, "later", arrow_menu.WAVY_LINE, "leave",
+    ]
 
 
 def test_without_a_way_out_there_is_no_separator(monkeypatch):
@@ -1089,3 +1124,14 @@ def test_the_question_line_is_drawn_as_recolored():
 def test_a_note_without_a_warning_stays_as_it_is():
     assert prompting.note_after_warning("", "Known.") == "Known."
     assert not isinstance(prompting.note_after_warning("", "Known."), arrow_menu.WarningNote)
+
+
+def test_a_wavy_line_is_drawn_as_a_separator_of_tildes():
+    from questionary import Separator
+
+    wavy = arrow_menu._choices([arrow_menu.WAVY_LINE])[0]
+
+    assert isinstance(wavy, Separator)
+    assert wavy.title == arrow_menu.WAVY_SEPARATOR
+    assert set(arrow_menu.WAVY_SEPARATOR) == {"~"}
+

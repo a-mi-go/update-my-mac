@@ -90,7 +90,7 @@ def test_a_removal_that_failed_is_not_counted():
     swap(resolve_duplicates, "_remove", Remover(exit_code=1))
     removed = resolve_duplicates.ask_what_to_do([doubled()], terminal.step)
     assert len(removed) == 0
-    assert "exited with 1" in terminal.text
+    assert any(line.strip() == "@openai/codex - That exited with 1." for line in terminal.lines)
 
 
 def test_a_copy_of_unknown_origin_is_not_guessed_at():

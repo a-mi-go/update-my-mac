@@ -3,6 +3,7 @@
 import pytest
 from fake_report import FakeReport
 from fake_terminal import Terminal
+from rich.rule import Rule
 from rich.text import Text
 
 from update_my_mac.controller import resolve_issues
@@ -122,7 +123,7 @@ def test_the_line_is_thin_grey_like_the_menu_separators_and_at_most_84_wide():
     prompting.print_unwrapped = lambda rule, **options: drawn.append((rule, options))
     prompting.Step().print_separator()
 
-    rule, options = drawn[0]
+    rule, options = next((one, options) for one, options in drawn if isinstance(one, Rule))
     assert (rule.characters, rule.style) == ("─", "#666666")
     assert options["width"] == 84
     assert prompting.SEPARATOR_WIDTH == 84
@@ -242,6 +243,7 @@ class Updates:
         self.counts = list(counts)
         self.changed = 0
         self.skipped_to_updating = False
+        self.left_without_updating = False
         self.what = named
 
     def count(self):
@@ -252,6 +254,9 @@ class Updates:
 
     def skip_to_updating(self):
         self.skipped_to_updating = True
+
+    def leave_without_updating(self):
+        self.left_without_updating = True
 
     def something_changed(self):
         self.changed += 1
@@ -324,3 +329,30 @@ def test_the_report_stays_over_the_menu_when_it_comes_back(monkeypatch):
     resolve_issues.ask_what_to_fix([problem("apps")], step, above=report, updates=None)
 
     assert seen == [report, report]
+
+
+def test_the_exit_stands_under_the_way_to_the_updates():
+    terminal = Terminal("3")
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=Updates(5))
+
+    way_to_updates = next(at for at, line in enumerate(terminal.lines) if "take care of that later" in line)
+    assert terminal.lines[way_to_updates + 1].strip() == f"3) {resolve_issues.LEAVE_LABEL}"
+
+
+def test_the_exit_leaves_without_going_on_to_the_updates():
+    terminal = Terminal("3")
+    updates = Updates(5)
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=updates)
+
+    assert updates.left_without_updating
+    assert not updates.skipped_to_updating
+
+
+def test_with_nothing_to_update_there_is_only_one_exit():
+    terminal = Terminal("2")
+
+    resolve_issues.ask_what_to_fix([problem("apps")], terminal.step, updates=Updates(0))
+
+    assert not any(line.endswith(resolve_issues.LEAVE_LABEL) for line in terminal.lines)

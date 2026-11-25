@@ -4,7 +4,9 @@ import io
 
 import pytest
 from fake_report import FakeReport
+from fake_run import printing_to
 from rich.console import Console
+from rich.text import Text
 
 from update_my_mac.view import output
 
@@ -236,3 +238,13 @@ def test_printing_the_screen_again_does_not_keep_it_a_second_time(monkeypatch):
 
     assert len(kept) == 1
     assert output._remembering
+
+
+def test_the_line_break_a_spinner_takes_back_leaves_the_last_thing_printed_as_it_was():
+    line = Text("a line")
+
+    with printing_to(output.RecordingConsole(file=io.StringIO(), width=100)) as console:
+        console.print(line)
+        console.line()
+
+        assert output.last_printed_is(line)

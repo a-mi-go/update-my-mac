@@ -103,7 +103,7 @@ def _confirm(item):
         name, was = item.app.display_name, item.app.version
         now = installed_apps.read_version(item.app.path)
         if now not in ("", installed_apps.UNKNOWN_VERSION, was):
-            return True, (f"{name}: updated {was} → {now}", "green")
-        return False, (f"{name}: the command finished, but the app is still {was}", "yellow")
+            return True, (f"{name} - updated {was} → {now}", "green")
+        return False, (f"{name} - the command finished, but the app is still {was}", "yellow")
 
     return confirm

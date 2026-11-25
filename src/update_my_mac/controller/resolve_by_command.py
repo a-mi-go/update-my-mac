@@ -103,8 +103,11 @@ def _run_one(fix, option, step):
     """Runs one way of dealing with it. Returns whether that dealt with it."""
     exit_code = run_command(option.command)
     if exit_code != 0:
-        step.print_indented(f"That {describe_exit(exit_code)}.", style="yellow")
+        step.print_indented(f"{fix.label} - ", (f"That {describe_exit(exit_code)}.", "yellow"))
         return False
     worked, result = fix.confirm(option.command) if fix.confirm else (True, None)
-    step.print_indented(result or (f"{fix.label}: {option.done}", "green"))
+    if result:
+        step.print_indented(result)
+    else:
+        step.print_indented(f"{fix.label} - ", (option.done, "green"))
     return worked and option.settles

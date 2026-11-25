@@ -69,6 +69,8 @@ def _run_interactive():
         above=report.Report(findings),
         updates=updates,
     )
+    if updates.is_leaving_without_updating():
+        return 1 if result.failed else _exit_code(findings.reports, findings.managers_behind)
 
     reports = updates.reports()
     if resolved:
@@ -207,6 +209,7 @@ class _Updates:
         self._reports = reports
         self._out_of_date = False
         self._skipping_to_updating = False
+        self._leaving_without_updating = False
 
     def something_changed(self):
         self._out_of_date = True
@@ -226,6 +229,12 @@ class _Updates:
 
     def is_skipping_to_updating(self):
         return self._skipping_to_updating
+
+    def leave_without_updating(self):
+        self._leaving_without_updating = True
+
+    def is_leaving_without_updating(self):
+        return self._leaving_without_updating
 
     def what_the_only_manager_updates(self):
         """Returns what to update, as in "Homebrew packages", when only one manager has any, or None otherwise."""

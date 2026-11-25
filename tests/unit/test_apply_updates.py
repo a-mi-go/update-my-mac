@@ -382,7 +382,7 @@ def test_the_multi_select_lists_the_entries_then_update_and_exit_apart():
     assert [choice[1] for choice in choices[:2]] == ["Homebrew (1 package)", "Mac App Store (1 app)"]
     assert choices[2] is apply_updates.arrow_menu.BLANK_LINE
     assert choices[3][1] == "⬆ update"
-    assert choices[4] is None
+    assert choices[4] is apply_updates.arrow_menu.WAVY_LINE
     assert choices[5][1] == f"{apply_updates.prompting.WAY_OUT}exit without updating"
 
 

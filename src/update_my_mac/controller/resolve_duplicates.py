@@ -89,7 +89,7 @@ def _remove_one(copy, step):
     exit_code = _remove(copy)
 
     if exit_code != 0:
-        step.print_indented(f"That {describe_exit(exit_code)}.", style="yellow")
+        step.print_indented(f"{copy.package} - ", (f"That {describe_exit(exit_code)}.", "yellow"))
         return False
     return True
 

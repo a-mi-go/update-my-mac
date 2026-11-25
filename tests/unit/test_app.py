@@ -184,6 +184,22 @@ def test_the_apps_an_update_replaced_get_a_restart_but_not_the_ones_offered_befo
     assert offered == [[after]]
 
 
+def test_leaving_from_the_first_menu_asks_nothing_more(monkeypatch):
+    a_self_update_that(monkeypatch, found=[])
+    asked = []
+
+    def leave(problems, above, updates):
+        updates.leave_without_updating()
+        return 0
+
+    monkeypatch.setattr(app.resolve_issues, "ask_what_to_fix", leave)
+    monkeypatch.setattr(app.apply_updates, "ask_what_to_update", lambda *a, **k: asked.append("updates"))
+    monkeypatch.setattr(app, "_offer_to_restart_what_the_updates_replaced", lambda *a: asked.append("restart"))
+
+    assert app.run_interactive_mode() == 0
+    assert asked == []
+
+
 def test_interactive_mode_offers_the_restart_after_the_updates(monkeypatch):
     a_self_update_that(monkeypatch, found=[])
     order = []

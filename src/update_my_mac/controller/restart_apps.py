@@ -6,12 +6,13 @@ from update_my_mac.checks import app_updaters
 from update_my_mac.controller import walkthrough
 from update_my_mac.system import shell
 from update_my_mac.view import report
-from update_my_mac.view.prompting import Step
+from update_my_mac.view.prompting import Markup, Step
 from update_my_mac.view.sections import NOT_RESTARTED
 
 WAIT_SECONDS = 20
 LOOK_AGAIN_EVERY = 0.5
 
+RESTART_ALL = Markup("restart all [yellow](WARNING: unsaved work can be lost)[/]")
 RESTART_THIS_ONE, LEAVE_IT_RUNNING = "restart", "leave it"
 WALK_CHOICES = (
     (RESTART_THIS_ONE, "restart"),
@@ -56,7 +57,6 @@ def ask_after_the_update(apps, step=None):
     if not apps:
         return []
 
-    step.print_empty_line()
     step.print_separator()
     step.print_indented(NOT_RESTARTED, style="bold")
     for app in apps:
@@ -71,21 +71,16 @@ def ask_what_to_do(apps, step=None):
         return []
 
     return walkthrough.batch_or_walkthrough(
-        step, apps, "restart all (WARNING: unsaved work can be lost)",
+        step, apps, RESTART_ALL,
         lambda step: _restart_all(apps, step),
-        lambda step: walkthrough.decide_for_each(apps, step, WALK_CHOICES, RESTART_THIS_ONE, _restart_one),
+        # Asked at the level of the list, so the results line up with it.
+        lambda _: walkthrough.decide_for_each(apps, step, WALK_CHOICES, RESTART_THIS_ONE, _restart_one),
     )
 
 
 def _restart_all(apps, step):
     per_item = step.inside()
-    restarted = []
-    for app in apps:
-        per_item.print_empty_line()
-        per_item.print_indented(app.display_name, style="bold")
-        if _restart_one(app, per_item.inside()):
-            restarted.append(app)
-    return restarted
+    return [app for app in apps if _restart_one(app, per_item)]
 
 
 def _restart_one(app, step):
@@ -93,5 +88,5 @@ def _restart_one(app, step):
     # Which of the two it is, is the whole point of the line: green for an app
     # that is back on the version on disk, red for one still running the old one.
     color = "green" if done else "red"
-    step.print_indented(message, style=color)
+    step.print_indented(f"{app.display_name} - ", (message, color))
     return done

@@ -21,6 +21,7 @@ STEP = "  "
 # as the edge of the terminal.
 SEPARATOR_WIDTH = 84
 SEPARATOR_CHARACTER = "─"
+SEPARATOR = Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR)
 
 # Leads an option that has no symbol of its own, so all texts start in line.
 BULLET = "• "
@@ -33,6 +34,10 @@ class Stopped(Exception):
 
 class Markup(str):
     """A menu label that carries rich markup, drawn styled instead of escaped."""
+
+
+class SetApart(str):
+    """A menu label that has a line of tildes drawn above it."""
 
 
 def note_after_warning(warning, note):
@@ -177,10 +182,9 @@ class Step:
             (key, arrow_menu.styled(_bulleted(label)) if isinstance(label, Markup) else _bulleted(label))
             for key, label in options
         ]
-        # A line the cursor skips sets the way out apart.
-        way_out = _index_of_way_out(options)
-        if way_out is not None:
-            entries.insert(way_out, None)
+        # The lines are ones the cursor skips.
+        for at, wavy in _lines_above(options):
+            entries.insert(at, arrow_menu.WAVY_LINE if wavy else None)
 
         if above is None:
             picked = arrow_menu.pick_one(question, entries, note)
@@ -213,7 +217,6 @@ class Step:
             return
         self._next_menu_is_apart = False
         if not arrow_menu.runs_on_its_own_screen(_row_count_for(options)):
-            self.print_empty_line()
             self.print_separator()
 
 
@@ -225,10 +228,11 @@ def print_unwrapped(renderable, **options):
 
 
 def print_separator():
-    """Draws the line that sets a new menu apart from what came before."""
-    print_unwrapped(
-        Rule(characters=SEPARATOR_CHARACTER, style=arrow_menu.SEPARATOR_COLOR), width=SEPARATOR_WIDTH
-    )
+    """Draws an empty line and the line that sets a new menu apart, unless that line is the last thing printed."""
+    if output.last_printed_is(SEPARATOR):
+        return
+    print_unwrapped("")
+    print_unwrapped(SEPARATOR, width=SEPARATOR_WIDTH)
 
 
 def interrupted(print_line):
@@ -260,10 +264,18 @@ def read_answer(prompt):
 def _row_count_for(options):
     """Returns how many terminal rows the options take, as the arrow menu would draw them."""
     texts = [_plain(_bulleted(label)) for _, label in options]
+    for at, _ in _lines_above(options):
+        texts.insert(at, "")
+    return arrow_menu.rows_of_options(texts)
+
+
+def _lines_above(options):
+    """Returns (index of the option below, whether the line is tildes) for each line that sets options apart, last first."""
+    lines = [(at, True) for at, (_, label) in enumerate(options) if isinstance(label, SetApart)]
     way_out = _index_of_way_out(options)
     if way_out is not None:
-        texts.insert(way_out, "")
-    return arrow_menu.rows_of_options(texts)
+        lines.append((way_out, False))
+    return sorted(lines, reverse=True)
 
 
 def _index_of_way_out(options):

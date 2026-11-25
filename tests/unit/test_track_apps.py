@@ -339,6 +339,24 @@ def test_all_of_them_at_once_skips_the_ones_without_a_recipe(tmp_path):
     assert len(dealt_with) == 1
 
 
+def test_all_of_them_at_once_names_each_app_before_homebrew_writes_about_it(tmp_path):
+    terminal = Terminal(ADOPT_ALL)
+
+    def adopt(app):
+        terminal.lines.append(f"brew output for {app.file_stem}")
+        return True, "done"
+
+    swap(track_apps.adopting, "take_over_with_homebrew", lambda app, cask, status=None, adopt=adopt: adopt(app))
+    track_apps.ask_what_to_do(
+        [app("BetterDisplay"), app("Mounty")], decisions_in(tmp_path), terminal.step,
+        find_cask=cask_for({"BetterDisplay": cask(), "Mounty": cask()}),
+    )
+
+    lines = [line.strip() for line in terminal.lines]
+    assert lines.index("BetterDisplay") < lines.index("brew output for BetterDisplay")
+    assert lines.index("Mounty") < lines.index("brew output for Mounty")
+
+
 def test_the_menu_counts_how_many_homebrew_could_take(tmp_path):
     terminal = Terminal("3")
 
@@ -422,6 +440,15 @@ def test_an_app_that_will_not_start_says_so(tmp_path):
     track_apps.ask_what_to_do([sparkle_app()], decisions_in(tmp_path), terminal.step)
 
     assert "would not start" in terminal.text
+
+
+def test_a_result_names_the_app_it_is_about(tmp_path):
+    terminal = Terminal(START_IT, LATER)
+
+    swap(track_apps.shell, "open_application", lambda path: True)
+    track_apps.ask_what_to_do([sparkle_app(), app("Evoto")], decisions_in(tmp_path), terminal.step)
+
+    assert any(line.strip().startswith("Dockish - Started it.") for line in terminal.lines)
 
 
 def test_an_app_without_a_known_updater_can_still_be_opened_to_check_for_updates(tmp_path):
@@ -530,7 +557,7 @@ def test_homebrew_takes_an_app_over_with_a_status_and_a_warning_before_stopping(
     swap(track_apps.adopting, "take_over_with_homebrew", hand_over)
     before = signal.getsignal(signal.SIGINT)
 
-    assert track_apps._take_over_with_homebrew(object(), object(), Terminal().step)
+    assert track_apps._take_over_with_homebrew(app("Thing"), object(), Terminal().step)
 
     status, handler = seen[0]
     assert status is not None

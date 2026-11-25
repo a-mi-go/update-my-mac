@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 
@@ -289,16 +290,49 @@ def _make_stdin_the_controlling_terminal():
 
 
 def _switch_to_unbuffered_keys():
-    """Switches the keyboard to key-by-key without echo. Returns the settings from before, or None without a terminal."""
+    """Makes each key reach this run at once instead of a line at a time, and stops the terminal from showing it.
+
+    Returns the settings from before, or None without a terminal or in the background.
+    """
     import termios
     import tty
 
-    if not os.isatty(KEYBOARD):
+    if not os.isatty(KEYBOARD) or not _has_the_keyboard():
         return None
     settings_before = termios.tcgetattr(KEYBOARD)
     # Ctrl-C still reaches this run rather than being passed on.
     tty.setcbreak(KEYBOARD, termios.TCSANOW)
     return settings_before
+
+
+def _has_the_keyboard():
+    """Returns whether the terminal passes what is typed to this run, which it does not for a run in the background."""
+    try:
+        return os.tcgetpgrp(KEYBOARD) == os.getpgrp()
+    except OSError:
+        return False
+
+
+@contextmanager
+def keys_ignored():
+    """Hides what is typed while the block runs."""
+    import termios
+
+    settings_before = _switch_to_unbuffered_keys()
+    try:
+        yield
+    finally:
+        # Sent to the background with Ctrl-Z and bg, the run has left the keyboard to the shell.
+        if settings_before and _has_the_keyboard():
+            termios.tcsetattr(KEYBOARD, termios.TCSANOW, settings_before)
+
+
+def forget_what_was_typed_ahead():
+    """Throws away the keys typed so far, when the keyboard is this run's."""
+    import termios
+
+    if _has_the_keyboard():
+        termios.tcflush(KEYBOARD, termios.TCIFLUSH)
 
 
 def _copy_window_size(source, target):
