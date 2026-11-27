@@ -53,3 +53,45 @@ def test_an_answer_that_is_not_json_means_nothing_is_known():
     use_shell(Homebrew("not json"))
 
     assert brew.versions_homebrew_would_install() == {}
+
+
+def test_the_installed_taps_are_the_dicts_homebrew_describes():
+    use_shell(Homebrew(json.dumps([{"name": "homebrew/core", "formula_names": ["git"]}, "stray"])))
+
+    assert brew.installed_taps() == [{"name": "homebrew/core", "formula_names": ["git"]}]
+
+
+def test_an_answer_about_taps_that_is_not_a_list_means_no_taps():
+    use_shell(Homebrew(json.dumps({"name": "homebrew/core"})))
+
+    assert brew.installed_taps() == []
+
+
+def test_formulae_are_looked_up_in_homebrew_core_by_their_full_name():
+    homebrew = Homebrew(json.dumps({"formulae": []}))
+
+    use_shell(homebrew)
+    brew.describe_in_core({"sst", "opencode"}, None)
+
+    assert homebrew.asked == [["/fake/brew", "info", "--json=v2", "homebrew/core/opencode", "homebrew/core/sst"]]
+
+
+def test_nothing_is_asked_when_there_are_no_names():
+    homebrew = Homebrew("{}")
+
+    use_shell(homebrew)
+
+    assert brew.describe_in_core(set()) == {}
+    assert homebrew.asked == []
+
+
+def test_a_name_loses_its_tap_but_an_npm_scope_is_kept():
+    assert brew.without_tap("anomalyco/tap/opencode") == "opencode"
+    assert brew.without_tap("@scope/pkg") == "@scope/pkg"
+    assert brew.without_tap("git") == "git"
+
+
+def test_the_names_on_an_outdated_list_are_given_without_their_taps():
+    lines = ["anomalyco/tap/opencode  1.19.6 → 1.19.7", "git  2.48.1 → 2.49.0"]
+
+    assert brew.reported_names(lines) == {"opencode", "git"}

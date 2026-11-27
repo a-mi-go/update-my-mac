@@ -75,7 +75,7 @@ class Homebrew(PackageManager):
             return report, _UpgradePlan(self.upgrade_args, [])
         names = {package_name(line) for line in report.outdated_packages}
         missing = flagged.casks_missing_their_app(brew.describe_packages(names, self.environment()))
-        greedy = apps_needing_a_greedy_upgrade(names)
+        greedy = apps_needing_a_greedy_upgrade(brew.reported_names(report.outdated_packages))
         kept = [line for line in report.outdated_packages if package_name(line) not in missing]
         lines = [f"{item.cask.token}  {item.version_change()}" for item in greedy]
         shown = dataclasses.replace(report, outdated_packages=[*kept, *lines])

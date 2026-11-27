@@ -612,3 +612,57 @@ def test_only_one_manager_with_updates_is_named_with_what_it_counts():
     assert app._Updates([brew, empty]).what_the_only_manager_updates() == "Homebrew packages"
     assert app._Updates([mas]).what_the_only_manager_updates() == "Mac App Store app"
     assert app._Updates([brew, mas]).what_the_only_manager_updates() is None
+
+
+def test_a_formula_with_a_later_major_in_its_tap_and_in_core_is_reported_once(monkeypatch):
+    from update_my_mac.managers.homebrew import flagged
+
+    installed = {"formulae": [{
+        "name": "opencode", "full_name": "anomalyco/tap/opencode", "tap": "anomalyco/tap",
+        "versions": {"stable": "1.19.6"}, "installed": [{"version": "1.19.6"}],
+    }]}
+    taps = [
+        {"name": "anomalyco/tap", "formula_names": ["anomalyco/tap/opencode", "anomalyco/tap/opencode-v2"]},
+        {"name": "homebrew/core", "formula_names": ["opencode"]},
+    ]
+    in_core = {"formulae": [{"name": "opencode", "versions": {"stable": "2.4.1"}}]}
+    monkeypatch.setattr(app.brew, "installed_packages", lambda env=None: installed)
+    monkeypatch.setattr(app.brew, "installed_taps", lambda: taps)
+    monkeypatch.setattr(app.brew, "describe_in_core", lambda names, env=None: in_core if names else {})
+
+    (found,) = app._flagged_by_homebrew([])
+
+    assert (found.name, found.kind) == ("anomalyco/tap/opencode", flagged.SUCCESSOR)
+
+
+def test_a_deprecated_formula_with_a_later_major_in_its_tap_is_offered_the_switch_instead(monkeypatch):
+    from update_my_mac.managers.homebrew import flagged
+
+    installed = {"formulae": [{
+        "name": "opencode", "full_name": "anomalyco/tap/opencode", "tap": "anomalyco/tap", "deprecated": True,
+        "versions": {"stable": "1.19.6"}, "installed": [{"version": "1.19.6"}],
+    }]}
+    taps = [{"name": "anomalyco/tap", "formula_names": ["anomalyco/tap/opencode", "anomalyco/tap/opencode-v2"]}]
+    monkeypatch.setattr(app.brew, "installed_packages", lambda env=None: installed)
+    monkeypatch.setattr(app.brew, "installed_taps", lambda: taps)
+    monkeypatch.setattr(app.brew, "describe_in_core", lambda names, env=None: {})
+
+    (found,) = app._flagged_by_homebrew([])
+
+    assert found.kind == flagged.SUCCESSOR
+
+
+def test_a_tap_formula_on_the_outdated_list_under_its_full_name_is_not_flagged_again(monkeypatch):
+    from update_my_mac.managers import ManagerReport
+
+    installed = {"formulae": [{
+        "name": "opencode", "full_name": "anomalyco/tap/opencode", "tap": "anomalyco/tap",
+        "versions": {"stable": "1.19.7"}, "installed": [{"version": "1.19.6"}], "outdated": True,
+    }]}
+    taps = [{"name": "anomalyco/tap", "formula_names": ["anomalyco/tap/opencode", "anomalyco/tap/opencode-v2"]}]
+    monkeypatch.setattr(app.brew, "installed_packages", lambda env=None: installed)
+    monkeypatch.setattr(app.brew, "installed_taps", lambda: taps)
+    monkeypatch.setattr(app.brew, "describe_in_core", lambda names, env=None: {})
+    reports = [ManagerReport("brew", "Homebrew", ["anomalyco/tap/opencode  1.19.6 → 1.19.7"])]
+
+    assert app._flagged_by_homebrew(reports) == []

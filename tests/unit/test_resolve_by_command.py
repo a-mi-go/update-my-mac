@@ -211,3 +211,112 @@ def test_opening_an_app_says_so_but_leaves_it_waiting():
     assert done == []
     assert "Foo 1.0 → 2.0: opened" in terminal.text
     assert "open Foo and update it manually" in terminal.text
+
+
+class FailingAt(Runner):
+    """Fails each command that starts with one of the given (program, subcommand) pairs."""
+
+    def __init__(self, *failing):
+        super().__init__()
+        self.failing = set(failing)
+
+    def __call__(self, command):
+        self.ran.append(command)
+        return 1 if tuple(command[:2]) in self.failing else 0
+
+
+UNLINK, INSTALL, UNINSTALL, LINK = (
+    ("brew", "unlink", "opencode"), ("brew", "install", "opencode-v2"),
+    ("brew", "uninstall", "opencode"), ("brew", "link", "opencode"),
+)
+
+
+def switching(only_one_by_one=False):
+    return Fix("opencode", "", Option("", UNLINK, "switched", then=(INSTALL, UNINSTALL), undo=LINK),
+               only_one_by_one=only_one_by_one)
+
+
+def test_the_commands_of_a_switch_run_in_order_when_each_works():
+    runner = Runner()
+
+    swap(resolve_by_command, "run_command", runner)
+    done = resolve_by_command.ask_what_to_do([switching()], Terminal(RUN).step)
+
+    assert len(done) == 1
+    assert runner.ran == [UNLINK, INSTALL, UNINSTALL]
+
+
+def test_nothing_after_a_failed_first_command_runs():
+    runner = FailingAt(("brew", "unlink"))
+    terminal = Terminal(RUN)
+
+    swap(resolve_by_command, "run_command", runner)
+    done = resolve_by_command.ask_what_to_do([switching()], terminal.step)
+
+    assert done == []
+    assert runner.ran == [UNLINK]
+    assert "That exited with 1." in terminal.text
+
+
+def test_a_failed_install_after_the_unlink_links_the_old_formula_back():
+    runner = FailingAt(("brew", "install"))
+    terminal = Terminal(RUN)
+
+    swap(resolve_by_command, "run_command", runner)
+    done = resolve_by_command.ask_what_to_do([switching()], terminal.step)
+
+    assert done == []
+    assert runner.ran == [UNLINK, INSTALL, LINK]
+    assert "brew install opencode-v2 exited with 1; ran brew link opencode to put things back" in terminal.text
+
+
+def test_an_undo_that_fails_as_well_is_left_to_run_by_hand():
+    terminal = Terminal(RUN)
+
+    swap(resolve_by_command, "run_command", FailingAt(("brew", "install"), ("brew", "link")))
+    resolve_by_command.ask_what_to_do([switching()], terminal.step)
+
+    assert "and brew link opencode exited with 1: run it yourself" in terminal.text
+
+
+def test_a_failure_after_the_install_worked_is_not_undone_and_says_what_already_ran():
+    runner = FailingAt(("brew", "uninstall"))
+    terminal = Terminal(RUN)
+
+    swap(resolve_by_command, "run_command", runner)
+    done = resolve_by_command.ask_what_to_do([switching()], terminal.step)
+
+    assert done == []
+    assert runner.ran == [UNLINK, INSTALL, UNINSTALL]
+    assert ("brew uninstall opencode exited with 1, after brew unlink opencode && brew install opencode-v2 "
+            "already ran") in terminal.text
+
+
+def test_all_commands_of_a_switch_are_shown_as_one_line():
+    assert switching().main.text == "brew unlink opencode && brew install opencode-v2 && brew uninstall opencode"
+
+
+def test_putting_all_right_at_once_leaves_out_what_only_runs_one_by_one():
+    runner = Runner()
+    terminal = Terminal(FIX_ALL)
+    left = [FIXES[0], switching(only_one_by_one=True)]
+
+    swap(resolve_by_command, "run_command", runner)
+    done = resolve_by_command.ask_what_to_do(left, terminal.step)
+
+    assert done == [FIXES[0]]
+    assert runner.ran == [FIXES[0].main.command]
+    assert "put 1 of 2 right, the rest only one by one" in terminal.text
+    assert "Left to choose one at a time, in the menu now or on the next run: opencode" in terminal.text
+
+
+def test_with_only_fixes_that_run_one_by_one_there_is_no_all_at_once():
+    runner = Runner()
+    terminal = Terminal(LATER, LATER)
+
+    swap(resolve_by_command, "run_command", runner)
+    resolve_by_command.ask_what_to_do(
+        [switching(only_one_by_one=True), switching(only_one_by_one=True)], terminal.step)
+
+    assert "put all" not in terminal.text
+    assert runner.ran == []

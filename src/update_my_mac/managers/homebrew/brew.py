@@ -3,12 +3,25 @@
 import json
 from pathlib import Path
 
-from update_my_mac.managers.manager import nonblank_lines
+from update_my_mac.managers.manager import nonblank_lines, package_name
 from update_my_mac.system import shell
 
+CORE_TAP = "homebrew/core"
 
-def untrusted_taps():
-    """Returns the taps Homebrew will not read from until they are trusted."""
+
+def without_tap(name):
+    """Returns the package's name without the tap that qualifies it."""
+    # A single slash is an npm scope such as @scope/pkg, not a tap.
+    return name.rsplit("/", 1)[-1] if name.count("/") >= 2 else name
+
+
+def reported_names(outdated_lines):
+    """Returns the packages an outdated list names, without their taps."""
+    return {without_tap(package_name(line)) for line in outdated_lines}
+
+
+def installed_taps():
+    """Returns Homebrew's description of every tap that is installed, with the formulae each holds."""
     executable = shell.find_executable("brew")
     if executable is None:
         return []
@@ -21,11 +34,12 @@ def untrusted_taps():
         taps = json.loads(result.stdout)
     except ValueError:
         return []
-    return [
-        tap["name"]
-        for tap in taps
-        if isinstance(tap, dict) and tap.get("trusted") is False and tap.get("name")
-    ]
+    return [tap for tap in taps if isinstance(tap, dict)] if isinstance(taps, list) else []
+
+
+def untrusted_taps():
+    """Returns the taps Homebrew will not read from until they are trusted."""
+    return [tap["name"] for tap in installed_taps() if tap.get("trusted") is False and tap.get("name")]
 
 
 def recorded_cask_versions():
@@ -142,6 +156,11 @@ def installed_packages(env=None):
 def describe_packages(names, env=None):
     """Returns Homebrew's own description of these packages, as one parsed answer."""
     return _brew_info(sorted(names), env) if names else {}
+
+
+def describe_in_core(names, env=None):
+    """Returns Homebrew's own description of these formulae as homebrew/core has them, as one parsed answer."""
+    return _brew_info([f"{CORE_TAP}/{name}" for name in sorted(names)], env) if names else {}
 
 
 def _brew_info(selection, env):

@@ -154,3 +154,35 @@ def test_an_attached_download_is_detached_and_named_without_its_hash():
 
     assert fix.label == "charles-proxy-5.2.2.dmg"
     assert fix.main.command == ("hdiutil", "detach", "-force", "/dev/disk8")
+
+
+def test_a_later_major_version_under_another_name_is_installed_before_the_old_formula_goes():
+    fix = homebrew_fixes.fix_for_flagged(flagged.Flagged(
+        "anomalyco/tap/opencode", flagged.SUCCESSOR, installed="1.19.6",
+        reason="a later major version is the formula opencode-v2", switch_to="anomalyco/tap/opencode-v2",
+    ))
+
+    assert fix.label == "anomalyco/tap/opencode  1.19.6 → opencode-v2"
+    assert fix.note == "a later major version is the formula opencode-v2"
+    assert fix.main.commands == (
+        ("brew", "unlink", "anomalyco/tap/opencode"),
+        ("brew", "install", "anomalyco/tap/opencode-v2"),
+        ("brew", "uninstall", "anomalyco/tap/opencode"),
+    )
+    assert fix.main.undo == ("brew", "link", "anomalyco/tap/opencode")
+    assert fix.only_one_by_one
+
+
+def test_a_later_major_version_in_homebrew_core_replaces_the_tap_formula_and_reinstalls_it_on_failure():
+    fix = homebrew_fixes.fix_for_flagged(flagged.Flagged(
+        "anomalyco/tap/opencode", flagged.NEWER_IN_CORE, installed="1.19.6", available="2.4.1",
+        switch_to="homebrew/core/opencode",
+    ))
+
+    assert fix.label == "anomalyco/tap/opencode  1.19.6 → 2.4.1"
+    assert fix.main.commands == (
+        ("brew", "uninstall", "anomalyco/tap/opencode"),
+        ("brew", "install", "homebrew/core/opencode"),
+    )
+    assert fix.main.undo == ("brew", "install", "anomalyco/tap/opencode")
+    assert fix.only_one_by_one
