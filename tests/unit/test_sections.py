@@ -362,3 +362,19 @@ def test_the_report_names_an_app_by_what_it_calls_itself(monkeypatch):
     names = [row.name for findings in each_group for section in sections.of(findings) for row in section.rows]
 
     assert names == ["iTerm2", "iTerm2", "iTerm2"]
+
+
+def test_a_switch_to_a_later_major_version_names_where_it_goes():
+    from update_my_mac.managers.homebrew import flagged
+
+    found = sections.of(Findings(flagged=[
+        flagged.Flagged("anomalyco/tap/opencode", flagged.SUCCESSOR, installed="1.19.6",
+                        switch_to="anomalyco/tap/opencode-v2"),
+        flagged.Flagged("tap/sst", flagged.NEWER_IN_CORE, installed="1.0", available="2.0",
+                        switch_to="homebrew/core/sst"),
+    ]))
+
+    assert [row.cells() for row in find(FIX, found).rows] == [
+        ("anomalyco/tap/opencode", "1.19.6", "continues as opencode-v2"),
+        ("tap/sst", "1.0 → 2.0", "later major version in homebrew/core"),
+    ]

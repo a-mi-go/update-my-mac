@@ -32,7 +32,6 @@ from update_my_mac.managers.homebrew import (
     flagged,
     mounted_downloads,
 )
-from update_my_mac.managers.manager import package_name
 from update_my_mac.view import output, report, sections
 
 
@@ -175,15 +174,29 @@ def _behind_the_recipe(reports):
 
 
 def _names_homebrew_reported(reports):
-    """Returns the names on Homebrew's own outdated list."""
+    """Returns the names on Homebrew's own outdated list, without their taps."""
     brew_report = next((r for r in reports if r.manager == "brew"), None)
-    return {package_name(line) for line in (brew_report.outdated_packages if brew_report else [])}
+    return brew.reported_names(brew_report.outdated_packages if brew_report else [])
 
 
 def _flagged_by_homebrew(reports):
     """Returns what Homebrew flagged that its outdated list does not already name."""
-    installed = brew.installed_packages(managers.by_key("brew").environment())
-    return flagged.find(installed, _names_homebrew_reported(reports))
+    environment = managers.by_key("brew").environment()
+    installed = brew.installed_packages(environment)
+    taps = brew.installed_taps()
+    reported = _names_homebrew_reported(reports)
+
+    switches = flagged.successors_in_tap(installed, taps, reported)
+    in_core = brew.describe_in_core(flagged.names_also_in_core(installed, taps), environment)
+    switches += flagged.newer_in_core(installed, in_core, reported | _bare_names(switches))
+    # A switch to a later major version also settles whatever else is flagged about that formula.
+    switching = _bare_names(switches)
+    kept = [item for item in flagged.find(installed, reported) if _bare_names([item]).isdisjoint(switching)]
+    return kept + switches
+
+
+def _bare_names(items):
+    return {brew.without_tap(item.name) for item in items}
 
 
 def _exit_code(reports, managers_behind=()):

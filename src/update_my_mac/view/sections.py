@@ -8,7 +8,7 @@ how loud it is says what happens if you do nothing.
 from dataclasses import dataclass
 
 from update_my_mac.checks import app_updaters, appcast, to_sort_out, versions
-from update_my_mac.managers.homebrew import flagged, mounted_downloads
+from update_my_mac.managers.homebrew import brew, flagged, mounted_downloads
 
 # Critical: a crooked state that should be taken care of, such as Homebrew
 #   holding a version it never installed, a feed that has stopped answering,
@@ -153,16 +153,12 @@ def _homebrew_outdated(findings):
 def _package_rows(packages):
     """Returns a manager's "name  1.2.3 → 1.2.4" lines as rows, shortened where that loses nothing."""
     split = [package.partition("  ") for package in packages]
-    short = [_short_name(name) for name, _, _ in split]
+    short = [brew.without_tap(name) for name, _, _ in split]
     return [
         # A short name two packages share would hide which one is meant.
         Row(brief if short.count(brief) == 1 else name, _shortened(versions.change_without_builds(change)))
         for (name, _, change), brief in zip(split, short)
     ]
-
-
-def _short_name(name):
-    return name.rsplit("/", 1)[-1] if name.count("/") >= 2 else name
 
 
 def _shortened(change):
@@ -256,10 +252,13 @@ def _row_for_homebrew_trouble(item):
 HELD_AGAINST = {
     flagged.DIFFERS: "differs from the recipe",
     flagged.APP_MISSING: "app deleted, still recorded",
+    flagged.NEWER_IN_CORE: f"later major version in {brew.CORE_TAP}",
 }
 
 
 def _what_homebrew_holds_against(item):
+    if item.kind == flagged.SUCCESSOR:
+        return f"continues as {brew.without_tap(item.switch_to)}"
     if item.kind in HELD_AGAINST:
         return HELD_AGAINST[item.kind]
     return f"disabled, {item.reason}" if item.reason else "disabled"

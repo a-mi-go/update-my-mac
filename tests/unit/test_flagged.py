@@ -10,7 +10,7 @@ from update_my_mac.system.shell import CommandResult
 
 def formula(name, installed, stable, **more):
     return {
-        "name": name, "full_name": f"tap/{name}", "versions": {"stable": stable},
+        "name": name, "full_name": f"user/tap/{name}", "versions": {"stable": stable},
         "installed": [{"version": version} for version in installed], **more,
     }
 
@@ -19,7 +19,7 @@ def test_a_new_version_scheme_is_flagged_though_homebrew_calls_it_current():
     # Build 64 reads as newer than 3.4.1, so `brew outdated` stays silent.
     found = flagged.find({"formulae": [formula("clerk", ["64"], "3.4.1")]})
 
-    assert [(item.name, item.kind) for item in found] == [("tap/clerk", flagged.DIFFERS)]
+    assert [(item.name, item.kind) for item in found] == [("user/tap/clerk", flagged.DIFFERS)]
     assert (found[0].installed, found[0].available) == ("64", "3.4.1")
 
 
@@ -158,3 +158,111 @@ def test_the_casks_among_the_described_packages_whose_app_is_missing_are_named_b
     missing = flagged.casks_missing_their_app(described)
 
     assert missing == {"charles"}
+
+
+def third_party(name, installed, stable, tap="anomalyco/tap", **more):
+    return {**formula(name, [installed], stable, **more), "tap": tap, "full_name": f"{tap}/{name}"}
+
+
+TAP = {"name": "anomalyco/tap", "formula_names": [
+    "anomalyco/tap/opencode", "anomalyco/tap/opencode-v2", "anomalyco/tap/sst",
+]}
+
+
+def test_a_later_major_version_under_a_new_name_in_the_same_tap_is_flagged():
+    installed = {"formulae": [third_party("opencode", "1.19.6", "1.19.6")]}
+
+    (found,) = flagged.successors_in_tap(installed, [TAP])
+
+    assert (found.name, found.kind, found.installed) == ("anomalyco/tap/opencode", flagged.SUCCESSOR, "1.19.6")
+    assert found.switch_to == "anomalyco/tap/opencode-v2"
+    assert found.reason == "a later major version is the formula opencode-v2"
+
+
+def test_the_latest_of_several_later_majors_is_the_one_offered():
+    tap = {"name": "clerk/stable", "formula_names": [
+        "clerk/stable/clerk", "clerk/stable/clerk@2", "clerk/stable/clerk@4", "clerk/stable/clerk@3",
+    ]}
+    installed = {"formulae": [third_party("clerk", "1.0.0", "1.0.0", tap="clerk/stable")]}
+
+    (found,) = flagged.successors_in_tap(installed, [tap])
+
+    assert found.switch_to == "clerk/stable/clerk@4"
+
+
+def test_a_versioned_name_that_is_not_later_is_no_successor():
+    tap = {"name": "clerk/stable", "formula_names": ["clerk/stable/clerk", "clerk/stable/clerk@3"]}
+    installed = {"formulae": [third_party("clerk", "3.4.1", "3.4.1", tap="clerk/stable")]}
+
+    assert flagged.successors_in_tap(installed, [tap]) == []
+
+
+def test_a_formula_already_on_a_versioned_name_is_left_on_that_line():
+    tap = {"name": "clerk/stable", "formula_names": ["clerk/stable/clerk@2", "clerk/stable/clerk@3"]}
+    installed = {"formulae": [third_party("clerk@2", "2.1.0", "2.1.0", tap="clerk/stable")]}
+
+    assert flagged.successors_in_tap(installed, [tap]) == []
+
+
+def test_a_build_number_is_never_taken_for_a_major_with_a_successor():
+    installed = {"formulae": [third_party("opencode", "64", "64")]}
+
+    assert flagged.successors_in_tap(installed, [TAP]) == []
+
+
+def test_homebrew_core_formulae_have_no_successor_looked_for():
+    core = {"name": "homebrew/core", "formula_names": ["python@3.12", "python@3.13"]}
+    installed = {"formulae": [third_party("python", "3.12.1", "3.12.1", tap="homebrew/core")]}
+
+    assert flagged.successors_in_tap(installed, [core]) == []
+
+
+def test_a_successor_for_a_name_the_outdated_list_gave_is_not_said_twice():
+    installed = {"formulae": [third_party("opencode", "1.19.6", "1.19.6")]}
+
+    assert flagged.successors_in_tap(installed, [TAP], already_reported={"opencode"}) == []
+
+
+CORE = {"name": "homebrew/core", "formula_names": ["git", "opencode"]}
+
+
+def test_only_third_party_formulae_homebrew_core_has_as_well_are_looked_up_there():
+    installed = {"formulae": [
+        third_party("opencode", "1.19.6", "1.19.6"),
+        third_party("sst", "3.0.0", "3.0.0"),
+        third_party("git", "2.49.0", "2.49.0", tap="homebrew/core"),
+    ]}
+
+    assert flagged.names_also_in_core(installed, [TAP, CORE]) == {"opencode"}
+
+
+def test_a_later_version_in_homebrew_core_is_flagged_with_the_formula_to_switch_to():
+    installed = {"formulae": [third_party("opencode", "1.19.6", "1.19.6")]}
+    in_core = {"formulae": [formula("opencode", [], "2.4.1")]}
+
+    (found,) = flagged.newer_in_core(installed, in_core)
+
+    assert (found.name, found.kind, found.installed, found.available) == (
+        "anomalyco/tap/opencode", flagged.NEWER_IN_CORE, "1.19.6", "2.4.1")
+    assert found.switch_to == "homebrew/core/opencode"
+
+
+def test_an_older_or_equal_version_in_homebrew_core_is_not_flagged():
+    installed = {"formulae": [third_party("opencode", "2.4.1", "2.4.1")]}
+
+    assert flagged.newer_in_core(installed, {"formulae": [formula("opencode", [], "2.4.1")]}) == []
+    assert flagged.newer_in_core(installed, {"formulae": [formula("opencode", [], "1.19.6")]}) == []
+
+
+def test_a_later_version_of_the_same_major_in_homebrew_core_is_not_flagged():
+    installed = {"formulae": [third_party("opencode", "2.3.2", "2.3.2")]}
+
+    assert flagged.newer_in_core(installed, {"formulae": [formula("opencode", [], "2.4.1")]}) == []
+
+
+def test_a_pinned_formula_is_offered_no_switch():
+    installed = {"formulae": [third_party("opencode", "1.19.6", "1.19.6", pinned=True)]}
+    in_core = {"formulae": [formula("opencode", [], "2.4.1")]}
+
+    assert flagged.successors_in_tap(installed, [TAP]) == []
+    assert flagged.newer_in_core(installed, in_core) == []

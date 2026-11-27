@@ -11,7 +11,7 @@ from pathlib import Path
 
 from update_my_mac.checks import app_updaters, installed_apps
 from update_my_mac.controller.resolve_by_command import Fix, Option
-from update_my_mac.managers.homebrew import flagged
+from update_my_mac.managers.homebrew import brew, flagged
 from update_my_mac.view.sections import STILL_ATTACHED, doubt_about, download_name
 
 FALSE_RECORD_NOTE = (
@@ -38,7 +38,8 @@ def fix_for_image(image):
 
 def fix_for_flagged(item):
     """Returns the fix for a package Homebrew flagged, or None where no command puts it right."""
-    label = f"{item.name}  {item.installed} → {item.available}" if item.available else item.name
+    target = item.available or brew.without_tap(item.switch_to)
+    label = f"{item.name}  {item.installed} → {target}" if target else item.name
     if item.kind == flagged.DIFFERS:
         return Fix(
             label, doubt_about(item),
@@ -52,6 +53,20 @@ def fix_for_flagged(item):
             Option("", ("brew", "uninstall", "--cask", "--force", item.name), "no longer tracked by Homebrew"),
             (Option("", ("brew", "install", "--cask", "--force", item.name), "installed again"),),
         )
+    if item.kind == flagged.SUCCESSOR:
+        # The successor conflicts with the old formula; unlinked, the old one stays to link back if the install fails.
+        return Fix(label, doubt_about(item), Option(
+            "", ("brew", "unlink", item.name), f"switched to {item.switch_to}",
+            then=(("brew", "install", item.switch_to), ("brew", "uninstall", item.name)),
+            undo=("brew", "link", item.name),
+        ), only_one_by_one=True)
+    if item.kind == flagged.NEWER_IN_CORE:
+        # Homebrew refuses two formulae of one name from different taps, so the old one has to go first.
+        return Fix(label, doubt_about(item), Option(
+            "", ("brew", "uninstall", item.name), f"switched to {item.switch_to}",
+            then=(("brew", "install", item.switch_to),),
+            undo=("brew", "install", item.name),
+        ), only_one_by_one=True)
     if item.kind == flagged.DISABLED:
         cask = ("--cask",) if item.is_cask else ()
         return Fix(
